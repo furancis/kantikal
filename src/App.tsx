@@ -28,12 +28,17 @@ import type { SunoProvider } from './api/provider'
 import { apiCoverageEntries, apiCoverageStatusCounts } from './api/coverage'
 import {
   createWorkflow,
+  evaluateLipsync,
+  failedLipsyncChecks,
   openMusicVideoLane,
+  queueLipsyncRepair,
   selectTrack,
   submitGenerationBatch,
   toReleasePack,
   type BriefInput,
   type GeneratedTrack,
+  type LipsyncCheckName,
+  type LipsyncChecks,
   type ReleasePack,
   type SunoWorkflow,
 } from './domain/workflow'
@@ -79,6 +84,46 @@ const statusLabel: Record<NodeStatus, string> = {
   ready: 'Ready',
 }
 
+const lipsyncCheckOrder: LipsyncCheckName[] = [
+  'phoneme',
+  'frame',
+  'mouthShape',
+  'segmentDrift',
+  'postStitch',
+]
+
+const lipsyncCheckLabels: Record<LipsyncCheckName, string> = {
+  phoneme: 'Phoneme lock',
+  frame: 'Frame timing',
+  mouthShape: 'Mouth shape',
+  segmentDrift: 'Segment drift',
+  postStitch: 'Post-stitch sync',
+}
+
+const lipsyncRepairLabels: Record<LipsyncCheckName, string> = {
+  phoneme: 'phoneme',
+  frame: 'frame',
+  mouthShape: 'mouth shape',
+  segmentDrift: 'segment drift',
+  postStitch: 'post-stitch',
+}
+
+const firstPassLipsyncChecks: LipsyncChecks = {
+  phoneme: true,
+  frame: true,
+  mouthShape: true,
+  segmentDrift: false,
+  postStitch: false,
+}
+
+const passingLipsyncChecks: LipsyncChecks = {
+  phoneme: true,
+  frame: true,
+  mouthShape: true,
+  segmentDrift: true,
+  postStitch: true,
+}
+
 const iconByKind: Record<NodeKind, ComponentType<{ size?: number }>> = {
   brief: FileText,
   lyrics: Mic2,
@@ -119,6 +164,7 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
   const [selectedId, setSelectedId] = useState('brief')
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
+  const [videoExportError, setVideoExportError] = useState<string | null>(null)
 
   const workflowNodes = useMemo(
     () => buildWorkflowNodes(workflow, releasePack),
@@ -127,12 +173,18 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
   const selected = workflowNodes.find((node) => node.id === selectedId) ?? workflowNodes[0]
   const SelectedIcon = iconByKind[selected.kind]
   const canOpenVideo = Boolean(workflow.selectedTrack)
+  const activeLipsync = workflow.musicVideoLane?.lipsync ?? null
+  const failedVideoChecks = activeLipsync ? failedLipsyncChecks(activeLipsync) : []
+  const lipsyncReadyCount = activeLipsync ? lipsyncCheckOrder.length - failedVideoChecks.length : 0
+  const lipsyncReadinessPercent = Math.round((lipsyncReadyCount / lipsyncCheckOrder.length) * 100)
+  const videoExportReady = workflow.musicVideoLane?.exportStatus === 'ready'
 
   async function handleGenerate(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault()
     setIsGenerating(true)
     setReleasePack(null)
     setGenerateError(null)
+    setVideoExportError(null)
     try {
       const baseWorkflow = createWorkflow(briefInput)
       const generationBatch = await provider.generateBatch({
@@ -163,6 +215,7 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
       }))
       setReleasePack(null)
       setGenerateError(null)
+      setVideoExportError(null)
       setSelectedId('brief')
     }
   }
@@ -171,6 +224,7 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
     if (node.kind === 'generated' && node.trackId) {
       setWorkflow((current) => selectTrack(current, node.trackId as string))
       setReleasePack(null)
+      setVideoExportError(null)
       setSelectedId('track')
       return
     }
@@ -181,13 +235,46 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
   function handleOpenVideoLane() {
     setWorkflow((current) => openMusicVideoLane(current))
     setReleasePack(null)
+    setVideoExportError(null)
     setSelectedId('video')
   }
 
   function handleCreateReleasePack() {
     const nextReleasePack = toReleasePack(workflow, { includeVideo: false })
     setReleasePack(nextReleasePack)
+    setVideoExportError(null)
     setSelectedId('export')
+  }
+
+  function handleRunLipsyncQa() {
+    setWorkflow((current) => {
+      const hasQueuedRepair =
+        current.musicVideoLane?.repairAttempts.some((attempt) => attempt.status === 'queued') ?? false
+      return evaluateLipsync(current, hasQueuedRepair ? passingLipsyncChecks : firstPassLipsyncChecks)
+    })
+    setReleasePack(null)
+    setVideoExportError(null)
+    setSelectedId('video')
+  }
+
+  function handleQueueLipsyncRepair() {
+    setWorkflow((current) => queueLipsyncRepair(current))
+    setReleasePack(null)
+    setVideoExportError(null)
+    setSelectedId('video')
+  }
+
+  function handleCreateVideoReleasePack() {
+    try {
+      const nextReleasePack = toReleasePack(workflow, { includeVideo: true })
+      setReleasePack(nextReleasePack)
+      setVideoExportError(null)
+      setSelectedId('export')
+    } catch (error) {
+      setReleasePack(null)
+      setVideoExportError(error instanceof Error ? error.message : 'Video release is blocked')
+      setSelectedId('video')
+    }
   }
 
   return (
@@ -354,18 +441,79 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
             <div className="lipsync-gate">
               <h3>Perfect lipsync gate</h3>
               <p>Music video source: {workflow.musicVideoLane.sourceTrackId}</p>
+              <p
+                aria-label="Video export gate state"
+                className={`gate-state ${videoExportReady ? 'ready' : 'blocked'}`}
+              >
+                {videoExportReady ? 'Video export ready' : 'Video export blocked'}
+              </p>
               <p>
                 Video export stays blocked until phoneme, frame, mouth-shape, segment drift, and
                 post-stitch checks all pass hard thresholds.
               </p>
+              <ul className="lipsync-checklist" aria-label="Lipsync QA checks">
+                {lipsyncCheckOrder.map((checkName) => {
+                  const checkResult = activeLipsync?.[checkName]
+                  const resultLabel = checkResult === undefined ? 'Pending' : checkResult ? 'Pass' : 'Repair required'
+                  return (
+                    <li
+                      aria-label={`${lipsyncCheckLabels[checkName]} QA result`}
+                      className={checkResult === undefined ? 'pending' : checkResult ? 'pass' : 'fail'}
+                      key={checkName}
+                    >
+                      <span>{lipsyncCheckLabels[checkName]}</span>
+                      <strong>{resultLabel}</strong>
+                    </li>
+                  )
+                })}
+              </ul>
               <div className="meter" aria-label="Lipsync readiness">
-                <span />
+                <span style={{ width: `${lipsyncReadinessPercent}%` }} />
               </div>
+              <div className="gate-actions">
+                <button type="button" onClick={handleRunLipsyncQa}>
+                  <Gauge size={16} />
+                  Run lipsync QA
+                </button>
+                <button
+                  type="button"
+                  disabled={failedVideoChecks.length === 0}
+                  onClick={handleQueueLipsyncRepair}
+                >
+                  <WandSparkles size={16} />
+                  Queue repair pass
+                </button>
+                <button type="button" onClick={handleCreateVideoReleasePack}>
+                  <Download size={16} />
+                  Create video release pack
+                </button>
+              </div>
+              {videoExportError && (
+                <p className="form-error" role="alert">
+                  {videoExportError}
+                </p>
+              )}
+              {workflow.musicVideoLane.repairAttempts.length > 0 && (
+                <div className="repair-list" aria-label="Lipsync repair attempts">
+                  <h4>Repair loop</h4>
+                  {workflow.musicVideoLane.repairAttempts.map((attempt) => (
+                    <div key={attempt.id}>
+                      <strong>
+                        {attempt.id} {attempt.status}
+                      </strong>
+                      <small>
+                        {attempt.failedChecks.map((checkName) => lipsyncRepairLabels[checkName]).join(', ')}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {selected.kind === 'export' && releasePack && (
             <div className="action-box">
               <strong>Release pack ready for {releasePack.trackId}</strong>
+              <p>{releasePack.includesVideo ? 'Video included' : 'Audio only'}</p>
               <p>Provenance: {releasePack.provenance.join(', ')}</p>
             </div>
           )}
@@ -503,12 +651,17 @@ function buildWorkflowNodes(workflow: SunoWorkflow, releasePack: ReleasePack | n
         kind: 'video',
         title: 'Music video lane',
         summary: workflow.musicVideoLane
-          ? `Storyboard and lipsync QA opened from ${workflow.musicVideoLane.sourceTrackId}`
+          ? `Storyboard and lipsync QA opened from ${workflow.musicVideoLane.sourceTrackId}; video export ${workflow.musicVideoLane.exportStatus}`
           : 'Storyboard and ComfyUI render plan opens only from the selected song.',
-        status: workflow.musicVideoLane ? 'needs-review' : 'draft',
+        status: workflow.musicVideoLane?.exportStatus === 'ready' ? 'ready' : workflow.musicVideoLane ? 'needs-review' : 'draft',
         x: 88,
         y: 35,
-        meta: ['perfect lipsync gate', 'scene cards', 'audio preserved'],
+        meta: [
+          'perfect lipsync gate',
+          'scene cards',
+          'audio preserved',
+          workflow.musicVideoLane?.exportStatus === 'ready' ? 'video export ready' : 'video export blocked',
+        ],
       },
     )
   }
@@ -518,7 +671,7 @@ function buildWorkflowNodes(workflow: SunoWorkflow, releasePack: ReleasePack | n
       id: 'export',
       kind: 'export',
       title: 'Release pack',
-      summary: `Audio, metadata, prompts, and provenance bundle for ${releasePack.trackId}.`,
+      summary: `${releasePack.includesVideo ? 'Audio, video' : 'Audio'}, metadata, prompts, and provenance bundle for ${releasePack.trackId}.`,
       status: 'exported',
       x: 88,
       y: 68,

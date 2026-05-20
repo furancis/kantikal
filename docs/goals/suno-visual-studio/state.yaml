@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T040
+active_task: T050
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -195,7 +195,7 @@ tasks:
   - id: T040
     type: worker
     assignee: Worker
-    status: active
+    status: done
     objective: "Build subordinate Music Video Lane with lipsync QA state, repair loop, and blocked export behavior."
     allowed_files:
       - src/**
@@ -209,11 +209,38 @@ tasks:
       - npm run test:e2e
     stop_if:
       - "T020 is not done."
-    receipt: null
+    receipt:
+      result: done
+      changed_files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: credential literal scan
+          status: pass
+        - cmd: static chat surface wording scan
+          status: pass
+      summary: "Added stateful subordinate Music Video Lane QA: visible pending/pass/repair-required lipsync checks, blocked video export with user-facing error, explicit repair queue, passing rerun that marks repair applied, and video-inclusive release pack creation."
   - id: T050
     type: worker
     assignee: Worker
-    status: queued
+    status: active
     objective: "Add release pack generation, archive-first cleanup, and provenance receipts."
     allowed_files:
       - src/**

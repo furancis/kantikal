@@ -22,18 +22,24 @@ export type GenerationBatch = {
   tracks: GeneratedTrack[]
 }
 
-export type LipsyncChecks = {
-  phoneme: boolean
-  frame: boolean
-  mouthShape: boolean
-  segmentDrift: boolean
-  postStitch: boolean
+const lipsyncCheckNames = ['phoneme', 'frame', 'mouthShape', 'segmentDrift', 'postStitch'] as const
+
+export type LipsyncCheckName = (typeof lipsyncCheckNames)[number]
+
+export type LipsyncChecks = Record<LipsyncCheckName, boolean>
+
+export type LipsyncRepairAttempt = {
+  id: string
+  failedChecks: LipsyncCheckName[]
+  action: string
+  status: 'queued' | 'applied'
 }
 
 export type MusicVideoLane = {
   sourceTrackId: string
   exportStatus: 'blocked' | 'ready'
   lipsync: LipsyncChecks | null
+  repairAttempts: LipsyncRepairAttempt[]
 }
 
 export type SunoWorkflow = BriefInput & {
@@ -106,6 +112,7 @@ export function openMusicVideoLane(workflow: SunoWorkflow): SunoWorkflow {
       sourceTrackId: workflow.selectedTrack.id,
       exportStatus: 'blocked',
       lipsync: null,
+      repairAttempts: [],
     },
   }
 }
@@ -118,7 +125,7 @@ export function evaluateLipsync(
     throw new Error('Lipsync QA requires an open music video lane')
   }
 
-  const exportStatus = Object.values(lipsync).every(Boolean) ? 'ready' : 'blocked'
+  const exportStatus = failedLipsyncChecks(lipsync).length === 0 ? 'ready' : 'blocked'
 
   return {
     ...workflow,
@@ -126,8 +133,50 @@ export function evaluateLipsync(
       ...workflow.musicVideoLane,
       exportStatus,
       lipsync,
+      repairAttempts:
+        exportStatus === 'ready'
+          ? workflow.musicVideoLane.repairAttempts.map((attempt) => ({
+              ...attempt,
+              status: 'applied',
+            }))
+          : workflow.musicVideoLane.repairAttempts,
     },
     provenance: exportStatus === 'ready' ? appendOnce(workflow.provenance, 'lipsync-qa') : workflow.provenance,
+  }
+}
+
+export function failedLipsyncChecks(lipsync: LipsyncChecks): LipsyncCheckName[] {
+  return lipsyncCheckNames.filter((checkName) => !lipsync[checkName])
+}
+
+export function queueLipsyncRepair(workflow: SunoWorkflow): SunoWorkflow {
+  if (!workflow.musicVideoLane) {
+    throw new Error('Lipsync repair requires an open music video lane')
+  }
+  if (!workflow.musicVideoLane.lipsync) {
+    throw new Error('Repair pass requires failed lipsync QA checks')
+  }
+
+  const failedChecks = failedLipsyncChecks(workflow.musicVideoLane.lipsync)
+  if (failedChecks.length === 0) {
+    throw new Error('Repair pass requires failed lipsync checks')
+  }
+
+  const repairAttempt: LipsyncRepairAttempt = {
+    id: `repair-${workflow.musicVideoLane.repairAttempts.length + 1}`,
+    failedChecks,
+    action: `Repair ${failedChecks.join(', ')}`,
+    status: 'queued',
+  }
+
+  return {
+    ...workflow,
+    musicVideoLane: {
+      ...workflow.musicVideoLane,
+      exportStatus: 'blocked',
+      repairAttempts: [...workflow.musicVideoLane.repairAttempts, repairAttempt],
+    },
+    provenance: appendOnce(workflow.provenance, 'lipsync-repair'),
   }
 }
 

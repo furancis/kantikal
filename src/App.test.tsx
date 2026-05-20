@@ -46,11 +46,32 @@ describe('Suno Visual Studio shell', () => {
     await user.click(screen.getByRole('button', { name: /open music video lane/i }))
 
     expect(screen.getByRole('heading', { name: /perfect lipsync gate/i })).toBeInTheDocument()
-    expect(screen.getByText(/segment drift/i)).toBeInTheDocument()
-    expect(screen.getByText(/post-stitch/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/segment drift qa result/i)).toHaveTextContent(/pending/i)
+    expect(screen.getByLabelText(/post-stitch sync qa result/i)).toHaveTextContent(/pending/i)
     expect(screen.getByText(/full suno api parity map/i)).toBeInTheDocument()
     expect(screen.getByText(/archive-first destructive cleanup/i)).toBeInTheDocument()
     expect(screen.getByText(/music video source: mock-track-2/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /create video release pack/i }))
+    expect(screen.getByRole('alert')).toHaveTextContent(/blocked until lipsync qa passes/i)
+
+    await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
+    expect(screen.getByLabelText(/phoneme lock qa result/i)).toHaveTextContent(/pass/i)
+    expect(screen.getByLabelText(/segment drift qa result/i)).toHaveTextContent(/repair required/i)
+    expect(screen.getByLabelText(/post-stitch sync qa result/i)).toHaveTextContent(/repair required/i)
+
+    await user.click(screen.getByRole('button', { name: /queue repair pass/i }))
+    expect(screen.getByText(/repair-1 queued/i)).toBeInTheDocument()
+    expect(screen.getByText(/segment drift, post-stitch/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
+    expect(screen.getByLabelText(/video export gate state/i)).toHaveTextContent(/video export ready/i)
+    expect(screen.getByLabelText(/segment drift qa result/i)).toHaveTextContent(/pass/i)
+    expect(screen.getByText(/repair-1 applied/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /create video release pack/i }))
+    expect(screen.getByRole('heading', { name: /release pack/i })).toBeInTheDocument()
+    expect(screen.getByText(/video included/i)).toBeInTheDocument()
   })
 
   it('surfaces provider failures instead of dropping rejected generation promises', async () => {

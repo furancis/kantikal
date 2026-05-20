@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   createWorkflow,
   evaluateLipsync,
+  failedLipsyncChecks,
   openMusicVideoLane,
+  queueLipsyncRepair,
   selectTrack,
   submitGenerationBatch,
   toReleasePack,
@@ -35,6 +37,7 @@ describe('Suno workflow state machine', () => {
     const withVideo = openMusicVideoLane(withTrack)
     expect(withVideo.musicVideoLane?.sourceTrackId).toBe('song_b')
     expect(withVideo.musicVideoLane?.exportStatus).toBe('blocked')
+    expect(withVideo.musicVideoLane?.repairAttempts).toEqual([])
   })
 
   it('blocks release video export until all lipsync checks pass', () => {
@@ -65,9 +68,20 @@ describe('Suno workflow state machine', () => {
     })
 
     expect(failed.musicVideoLane?.exportStatus).toBe('blocked')
+    expect(failedLipsyncChecks(failed.musicVideoLane!.lipsync!)).toEqual(['segmentDrift'])
     expect(() => toReleasePack(failed, { includeVideo: true })).toThrow(/lipsync/i)
 
-    const passed = evaluateLipsync(failed, {
+    const withRepair = queueLipsyncRepair(failed)
+    expect(withRepair.musicVideoLane?.repairAttempts).toEqual([
+      {
+        id: 'repair-1',
+        failedChecks: ['segmentDrift'],
+        action: 'Repair segmentDrift',
+        status: 'queued',
+      },
+    ])
+
+    const passed = evaluateLipsync(withRepair, {
       phoneme: true,
       frame: true,
       mouthShape: true,
@@ -76,10 +90,48 @@ describe('Suno workflow state machine', () => {
     })
 
     expect(passed.musicVideoLane?.exportStatus).toBe('ready')
+    expect(passed.musicVideoLane?.repairAttempts[0]?.status).toBe('applied')
     expect(toReleasePack(passed, { includeVideo: true })).toMatchObject({
       trackId: 'song_a',
       includesVideo: true,
-      provenance: expect.arrayContaining(['brief', 'generation-batch', 'selected-track', 'lipsync-qa']),
+      provenance: expect.arrayContaining([
+        'brief',
+        'generation-batch',
+        'selected-track',
+        'lipsync-repair',
+        'lipsync-qa',
+      ]),
     })
+  })
+
+  it('does not queue a repair pass without failed lipsync checks', () => {
+    const workflow = evaluateLipsync(
+      openMusicVideoLane(
+        selectTrack(
+          submitGenerationBatch(
+            createWorkflow({
+              brief: 'Arabic pop hook',
+              lyrics: 'chorus',
+              style: 'pop',
+              voice: 'persona',
+            }),
+            {
+              providerJobId: 'job_003',
+              tracks: [{ id: 'song_a', title: 'Night Lift A', durationSeconds: 154 }],
+            },
+          ),
+          'song_a',
+        ),
+      ),
+      {
+        phoneme: true,
+        frame: true,
+        mouthShape: true,
+        segmentDrift: true,
+        postStitch: true,
+      },
+    )
+
+    expect(() => queueLipsyncRepair(workflow)).toThrow(/failed lipsync/i)
   })
 })
