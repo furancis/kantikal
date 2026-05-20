@@ -67,7 +67,7 @@ async function localProviderFetch(url: string | URL, init?: RequestInit): Promis
         response: {
           sunoData: [
             {
-              id: 'mock-track-2',
+              id: `${taskId}-track-2`,
               title: 'HTTP routed provider output',
               audioUrl: `local-export://${taskId}/master.mp3`,
               imageUrl: `local-export://${taskId}/cover.jpeg`,

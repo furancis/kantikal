@@ -105,8 +105,8 @@ export function createFetchSunoProvider(input: FetchSunoProviderInput = {}): Sun
     let response: Response
     try {
       response = await fetchImpl(providerRoute(input.baseUrl, path), init)
-    } catch {
-      return fallbackAction()
+    } catch (error) {
+      throw new Error(`Provider route unavailable for ${valueName}: ${errorMessage(error)}`, { cause: error })
     }
 
     if (response.status === 404) {
@@ -296,6 +296,10 @@ function slugify(value: string): string {
 
 function stringFrom(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'fetch failed'
 }
 
 function providerResult(

@@ -47,8 +47,8 @@ describe('provider request routes', () => {
     expect(payload.batch).toMatchObject({
       providerJobId: 'task_http_generate',
       tracks: [
-        { id: 'mock-track-1', title: 'HTTP route hook v1' },
-        { id: 'mock-track-2', title: 'HTTP route hook v2' },
+        { id: 'task_http_generate-track-1', title: 'HTTP route hook provider take 1' },
+        { id: 'task_http_generate-track-2', title: 'HTTP route hook provider take 2' },
       ],
     })
     expect(JSON.stringify(payload)).not.toContain('server-secret')
@@ -118,6 +118,42 @@ describe('provider request routes', () => {
 
     expect(response.status).toBe(400)
     expect(payload.error).toMatch(/requires provider action request/i)
+  })
+
+  it('rejects malformed generation requests before provider execution', async () => {
+    const route = createProviderRequestHandler({
+      provider: createMockSunoProvider(),
+    })
+
+    const response = await route(
+      new Request('http://local.test/api/provider/generate-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request: { count: 'two' } }),
+      }),
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(payload.error).toMatch(/brief/i)
+  })
+
+  it('rejects malformed provider action requests before provider execution', async () => {
+    const route = createProviderRequestHandler({
+      provider: createMockSunoProvider(),
+    })
+
+    const response = await route(
+      new Request('http://local.test/api/provider/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request: { capability: 123 } }),
+      }),
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(payload.error).toMatch(/action/i)
   })
 
   it('does not intercept provider export routes mounted beside the provider API', async () => {

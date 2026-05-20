@@ -113,6 +113,24 @@ describe('Suno provider boundary', () => {
     expect(batch.tracks).toHaveLength(2)
   })
 
+  it('surfaces unreachable provider routes instead of hiding them behind fallback', async () => {
+    const provider = createFetchSunoProvider({
+      fetchImpl: async () => {
+        throw new TypeError('connection refused')
+      },
+    })
+
+    await expect(
+      provider.generateBatch({
+        brief: 'Unreachable route hook',
+        lyrics: 'Verse chorus',
+        style: 'cinematic pop',
+        voice: 'consented lead',
+        count: 2,
+      }),
+    ).rejects.toThrow(/provider route unavailable/i)
+  })
+
   it('surfaces mounted provider route failures instead of hiding them behind fallback', async () => {
     const provider = createFetchSunoProvider({
       fetchImpl: async () =>

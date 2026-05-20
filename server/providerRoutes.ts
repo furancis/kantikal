@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { createMockSunoProvider, executeProviderAction } from '../src/api/provider'
+import { executeProviderAction } from '../src/api/provider'
 import type {
   ExecuteProviderActionRequest,
   GenerateBatchRequest,
@@ -25,11 +25,8 @@ const routePrefix = '/api/provider'
 const maxProviderBodyBytes = 1_048_576
 
 export function createServerSunoProvider(input: ServerSunoProviderInput): SunoProvider {
-  const fallback = input.fallback ?? createMockSunoProvider()
-
   return {
     async generateBatch(request) {
-      const fallbackBatch = await fallback.generateBatch(request)
       const result = await input.adapter.executeProviderAction({
         action: 'generateBatch',
         capability: 'Create song',
@@ -49,10 +46,7 @@ export function createServerSunoProvider(input: ServerSunoProviderInput): SunoPr
         throw new RouteError(result.message, 503)
       }
 
-      return {
-        ...fallbackBatch,
-        providerJobId: result.providerTaskId ?? fallbackBatch.providerJobId,
-      }
+      return providerGenerationBatch(request, result.providerTaskId)
     },
 
     executeAction(request) {
@@ -146,7 +140,13 @@ function generateBatchRequest(payload: ProviderRoutePayload): GenerateBatchReque
   if (!isRecord(request)) {
     throw new RouteError('Provider route requires generation request', 400)
   }
-  return request as GenerateBatchRequest
+  return {
+    brief: requiredString(request.brief, 'brief'),
+    lyrics: requiredString(request.lyrics, 'lyrics'),
+    style: requiredString(request.style, 'style'),
+    voice: requiredString(request.voice, 'voice'),
+    count: requiredPositiveInteger(request.count, 'count'),
+  }
 }
 
 function providerActionRequest(payload: ProviderRoutePayload): ExecuteProviderActionRequest {
@@ -154,7 +154,61 @@ function providerActionRequest(payload: ProviderRoutePayload): ExecuteProviderAc
   if (!isRecord(request)) {
     throw new RouteError('Provider route requires provider action request', 400)
   }
-  return request as ExecuteProviderActionRequest
+  return {
+    action: requiredString(request.action, 'action'),
+    capability: requiredString(request.capability, 'capability'),
+    payload: optionalRecord(request.payload, 'payload'),
+    brief: optionalString(request.brief, 'brief'),
+    lyrics: optionalString(request.lyrics, 'lyrics'),
+    style: optionalString(request.style, 'style'),
+    voice: optionalString(request.voice, 'voice'),
+  }
+}
+
+function providerGenerationBatch(request: GenerateBatchRequest, providerTaskId: string | undefined): GenerationBatch {
+  const providerJobId = providerTaskId ?? `provider-${slugify(request.brief) || 'generation'}`
+  const trackPrefix = providerTrackPrefix(providerJobId)
+  const titleBase = request.brief.trim() || 'Suno generation'
+
+  return {
+    providerJobId,
+    tracks: Array.from({ length: request.count }, (_, index) => ({
+      id: `${trackPrefix}-track-${index + 1}`,
+      title: `${titleBase} provider take ${index + 1}`,
+      durationSeconds: 150 + index * 4,
+    })),
+  }
+}
+
+function requiredString(value: unknown, field: string): string {
+  if (typeof value !== 'string') {
+    throw new RouteError(`Provider route requires ${field} string`, 400)
+  }
+  return value
+}
+
+function optionalString(value: unknown, field: string): string | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+  return requiredString(value, field)
+}
+
+function optionalRecord(value: unknown, field: string): Record<string, unknown> | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+  if (!isRecord(value)) {
+    throw new RouteError(`Provider route requires ${field} object`, 400)
+  }
+  return value
+}
+
+function requiredPositiveInteger(value: unknown, field: string): number {
+  if (!Number.isInteger(value) || typeof value !== 'number' || value < 1) {
+    throw new RouteError(`Provider route requires ${field} positive integer`, 400)
+  }
+  return value
 }
 
 function json(body: ProviderRouteResponseBody, status = 200): Response {
@@ -226,6 +280,21 @@ async function writeNodeResponse(response: ServerResponse, webResponse: Response
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
+}
+
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+function providerTrackPrefix(value: string): string {
+  return value
+    .trim()
+    .replace(/[^A-Za-z0-9_-]+/g, '-')
+    .replace(/^-|-$/g, '') || 'provider-task'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
