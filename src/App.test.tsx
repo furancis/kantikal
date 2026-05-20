@@ -68,6 +68,7 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByLabelText(/video export gate state/i)).toHaveTextContent(/video export ready/i)
     expect(screen.getByLabelText(/segment drift qa result/i)).toHaveTextContent(/pass/i)
     expect(screen.getByText(/repair-1 applied/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /run lipsync qa/i })).toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: /create video release pack/i }))
     expect(screen.getByRole('heading', { name: /release pack/i })).toBeInTheDocument()

@@ -471,7 +471,7 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
                 <span style={{ width: `${lipsyncReadinessPercent}%` }} />
               </div>
               <div className="gate-actions">
-                <button type="button" onClick={handleRunLipsyncQa}>
+                <button type="button" disabled={videoExportReady} onClick={handleRunLipsyncQa}>
                   <Gauge size={16} />
                   Run lipsync QA
                 </button>
