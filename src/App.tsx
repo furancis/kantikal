@@ -258,14 +258,12 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
         current.musicVideoLane?.repairAttempts.some((attempt) => attempt.status === 'queued') ?? false
       return evaluateLipsync(current, hasQueuedRepair ? passingLipsyncChecks : firstPassLipsyncChecks)
     })
-    setReleasePack(null)
     setVideoExportError(null)
     setSelectedId('video')
   }
 
   function handleQueueLipsyncRepair() {
     setWorkflow((current) => queueLipsyncRepair(current))
-    setReleasePack(null)
     setVideoExportError(null)
     setSelectedId('video')
   }

@@ -188,6 +188,31 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByText(/lipsync-approved video/i)).toBeInTheDocument()
   })
 
+  it('keeps an audio release pack through lipsync QA and repair work', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
+    await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
+    await user.click(screen.getByRole('button', { name: /open music video lane/i }))
+
+    await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
+
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /queue repair pass/i }))
+
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /release pack: audio/i }))
+
+    expect(screen.getByText(/audio only/i)).toBeInTheDocument()
+    expect(screen.getByText(/master audio/i)).toBeInTheDocument()
+  })
+
   it('clears stale generated tracks and video selection when the brief changes', async () => {
     const user = userEvent.setup()
     render(<App />)
