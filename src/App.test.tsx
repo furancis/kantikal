@@ -1,14 +1,80 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from './App'
+import { createMemoryProjectStore, projectSnapshotFromState } from './api/projectStore'
 import type { SunoProvider } from './api/provider'
 import type { ProviderExportRuntimeClient } from './api/exportRuntime'
 import {
+  applyArchiveFirstCleanup,
   createWorkflow,
+  evaluateLipsync,
+  lockSongLabRegion,
+  openMusicVideoLane,
+  openSongLab,
+  planArchiveFirstCleanup,
   recordProviderTaskUpdate,
+  saveSelectedTrackToLocalLibrary,
+  selectTrack,
+  submitGenerationBatch,
+  toReleasePack,
+  queueSongLabEdit,
   type GenerationBatch,
+  type SunoWorkflow,
 } from './domain/workflow'
+
+const persistedBrief = {
+  brief: 'Hydrated khaliji hook',
+  lyrics: 'Verse chorus bridge',
+  style: 'Gulf percussion and electro-pop',
+  voice: 'Consented hydrated tenor',
+}
+
+function persistedWorkflowFixture(trackPrefix = 'hydrated'): SunoWorkflow {
+  const generated = submitGenerationBatch(createWorkflow(persistedBrief), {
+    providerJobId: `task_${trackPrefix}`,
+    tracks: [
+      { id: `${trackPrefix}-track-1`, title: 'Hydrated hook take 1', durationSeconds: 148 },
+      { id: `${trackPrefix}-track-2`, title: 'Hydrated hook take 2', durationSeconds: 152 },
+    ],
+  })
+  const selected = selectTrack(generated, `${trackPrefix}-track-2`)
+  const songLab = queueSongLabEdit(lockSongLabRegion(openSongLab(selected), 'hook'), {
+    sectionId: 'hook',
+    action: 'replaceSection',
+    label: 'Replace hydrated hook',
+  })
+  const saved = saveSelectedTrackToLocalLibrary(songLab, {
+    notes: 'Saved hydrated track',
+    tags: ['hydrated'],
+  })
+  const videoReady = evaluateLipsync(openMusicVideoLane(saved), {
+    phoneme: true,
+    frame: true,
+    mouthShape: true,
+    segmentDrift: true,
+    postStitch: true,
+  })
+  const exported = recordProviderTaskUpdate(videoReady, {
+    providerTaskId: `task_${trackPrefix}`,
+    action: 'pollGenerationStatus',
+    capability: 'Get music generation details',
+    providerStatus: 'SUCCESS',
+    message: 'Hydrated export outputs',
+    outputs: [
+      {
+        kind: 'audio',
+        label: 'Hydrated hook master audio',
+        url: `local-export://${trackPrefix}/master.mp3`,
+        sourceTrackId: `${trackPrefix}-track-2`,
+      },
+    ],
+    receiptId: `poll-task-${trackPrefix}`,
+  })
+  return applyArchiveFirstCleanup(
+    planArchiveFirstCleanup(exported, [`${trackPrefix}-track-1`], 'discard hydrated alternate take'),
+  )
+}
 
 describe('Suno Visual Studio shell', () => {
   it('keeps the music video lane subordinate to the song workflow', () => {
@@ -394,6 +460,86 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByText(/Get music generation details ready/i)).toBeInTheDocument()
     expect(screen.getByText(/audio ready/i)).toBeInTheDocument()
     expect(screen.getByText(/Hydrated master audio/i)).toBeInTheDocument()
+  })
+
+  it('hydrates a recent project with full workflow and release state on load', async () => {
+    const user = userEvent.setup()
+    const workflow = persistedWorkflowFixture()
+    const projectStore = createMemoryProjectStore([
+      projectSnapshotFromState({
+        projectId: 'project-hydrated',
+        briefInput: persistedBrief,
+        workflow,
+        releasePack: toReleasePack(workflow, { includeVideo: true }),
+        savedAt: '2026-05-20T10:00:00.000Z',
+      }),
+    ])
+
+    render(<App projectId="project-hydrated" projectStore={projectStore} />)
+
+    expect((await screen.findAllByText(/Current project: project-hydrated/i)).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText(/Hydrated khaliji hook/i)).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: /release pack: audio, video/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /song lab/i }))
+    expect(screen.getByText(/source track: hydrated-track-2/i)).toBeInTheDocument()
+    expect(screen.getByText(/hook locked/i)).toBeInTheDocument()
+    expect(screen.getByText(/songlab-edit-1 queued/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', {
+      name: /music video lane: storyboard and lipsync qa opened from hydrated-track-2; video export ready/i,
+    }))
+    expect(screen.getByLabelText(/video export gate state/i)).toHaveTextContent(/video export ready/i)
+
+    await user.click(screen.getByRole('button', { name: /downloads \/ exports/i }))
+    expect(screen.getAllByText(/Hydrated export outputs/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Hydrated hook master audio/i).length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: /local library/i }))
+    expect(screen.getByText(/hydrated-track-2 saved locally/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /release pack: audio, video/i }))
+    expect(screen.getByText(/video included/i)).toBeInTheDocument()
+    expect(screen.getByText(/cleanup applied/i)).toBeInTheDocument()
+    expect(screen.getByText(/archive-1/i)).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/apiKey|secret-key|token|bearer/i)
+  })
+
+  it('opens a different recent project without leaking the previous project state', async () => {
+    const user = userEvent.setup()
+    const projectAWorkflow = persistedWorkflowFixture('project-a')
+    const projectBWorkflow = persistedWorkflowFixture('project-b')
+    const projectStore = createMemoryProjectStore([
+      projectSnapshotFromState({
+        projectId: 'project-a',
+        briefInput: { ...persistedBrief, brief: 'Project A hook' },
+        workflow: { ...projectAWorkflow, brief: 'Project A hook' },
+        releasePack: toReleasePack(projectAWorkflow, { includeVideo: true }),
+        savedAt: '2026-05-20T09:00:00.000Z',
+      }),
+      projectSnapshotFromState({
+        projectId: 'project-b',
+        briefInput: { ...persistedBrief, brief: 'Project B hook' },
+        workflow: { ...projectBWorkflow, brief: 'Project B hook' },
+        releasePack: toReleasePack(projectBWorkflow, { includeVideo: true }),
+        savedAt: '2026-05-20T10:00:00.000Z',
+      }),
+    ])
+
+    render(<App projectId="project-a" projectStore={projectStore} />)
+
+    await user.click(await screen.findByRole('button', { name: /open project lobby/i }))
+    const recentProjects = screen.getByLabelText(/recent projects/i)
+    expect(within(recentProjects).getByText(/Project A hook/i)).toBeInTheDocument()
+    expect(within(recentProjects).getByText(/Project B hook/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Project B hook/i }))
+
+    expect((await screen.findAllByText(/Current project: project-b/i)).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: /hydrated hook take 2 selected as audio source of truth \(project-b-track-2\)/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', {
+      name: /hydrated hook take 2 selected as audio source of truth \(project-a-track-2\)/i,
+    })).not.toBeInTheDocument()
   })
 
   it('surfaces provider export hydrate failures as visible runtime errors', async () => {

@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T150
+active_task: T160
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -993,7 +993,7 @@ tasks:
   - id: T150
     type: worker
     assignee: Worker
-    status: active
+    status: done
     objective: "Persist full project/workflow state and add a project lobby/recent-project surface so the visual app survives reloads beyond export metadata."
     inputs:
       - src/domain/workflow.ts
@@ -1032,3 +1032,70 @@ tasks:
     stop_if:
       - "Persistence would write provider credential material."
       - "A project delete/purge path would be irreversible or non-archive-first."
+    receipts:
+      - pr: pending
+        branch: feature/visual-studio-t150
+        files:
+          - src/api/projectStore.ts
+          - src/api/projectStore.test.ts
+          - src/App.tsx
+          - src/App.test.tsx
+          - src/styles.css
+          - src/test/setup.ts
+          - e2e/studio.spec.ts
+          - docs/goals/suno-visual-studio/state.yaml
+        commands:
+          - cmd: node node_modules/eslint/bin/eslint.js .
+            status: pass
+          - cmd: node node_modules/typescript/bin/tsc --noEmit
+            status: pass
+          - cmd: node node_modules/vitest/vitest.mjs --run
+            status: pass
+          - cmd: node node_modules/typescript/bin/tsc -b && node node_modules/vite/bin/vite.js build
+            status: pass
+          - cmd: node node_modules/@playwright/test/cli.js test
+            status: pass
+          - cmd: node npm-cli.js audit --audit-level=moderate
+            status: pass
+          - cmd: node .github/scripts/scan-credentials.mjs
+            status: pass
+          - cmd: node .github/scripts/scan-wording.mjs
+            status: pass
+          - cmd: credential literal rg scan
+            status: pass
+          - cmd: static chat surface wording rg scan
+            status: pass
+          - cmd: git diff --check
+            status: pass
+        summary: "Added a credential-sanitizing project workflow store with browser localStorage and deterministic memory-store tests. The visual app now hydrates and saves full workflow snapshots by active project, exposes an operational Project lobby/recent-project node with saved briefs, selected track, job/export counts, blocked gates, and release-pack state, and preserves selected track, Song Lab, local library, Music Video Lane, perfect-lipsync gate, release pack, archive-first cleanup, and provider exports across reload. Playwright proves a generated song can move through video release, cleanup, export polling, reload, and restored project navigation without forbidden wording or credential material."
+  - id: T160
+    type: judge
+    assignee: Judge
+    status: active
+    objective: "Run the final PM/Judge audit against the full original ask and decide whether the product can truthfully claim full_outcome_complete."
+    inputs:
+      - docs/goals/suno-visual-studio/goal.md
+      - docs/goals/suno-visual-studio/state.yaml
+      - README.md
+      - src/**
+      - server/**
+      - e2e/**
+      - .github/**
+    constraints:
+      - "Do not mark the overall goal complete unless every original non-negotiable has a receipt."
+      - "Music Video Lane remains subordinate to the full Suno music generation workflow."
+      - "Perfect lipsync, full API coverage, TDD, CI, Greptile, and no static chat-surface framing must all be explicitly checked."
+    expected_output:
+      - "PM/Judge audit receipt mapping original ask to implemented proof."
+      - "full_outcome_complete: true only if no product gaps remain; otherwise a concrete next active task."
+    allowed_files:
+      - docs/**
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording

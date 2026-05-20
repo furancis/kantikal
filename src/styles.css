@@ -85,6 +85,13 @@ textarea {
   font-size: clamp(24px, 3vw, 40px);
 }
 
+.project-current {
+  margin: 6px 0 0;
+  color: #a8ece6;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   color: #f0b54c;
@@ -470,6 +477,7 @@ textarea {
 .comparison-list,
 .song-section-list,
 .job-list,
+.project-list,
 .asset-list,
 .persona-list,
 .export-list,
@@ -495,6 +503,8 @@ textarea {
 .comparison-list div,
 .song-section-list div,
 .job-list div,
+.project-list div,
+.project-list button,
 .asset-list div,
 .persona-list div,
 .export-list div,
@@ -516,6 +526,7 @@ textarea {
 .comparison-list small,
 .song-section-list small,
 .job-list small,
+.project-list small,
 .asset-list small,
 .persona-list small,
 .export-list small,
@@ -530,6 +541,17 @@ textarea {
 .comparison-list button {
   width: fit-content;
   margin-top: 6px;
+}
+
+.project-list button {
+  width: 100%;
+  color: inherit;
+  text-align: left;
+}
+
+.project-list button.active {
+  border-color: rgba(58, 205, 196, 0.5);
+  background: rgba(58, 205, 196, 0.11);
 }
 
 .song-section-list div.locked {

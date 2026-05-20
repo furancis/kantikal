@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test'
 
+test.beforeEach(async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(() => localStorage.clear())
+})
+
 test('renders the visual Suno workflow shell', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Visual music generation operating app' })).toBeVisible()
@@ -116,4 +121,57 @@ test('renders the visual Suno workflow shell', async ({ page }) => {
   await page.getByRole('button', { name: /Restore archived tracks/i }).click()
   await expect(page.getByText(/Cleanup restored/i)).toBeVisible()
   await expect(page.getByRole('button', { name: /Neon khaliji club hook provider take 1/i })).toBeVisible()
+})
+
+test('persists project workflow state across reload', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('textbox', { name: 'Brief' }).fill('Neon khaliji club hook')
+  await page.getByRole('textbox', { name: 'Lyrics' }).fill('Verse pre chorus')
+  await page.getByRole('textbox', { name: 'Style' }).fill('Gulf percussion and electro-pop')
+  await page.getByRole('textbox', { name: 'Voice' }).fill('Consented bright tenor persona')
+  await page.getByRole('button', { name: /Generate Suno batch/i }).click()
+  await page.getByRole('button', { name: /Neon khaliji club hook provider take 2/i }).click()
+  await page.getByRole('button', { name: /Open Song Lab/i }).click()
+  await page.getByRole('button', { name: /Lock hook region/i }).click()
+  await page.getByRole('button', { name: /Queue replace section/i }).click()
+  await page.getByRole('button', { name: /Save selected to local library/i }).click()
+  await page.getByRole('button', { name: /Open music video lane/i }).click()
+  await page.getByRole('button', { name: /Run lipsync QA/i }).click()
+  await page.getByRole('button', { name: /Queue repair pass/i }).click()
+  await page.getByRole('button', { name: /Run lipsync QA/i }).click()
+  await page.getByRole('button', { name: /Create video release pack/i }).click()
+  await page.getByRole('button', { name: /Plan archive-first cleanup/i }).click()
+  await page.getByRole('button', { name: /Apply cleanup/i }).click()
+  await page.getByRole('button', { name: /Downloads \/ exports/i }).click()
+  await page.getByRole('button', { name: /Poll selected generation job/i }).click()
+
+  await page.waitForFunction(() => {
+    const text = localStorage.getItem('suno-visual-studio.projects.v1') ?? ''
+    return text.includes('"includesVideo":true') && text.includes('"status":"applied"') && text.includes('poll-task_generate')
+  })
+
+  await page.reload()
+
+  await page.getByRole('button', { name: /Open project lobby/i }).click()
+  await expect(page.getByLabel(/Recent projects/i)).toContainText(/Neon khaliji club hook/i)
+  await expect(page.getByRole('button', { name: /Release pack: Audio, video/i })).toBeVisible()
+
+  await page.getByRole('button', { name: /Song Lab:/i }).click()
+  await expect(page.getByText(/Hook locked/i)).toBeVisible()
+  await expect(page.getByText(/songlab-edit-1 queued/i)).toBeVisible()
+
+  await page.getByRole('button', { name: /Music video lane: Storyboard and lipsync QA opened from task_generate-track-2; video export ready/i }).click()
+  await expect(page.getByLabel(/Video export gate state/i)).toContainText(/Video export ready/i)
+
+  await page.getByRole('button', { name: /Local library:/i }).click()
+  await expect(page.getByText(/task_generate-track-2 saved locally/i)).toBeVisible()
+
+  await page.getByRole('button', { name: /Downloads \/ exports:/i }).click()
+  await expect(page.getByText(/HTTP provider export route produced local downloadable outputs/i).first()).toBeVisible()
+  await expect(page.getByText(/audio ready/i)).toBeVisible()
+
+  await page.getByRole('button', { name: /Release pack: Audio, video/i }).click()
+  await expect(page.getByText(/Video included/i)).toBeVisible()
+  await expect(page.getByText(/Cleanup applied/i)).toBeVisible()
+  await expect(page.locator('body')).not.toContainText(/apiKey|secret-key|bearer [A-Za-z0-9]/i)
 })

@@ -31,6 +31,12 @@ import {
   type ProviderExportRuntimeClient,
 } from './api/exportRuntime'
 import { mergeProviderExportSnapshot, type ProviderExportSnapshot } from './api/exportState'
+import {
+  createBrowserProjectStore,
+  projectSnapshotFromState,
+  type ProjectStore,
+  type ProjectSummary,
+} from './api/projectStore'
 import { createMockSunoProvider, executeProviderAction } from './api/provider'
 import type { ProviderActionResult, SunoProvider } from './api/provider'
 import {
@@ -66,6 +72,7 @@ import {
 
 type NodeStatus = 'draft' | 'generating' | 'needs-review' | 'locked' | 'exported' | 'ready'
 type NodeKind =
+  | 'project'
   | 'brief'
   | 'lyrics'
   | 'style'
@@ -152,6 +159,7 @@ const passingLipsyncChecks: LipsyncChecks = {
 }
 
 const iconByKind: Record<NodeKind, ComponentType<{ size?: number }>> = {
+  project: Boxes,
   brief: FileText,
   lyrics: Mic2,
   style: SlidersHorizontal,
@@ -186,6 +194,7 @@ const featureList = [
 type AppProps = {
   provider?: SunoProvider
   exportRuntime?: ProviderExportRuntimeClient
+  projectStore?: ProjectStore
   projectId?: string
 }
 
@@ -205,16 +214,27 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
 
-export function App({ provider: injectedProvider, exportRuntime: injectedExportRuntime, projectId = defaultProjectId }: AppProps = {}) {
+export function App({
+  provider: injectedProvider,
+  exportRuntime: injectedExportRuntime,
+  projectStore: injectedProjectStore,
+  projectId = defaultProjectId,
+}: AppProps = {}) {
   const mockProvider = useMemo(() => createMockSunoProvider(), [])
   const localExportRuntime = useMemo(() => createLocalProviderExportRuntimeClient(), [])
+  const localProjectStore = useMemo(() => createBrowserProjectStore(), [])
   const provider = injectedProvider ?? mockProvider
   const exportRuntime = injectedExportRuntime ?? localExportRuntime
+  const projectStore = injectedProjectStore ?? localProjectStore
   const coverageCounts = useMemo(() => apiCoverageStatusCounts(apiCoverageEntries), [])
+  const [activeProjectId, setActiveProjectId] = useState(projectId)
+  const [projectHydrated, setProjectHydrated] = useState(false)
+  const [projectStoreError, setProjectStoreError] = useState<string | null>(null)
+  const [recentProjects, setRecentProjects] = useState<ProjectSummary[]>([])
   const [briefInput, setBriefInput] = useState<BriefInput>(initialBrief)
   const [workflow, setWorkflow] = useState<SunoWorkflow>(() => createWorkflow(initialBrief))
   const [releasePack, setReleasePack] = useState<ReleasePack | null>(null)
-  const [selectedId, setSelectedId] = useState('brief')
+  const [selectedId, setSelectedId] = useState('project-lobby')
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [videoExportError, setVideoExportError] = useState<string | null>(null)
@@ -222,15 +242,86 @@ export function App({ provider: injectedProvider, exportRuntime: injectedExportR
   const [apiActionResult, setApiActionResult] = useState<ProviderActionResult | null>(null)
 
   const workflowNodes = useMemo(
-    () => buildWorkflowNodes(workflow, releasePack),
-    [workflow, releasePack],
+    () => buildWorkflowNodes(workflow, releasePack, recentProjects, activeProjectId),
+    [workflow, releasePack, recentProjects, activeProjectId],
   )
   const selected = workflowNodes.find((node) => node.id === selectedId) ?? workflowNodes[0]
 
   useEffect(() => {
+    setActiveProjectId(projectId)
+  }, [projectId])
+
+  useEffect(() => {
+    let cancelled = false
+    setProjectHydrated(false)
+    setProjectStoreError(null)
+    void projectStore
+      .loadProject(activeProjectId)
+      .then((snapshot) => {
+        if (cancelled) {
+          return
+        }
+        if (snapshot) {
+          setBriefInput(snapshot.briefInput)
+          setWorkflow(snapshot.workflow)
+          setReleasePack(snapshot.releasePack)
+          setSelectedId('project-lobby')
+        }
+        setProjectHydrated(true)
+      })
+      .then(() => projectStore.listProjects())
+      .then((projects) => {
+        if (!cancelled) {
+          setRecentProjects(projects)
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setProjectStoreError(errorMessage(error, 'Project hydration failed'))
+          setProjectHydrated(true)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeProjectId, projectStore])
+
+  useEffect(() => {
+    if (!projectHydrated) {
+      return
+    }
+    let cancelled = false
+    void projectStore
+      .saveProject(projectSnapshotFromState({
+        projectId: activeProjectId,
+        briefInput,
+        workflow,
+        releasePack,
+      }))
+      .then(() => projectStore.listProjects())
+      .then((projects) => {
+        if (!cancelled) {
+          setProjectStoreError(null)
+          setRecentProjects(projects)
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setProjectStoreError(errorMessage(error, 'Project save failed'))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeProjectId, briefInput, projectHydrated, projectStore, releasePack, workflow])
+
+  useEffect(() => {
+    if (!projectHydrated) {
+      return
+    }
     let cancelled = false
     void exportRuntime
-      .hydrate(projectId)
+      .hydrate(activeProjectId)
       .then((snapshot) => {
         if (cancelled) {
           return
@@ -248,7 +339,7 @@ export function App({ provider: injectedProvider, exportRuntime: injectedExportR
     return () => {
       cancelled = true
     }
-  }, [exportRuntime, projectId])
+  }, [activeProjectId, exportRuntime, projectHydrated])
   const SelectedIcon = iconByKind[selected.kind]
   const canOpenVideo = Boolean(workflow.selectedTrack) && !workflow.musicVideoLane
   const activeLipsync = workflow.musicVideoLane?.lipsync ?? null
@@ -386,15 +477,15 @@ export function App({ provider: injectedProvider, exportRuntime: injectedExportR
   }
 
   async function handlePollSelectedGenerationJob() {
-    await handleProviderExportAction(() => exportRuntime.pollGenerationTask({ projectId, workflow }))
+    await handleProviderExportAction(() => exportRuntime.pollGenerationTask({ projectId: activeProjectId, workflow }))
   }
 
   async function handleReceiveFailedCallback() {
-    await handleProviderExportAction(() => exportRuntime.receiveFailedCallback({ projectId, workflow }))
+    await handleProviderExportAction(() => exportRuntime.receiveFailedCallback({ projectId: activeProjectId, workflow }))
   }
 
   async function handleRecordProviderVideoOutput() {
-    await handleProviderExportAction(() => exportRuntime.recordProviderVideoOutput({ projectId, workflow }))
+    await handleProviderExportAction(() => exportRuntime.recordProviderVideoOutput({ projectId: activeProjectId, workflow }))
   }
 
   async function handleProviderExportAction(action: () => Promise<ProviderExportSnapshot>) {
@@ -444,6 +535,15 @@ export function App({ provider: injectedProvider, exportRuntime: injectedExportR
     }
 
     setSelectedId(node.id)
+  }
+
+  function handleOpenProject(nextProjectId: string) {
+    if (nextProjectId === activeProjectId) {
+      setSelectedId('project-lobby')
+      return
+    }
+    setActiveProjectId(nextProjectId)
+    setSelectedId('project-lobby')
   }
 
   function handleOpenVideoLane() {
@@ -587,8 +687,13 @@ export function App({ provider: injectedProvider, exportRuntime: injectedExportR
         <div>
           <p className="eyebrow">Suno Visual Studio</p>
           <h1>Visual music generation operating app</h1>
+          <p className="project-current">Current project: {activeProjectId}</p>
         </div>
         <div className="topbar-actions" aria-label="Project controls">
+          <button aria-label="Open project lobby" onClick={() => setSelectedId('project-lobby')}>
+            <Boxes size={16} />
+            Projects
+          </button>
           <button aria-label="Run generation" disabled={promptLocked} onClick={() => void handleGenerate()}>
             <Play size={16} />
             Run
@@ -606,6 +711,11 @@ export function App({ provider: injectedProvider, exportRuntime: injectedExportR
       {exportRuntimeError && (
         <p className="form-error" role="alert">
           {exportRuntimeError}
+        </p>
+      )}
+      {projectStoreError && (
+        <p className="form-error" role="alert">
+          {projectStoreError}
         </p>
       )}
 
@@ -725,6 +835,36 @@ export function App({ provider: injectedProvider, exportRuntime: injectedExportR
               <span key={item}>{item}</span>
             ))}
           </div>
+          {selected.kind === 'project' && (
+            <div className="workflow-section">
+              <h3>Recent projects</h3>
+              <p>Current project: {activeProjectId}</p>
+              <div className="project-list" aria-label="Recent projects">
+                {recentProjects.length === 0 ? (
+                  <div>
+                    <strong>No saved project snapshots yet</strong>
+                    <small>The current workspace will appear here after the first project save.</small>
+                  </div>
+                ) : (
+                  recentProjects.map((project) => (
+                    <button
+                      className={project.projectId === activeProjectId ? 'active' : ''}
+                      key={project.projectId}
+                      onClick={() => handleOpenProject(project.projectId)}
+                      type="button"
+                    >
+                      <strong>{project.brief}</strong>
+                      <small>
+                        {project.projectId}; selected track {project.selectedTrackId ?? 'none'}; {project.jobCount} jobs;{' '}
+                        {project.exportCount} exports; {project.blockedGateCount} blocked gates; release{' '}
+                        {project.releasePackLabel}
+                      </small>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
           {selected.kind === 'track' && workflow.selectedTrack && (
             <div className="action-box">
               <p>Selected source: {workflow.selectedTrack.id}</p>
@@ -1393,8 +1533,29 @@ export function App({ provider: injectedProvider, exportRuntime: injectedExportR
   )
 }
 
-function buildWorkflowNodes(workflow: SunoWorkflow, releasePack: ReleasePack | null): WorkflowNode[] {
+function buildWorkflowNodes(
+  workflow: SunoWorkflow,
+  releasePack: ReleasePack | null,
+  recentProjects: ProjectSummary[],
+  activeProjectId: string,
+): WorkflowNode[] {
+  const activeProject = recentProjects.find((project) => project.projectId === activeProjectId)
   const nodes: WorkflowNode[] = [
+    {
+      id: 'project-lobby',
+      kind: 'project',
+      title: 'Project lobby',
+      summary: `${recentProjects.length} saved project${recentProjects.length === 1 ? '' : 's'}; current ${activeProjectId}`,
+      status: 'ready',
+      x: 4,
+      y: 6,
+      meta: [
+        activeProjectId,
+        activeProject?.selectedTrackId ? `selected ${activeProject.selectedTrackId}` : 'no selected track',
+        activeProject ? `${activeProject.jobCount} jobs` : 'not saved yet',
+        activeProject ? `${activeProject.exportCount} exports` : 'no exports',
+      ],
+    },
     {
       id: 'brief',
       kind: 'brief',
