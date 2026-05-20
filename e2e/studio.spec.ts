@@ -28,6 +28,7 @@ test('renders the visual Suno workflow shell', async ({ page }) => {
   await expect(page.getByLabel(/Video export gate state/i)).toContainText(/Video export ready/i)
   await expect(page.getByText(/repair-1 applied/i)).toBeVisible()
   await expect(page.getByRole('button', { name: /Run lipsync QA/i })).toBeDisabled()
+  await expect(page.getByRole('button', { name: /Open music video lane/i })).toBeDisabled()
   await page.getByRole('button', { name: /Create video release pack/i }).click()
   await expect(page.getByRole('heading', { name: 'Release pack' })).toBeVisible()
   await expect(page.getByText(/Video included/i)).toBeVisible()

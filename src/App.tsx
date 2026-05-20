@@ -175,7 +175,7 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
   )
   const selected = workflowNodes.find((node) => node.id === selectedId) ?? workflowNodes[0]
   const SelectedIcon = iconByKind[selected.kind]
-  const canOpenVideo = Boolean(workflow.selectedTrack)
+  const canOpenVideo = Boolean(workflow.selectedTrack) && !workflow.musicVideoLane
   const activeLipsync = workflow.musicVideoLane?.lipsync ?? null
   const failedVideoChecks = activeLipsync ? failedLipsyncChecks(activeLipsync) : []
   const lipsyncReadyCount = activeLipsync ? lipsyncCheckOrder.length - failedVideoChecks.length : 0
@@ -455,7 +455,8 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
               <Video size={16} />
               Open music video lane
             </button>
-            {!canOpenVideo && <p>Select a generated track before opening video.</p>}
+            {!workflow.selectedTrack && <p>Select a generated track before opening video.</p>}
+            {workflow.musicVideoLane && <p>Music video lane is already open.</p>}
           </div>
           {selected.kind === 'video' && workflow.musicVideoLane && (
             <div className="lipsync-gate">
