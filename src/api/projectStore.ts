@@ -1,4 +1,4 @@
-import type { BriefInput, ReleasePack, SunoWorkflow } from '../domain/workflow'
+import { isPerfectLipsyncApproved, type BriefInput, type ReleasePack, type SunoWorkflow } from '../domain/workflow'
 
 export type ProjectSummary = {
   projectId: string
@@ -157,7 +157,17 @@ export function createBrowserProjectStore(
 }
 
 function sanitizeProjectSnapshot(snapshot: ProjectWorkflowSnapshot): ProjectWorkflowSnapshot {
-  return clone(stripCredentialMaterial(snapshot)) as ProjectWorkflowSnapshot
+  const safeSnapshot = clone(stripCredentialMaterial(snapshot)) as ProjectWorkflowSnapshot
+  if (safeSnapshot.workflow.musicVideoLane && !isPerfectLipsyncApproved(safeSnapshot.workflow.musicVideoLane)) {
+    safeSnapshot.workflow.musicVideoLane = {
+      ...safeSnapshot.workflow.musicVideoLane,
+      exportStatus: 'blocked',
+    }
+    if (safeSnapshot.releasePack?.includesVideo) {
+      safeSnapshot.releasePack = null
+    }
+  }
+  return safeSnapshot
 }
 
 function stripCredentialMaterial(value: unknown, key = ''): unknown {

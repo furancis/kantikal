@@ -81,6 +81,34 @@ describe('fetch provider export runtime client', () => {
     expect(state.exports.downloads.map((download) => download.kind)).toEqual(['audio', 'cover-art', 'stem'])
   })
 
+  it('surfaces mounted HTTP route failures instead of falling back to local state', async () => {
+    const client = createFetchProviderExportRuntimeClient({
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ error: 'export route database unavailable' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    })
+
+    await expect(
+      client.pollGenerationTask({ projectId: 'project-a', workflow: workflowWithGeneration() }),
+    ).rejects.toThrow(/export route database unavailable/i)
+  })
+
+  it('rejects malformed mounted HTTP route payloads instead of falling back to local state', async () => {
+    const client = createFetchProviderExportRuntimeClient({
+      fetchImpl: async () =>
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    })
+
+    await expect(
+      client.pollGenerationTask({ projectId: 'project-a', workflow: workflowWithGeneration() }),
+    ).rejects.toThrow(/returned no state/i)
+  })
+
   it('preserves an explicit null hydrate response from the HTTP route', async () => {
     const fallbackSnapshot = exportSnapshotFromWorkflow('project-a', workflowWithGeneration())
     const client = createFetchProviderExportRuntimeClient({

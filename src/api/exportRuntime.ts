@@ -1,5 +1,5 @@
 import {
-  failedLipsyncChecks,
+  isPerfectLipsyncApproved,
   recordProviderCallback,
   recordProviderTaskUpdate,
   type ProviderTaskOutput,
@@ -43,16 +43,25 @@ export function createFetchProviderExportRuntimeClient(
     init: RequestInit,
     fallbackAction: () => Promise<T>,
   ): Promise<T> {
+    let response: Response
     try {
-      const response = await fetchImpl(providerExportRoute(input.baseUrl, projectId, path), init)
-      if (!response.ok) {
-        return fallbackAction()
-      }
-      const payload = (await response.json()) as { state?: T }
-      return payload.state !== undefined ? payload.state : fallbackAction()
+      response = await fetchImpl(providerExportRoute(input.baseUrl, projectId, path), init)
     } catch {
       return fallbackAction()
     }
+
+    if (response.status === 404) {
+      return fallbackAction()
+    }
+
+    const payload = await readRoutePayload(response)
+    if (!response.ok) {
+      throw new Error(stringFrom(payload.error) ?? `Provider export route failed with HTTP ${response.status}`)
+    }
+    if (!('state' in payload)) {
+      throw new Error('Provider export route returned no state')
+    }
+    return payload.state as T
   }
 
   return {
@@ -181,7 +190,7 @@ export function createLocalProviderExportRuntimeClient(
         return save(projectId, current)
       }
 
-      if (!lane.lipsync || lane.exportStatus !== 'ready' || failedLipsyncChecks(lane.lipsync).length > 0) {
+      if (!isPerfectLipsyncApproved(lane)) {
         return save(
           projectId,
           recordProviderTaskUpdate(current, {
@@ -230,4 +239,25 @@ function jsonRequest(body: unknown): RequestInit {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   }
+}
+
+async function readRoutePayload(response: Response): Promise<Record<string, unknown>> {
+  const text = await response.text()
+  if (!text) {
+    return {}
+  }
+  try {
+    const parsed = JSON.parse(text) as unknown
+    return isRecord(parsed) ? parsed : {}
+  } catch {
+    throw new Error('Provider export route returned invalid JSON')
+  }
+}
+
+function stringFrom(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

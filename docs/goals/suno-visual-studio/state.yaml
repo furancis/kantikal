@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T160
+active_task: T170
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -1033,7 +1033,10 @@ tasks:
       - "Persistence would write provider credential material."
       - "A project delete/purge path would be irreversible or non-archive-first."
     receipts:
-      - pr: pending
+      - pr: 6
+        pr_url: "https://github.com/furancis/suno-visual-studio/pull/6"
+        merged_at: "2026-05-20T14:00:13Z"
+        merge_commit: "19596cd127e1b566ed0140d918d7658274e12c71"
         branch: feature/visual-studio-t150
         files:
           - src/api/projectStore.ts
@@ -1071,7 +1074,7 @@ tasks:
   - id: T160
     type: judge
     assignee: Judge
-    status: active
+    status: done
     objective: "Run the final PM/Judge audit against the full original ask and decide whether the product can truthfully claim full_outcome_complete."
     inputs:
       - docs/goals/suno-visual-studio/goal.md
@@ -1090,6 +1093,130 @@ tasks:
       - "full_outcome_complete: true only if no product gaps remain; otherwise a concrete next active task."
     allowed_files:
       - docs/**
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    receipt:
+      result: not_complete
+      full_outcome_complete: false
+      evidence:
+        - "Fresh local gate on feature/visual-studio-t160 passed: lint, typecheck, 97 unit tests, production build, Playwright e2e, npm audit, credential scan, wording scan, and git diff --check."
+        - "The app remains a dynamic visual workflow: project lobby, editable prompt/lyrics/style/voice, Suno batch generation, comparison, Song Lab, local library, downloads, subordinate Music Video Lane, release pack, and archive-first cleanup."
+        - "Server-side provider routes and export routes are mounted with local fallback for absent routes, and credential scanners pass."
+        - "Final audit subagents agreed full_outcome_complete is not yet supported."
+      fixed_blockers:
+        - "Mounted provider export route failures now surface instead of silently falling back to local export state."
+        - "Video release/download approval now requires a real non-null perfect-lipsync proof, not just a forged ready exportStatus."
+        - "Project persistence downgrades forged video-ready state and drops unsafe video release packs during hydration sanitization."
+      missing_evidence:
+        - "Most API capabilities remain planned or unsupported in docs/api-coverage.md and src/api/coverage.ts; only create song, custom mode, and release pack are marked implemented."
+        - "Perfect lipsync is still represented by local boolean QA state; no real phoneme/frame/mouth-shape/segment-drift/post-stitch evaluator is wired."
+        - "ComfyUI music-video render/stitch/QA worker execution is represented and gated, but not a real worker pipeline."
+        - "Real provider credential success against external Suno-compatible endpoints has not been proven; tests use mocked fetch/server-side simulated calls."
+      summary: "The repo is a verified visual product slice with strong workflow, persistence, CI, and safety gates, but it is not the full requested product yet. Continue with real provider capability execution and real lipsync/MV worker integration before any completion claim."
+  - id: T161
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Harden final-audit blockers around export fallback and forged lipsync-ready state."
+    inputs:
+      - src/api/exportRuntime.ts
+      - src/domain/workflow.ts
+      - src/api/projectStore.ts
+      - "Final T160 code-review findings"
+    constraints:
+      - "Fallback is only allowed for absent/unavailable local routes, not mounted route failures."
+      - "Video release and provider video download approval require non-null passing lipsync checks."
+      - "Persisted project state must not hydrate forged video-ready release packs."
+    expected_output:
+      - "Regression tests for route failure visibility and forged lipsync states."
+      - "Shared perfect-lipsync approval predicate."
+      - "Project snapshot sanitization for unsafe video-ready state."
+    allowed_files:
+      - src/**
+      - docs/goals/suno-visual-studio/state.yaml
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    receipt:
+      result: done
+      branch: feature/visual-studio-t160
+      files:
+        - src/api/exportRuntime.ts
+        - src/api/exportRuntime.test.ts
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/api/projectStore.ts
+        - src/api/projectStore.test.ts
+        - src/App.test.tsx
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: node node_modules/vitest/vitest.mjs --run src/api/exportRuntime.test.ts src/domain/workflow.test.ts src/api/projectStore.test.ts
+          status: pass
+        - cmd: node node_modules/eslint/bin/eslint.js .
+          status: pass
+        - cmd: node node_modules/typescript/bin/tsc --noEmit
+          status: pass
+        - cmd: node node_modules/vitest/vitest.mjs --run
+          status: pass
+        - cmd: node node_modules/typescript/bin/tsc -b && node node_modules/vite/bin/vite.js build
+          status: pass
+        - cmd: node node_modules/@playwright/test/cli.js test
+          status: pass
+        - cmd: node npm-cli.js audit --audit-level=moderate
+          status: pass
+        - cmd: node .github/scripts/scan-credentials.mjs
+          status: pass
+        - cmd: node .github/scripts/scan-wording.mjs
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Closed the final-audit safety blockers: fetch-backed provider export runtime now falls back only on absent/unavailable routes and surfaces mounted route errors or malformed payloads, video release/download approval requires actual passing lipsync checks, project persistence downgrades forged video-ready state while removing unsafe video release packs, and the longest visual interaction test has an explicit CI-safe timeout."
+  - id: T170
+    type: worker
+    assignee: Worker
+    status: active
+    objective: "Replace the remaining simulated/planned product lanes with real executable provider and lipsync/MV worker integrations."
+    inputs:
+      - docs/api-coverage.md
+      - src/api/actionCatalog.ts
+      - server/sunoApiAdapter.ts
+      - server/providerRoutes.ts
+      - server/providerExportRoutes.ts
+      - src/domain/workflow.ts
+      - src/App.tsx
+    constraints:
+      - "Do not claim full_outcome_complete until planned API/MV/lipsync lanes are either implemented or explicitly impossible from current provider docs."
+      - "Provider credentials stay server-side and must not be printed or persisted."
+      - "Music Video Lane remains subordinate to selected song/version."
+      - "Perfect lipsync must be real evaluator output, not hardcoded UI booleans."
+      - "ComfyUI/render/stitch/QA work must be represented as executable worker/runtime integration or an explicit blocked runtime dependency."
+    expected_output:
+      - "Real provider success path for endpoint-backed planned capabilities with typed payload builders and result normalization."
+      - "Real or locally executable lipsync evaluator boundary producing phoneme, frame, mouth-shape, segment drift, and post-stitch evidence."
+      - "Music-video render/stitch/QA worker runtime boundary, or a documented hard blocker with tests preserving blocked state."
+      - "Updated API coverage statuses and tests so the ledger no longer lists executable capabilities as planned."
+      - "Fresh local full gate, direct Greptile review, hosted CI/Greptile PR proof."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+      - vite.config.ts
     verify:
       - npm run lint
       - npm run typecheck
