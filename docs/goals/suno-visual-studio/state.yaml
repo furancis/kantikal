@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T140
+active_task: T150
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -913,7 +913,7 @@ tasks:
   - id: T140
     type: worker
     assignee: Worker
-    status: active
+    status: done
     objective: "Mount provider generation and API action dispatch behind server HTTP routes and wire the visual app to a fetch-backed SunoProvider with offline fallback."
     inputs:
       - server/sunoApiAdapter.ts
@@ -952,3 +952,83 @@ tasks:
     stop_if:
       - "A provider action route would require exposing server credentials to the browser."
       - "A live external provider call is required without existing local credential authority."
+    receipt:
+      result: done
+      changed_files:
+        - server/providerRoutes.ts
+        - server/providerRoutes.test.ts
+        - src/api/provider.ts
+        - src/api/provider.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/main.tsx
+        - vite.config.ts
+        - e2e/studio.spec.ts
+        - README.md
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: credential literal rg scan
+          status: pass
+        - cmd: static chat surface wording rg scan
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Mounted provider generation and API action dispatch behind local HTTP Request/Response routes. The browser entrypoint now uses a fetch-backed SunoProvider with local mock fallback only when the route is absent; mounted server route errors stay visible instead of being hidden by fallback. Vite dev mounts provider generation/action routes beside provider-export routes without prefix collisions, and Playwright proves generation plus API actions use the HTTP provider route while export polling still reaches the export route. Server route tests prove credential-bearing adapter calls never return the key to the browser. Greptile PR #5 follow-up surfaces unreachable route fetch failures, validates provider route request fields before casting, returns provider-job track IDs instead of mock track IDs from the server generation route, and removes the dead server fallback option so adapter failures remain explicit."
+  - id: T150
+    type: worker
+    assignee: Worker
+    status: active
+    objective: "Persist full project/workflow state and add a project lobby/recent-project surface so the visual app survives reloads beyond export metadata."
+    inputs:
+      - src/domain/workflow.ts
+      - src/App.tsx
+      - src/api/exportState.ts
+      - server/providerRoutes.ts
+      - server/providerExportRoutes.ts
+      - vite.config.ts
+    constraints:
+      - "Project persistence must not store provider credentials or secret material."
+      - "Archive-first cleanup, selected-track ownership, and Music Video Lane state must survive reload."
+      - "Offline tests must keep deterministic local storage or in-memory fallback."
+      - "Project lobby must not become a marketing landing page; it is an operational workspace surface."
+    expected_output:
+      - "Persisted project/workflow snapshot route or local storage boundary."
+      - "Project lobby/recent-project node showing saved briefs, selected track, job/export counts, and blocked gates."
+      - "Hydration tests proving generation, assets, Song Lab, Music Video Lane, release pack, cleanup, and exports survive reload boundaries."
+      - "Credential and forbidden-wording scans remain clean."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+      - vite.config.ts
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    stop_if:
+      - "Persistence would write provider credential material."
+      - "A project delete/purge path would be irreversible or non-archive-first."

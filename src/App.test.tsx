@@ -37,7 +37,7 @@ describe('Suno Visual Studio shell', () => {
     await user.clear(screen.getByLabelText(/voice/i, { selector: 'input' }))
     await user.type(screen.getByLabelText(/voice/i, { selector: 'input' }), 'Consented bright tenor persona')
 
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
 
     expect(await screen.findByRole('button', { name: /neon khaliji club hook v1/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /neon khaliji club hook v2/i })).toBeInTheDocument()
@@ -105,7 +105,7 @@ describe('Suno Visual Studio shell', () => {
 
     render(<App provider={failingProvider} />)
 
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/provider rate limit/i)
     expect(screen.queryByRole('button', { name: /gulf chorus engine v1/i })).not.toBeInTheDocument()
@@ -130,13 +130,13 @@ describe('Suno Visual Studio shell', () => {
 
     render(<App provider={flakyProvider} />)
 
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
     await user.click(await screen.findByRole('button', { name: /first provider v1/i }))
     await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
 
     expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/provider rate limit/i)
     expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
@@ -164,13 +164,13 @@ describe('Suno Visual Studio shell', () => {
 
     render(<App provider={emptyBatchProvider} />)
 
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
     await user.click(await screen.findByRole('button', { name: /first provider v1/i }))
     await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
 
     expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/requires at least one track/i)
     expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
@@ -213,7 +213,7 @@ describe('Suno Visual Studio shell', () => {
 
     render(<App provider={delayedProvider} />)
 
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
     await user.click(screen.getByRole('button', { name: /run api action create song/i }))
 
     expect(await screen.findByRole('status')).toHaveTextContent(/succeeded mid-generation/i)
@@ -240,7 +240,7 @@ describe('Suno Visual Studio shell', () => {
 
     await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
     await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
     await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
 
     await user.click(screen.getByRole('button', { name: /version comparison/i }))
@@ -309,7 +309,7 @@ describe('Suno Visual Studio shell', () => {
     expect(await screen.findByText(/consented bright tenor persona planned/i)).toBeInTheDocument()
     expect(screen.getAllByText(/consent note: reusable vocal identity/i).length).toBeGreaterThan(0)
 
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
     await user.click(await screen.findByRole('button', { name: /dark cinematic lift v2/i }))
     await user.click(screen.getByRole('button', { name: /open song lab/i }))
 
@@ -326,7 +326,7 @@ describe('Suno Visual Studio shell', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
     await user.click(await screen.findByRole('button', { name: /dark cinematic lift v2/i }))
     await user.click(screen.getByRole('button', { name: /downloads \/ exports/i }))
 
@@ -436,7 +436,7 @@ describe('Suno Visual Studio shell', () => {
 
     render(<App exportRuntime={exportRuntime} />)
 
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
     await user.click(await screen.findByRole('button', { name: /dark cinematic lift v2/i }))
     await user.click(screen.getByRole('button', { name: /downloads \/ exports/i }))
     await user.click(screen.getByRole('button', { name: /poll selected generation job/i }))
@@ -481,7 +481,7 @@ describe('Suno Visual Studio shell', () => {
 
     await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
     await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
     await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
     await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
 
@@ -520,7 +520,7 @@ describe('Suno Visual Studio shell', () => {
 
     await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
     await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
     await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
     await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
 
@@ -545,7 +545,7 @@ describe('Suno Visual Studio shell', () => {
 
     await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
     await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
     await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
     await user.click(screen.getByRole('button', { name: /open music video lane/i }))
     await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
@@ -577,7 +577,7 @@ describe('Suno Visual Studio shell', () => {
 
     await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
     await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
     await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
     await user.click(screen.getByRole('button', { name: /open music video lane/i }))
 
@@ -586,7 +586,7 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByLabelText(/style/i, { selector: 'input' })).toBeDisabled()
     expect(screen.getByLabelText(/voice/i, { selector: 'input' })).toBeDisabled()
     expect(screen.getByRole('button', { name: /run generation/i })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /generate mock suno batch/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /generate suno batch/i })).toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
 
@@ -600,7 +600,7 @@ describe('Suno Visual Studio shell', () => {
 
     await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
     await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
     await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
     await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
     await user.click(screen.getByRole('button', { name: /open music video lane/i }))
@@ -625,7 +625,7 @@ describe('Suno Visual Studio shell', () => {
 
     await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
     await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
-    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
     await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
 
     expect(screen.getByRole('button', { name: /open music video lane/i })).toBeEnabled()
@@ -657,7 +657,7 @@ describe('Suno Visual Studio shell', () => {
     await user.click(screen.getByRole('button', { name: /run generation/i }))
 
     expect(screen.getByRole('button', { name: /run generation/i })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /generate mock suno batch/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /generate suno batch/i })).toBeDisabled()
     expect(screen.getByLabelText(/brief/i, { selector: 'textarea' })).toBeDisabled()
     expect(screen.getByLabelText(/lyrics/i, { selector: 'textarea' })).toBeDisabled()
     expect(screen.getByLabelText(/style/i, { selector: 'input' })).toBeDisabled()
