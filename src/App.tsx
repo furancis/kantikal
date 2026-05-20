@@ -23,9 +23,11 @@ import {
 } from 'lucide-react'
 import type { ChangeEvent, ComponentType, FormEvent } from 'react'
 import { useMemo, useState } from 'react'
-import { createMockSunoProvider } from './api/provider'
-import type { SunoProvider } from './api/provider'
+import { actionStateForEntry } from './api/actionCatalog'
+import type { ApiCoverageEntry } from './api/coverage'
 import { apiCoverageEntries, apiCoverageStatusCounts } from './api/coverage'
+import { createMockSunoProvider, executeProviderAction } from './api/provider'
+import type { ProviderActionResult, SunoProvider } from './api/provider'
 import {
   applyArchiveFirstCleanup,
   createWorkflow,
@@ -168,6 +170,7 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [videoExportError, setVideoExportError] = useState<string | null>(null)
+  const [apiActionResult, setApiActionResult] = useState<ProviderActionResult | null>(null)
 
   const workflowNodes = useMemo(
     () => buildWorkflowNodes(workflow, releasePack),
@@ -203,6 +206,23 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  async function handleRunApiAction(entry: ApiCoverageEntry) {
+    const result = await executeProviderAction(provider, {
+      action: entry.adapterAction,
+      capability: entry.capability,
+      brief: briefInput.brief,
+      lyrics: briefInput.lyrics,
+      style: briefInput.style,
+      voice: briefInput.voice,
+      payload: {
+        prompt: briefInput.lyrics || briefInput.brief,
+        style: briefInput.style,
+        title: briefInput.brief,
+      },
+    })
+    setApiActionResult(result)
   }
 
   function handleFieldChange(field: keyof BriefInput) {
@@ -603,14 +623,34 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
             <p>
               {apiCoverageEntries.length} mapped capabilities. {coverageCounts.implemented} implemented;
               {' '}
-              {coverageCounts.planned} planned; server-only credentials enforced.
+              {coverageCounts.planned} planned; {coverageCounts.unsupported} unsupported; server-only credentials enforced.
             </p>
+            {apiActionResult && (
+              <div className={`api-result ${apiActionResult.outcome}`} role="status">
+                <strong>
+                  {apiActionResult.capability}: {apiActionResult.outcome}
+                </strong>
+                <small>
+                  {apiActionResult.message}
+                  {apiActionResult.endpoint ? ` Endpoint ${apiActionResult.endpoint}.` : ''}
+                  {apiActionResult.providerTaskId ? ` Task ${apiActionResult.providerTaskId}.` : ''}
+                </small>
+              </div>
+            )}
             {apiCoverageEntries.map((entry) => (
               <div key={entry.capability}>
                 <strong>{entry.capability}</strong>
                 <small>
                   {entry.uiSurface} {'->'} {entry.backendOwner} {'->'} {entry.adapterAction} ({entry.status})
                 </small>
+                <button
+                  aria-label={`Run API action ${entry.capability}`}
+                  type="button"
+                  onClick={() => void handleRunApiAction(entry)}
+                >
+                  <Activity size={14} />
+                  {actionStateForEntry(entry).buttonLabel}
+                </button>
               </div>
             ))}
           </div>

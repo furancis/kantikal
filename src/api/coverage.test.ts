@@ -44,12 +44,13 @@ describe('API coverage enforcement', () => {
   })
 
   it('summarizes implementation state without hiding planned work', () => {
-    expect(apiCoverageStatusCounts(apiCoverageEntries)).toMatchObject({
-      implemented: 2,
-      planned: apiCoverageEntries.length - 2,
-      blocked: 0,
-      unsupported: 0,
-      deprecated: 0,
-    })
+    const counts = apiCoverageStatusCounts(apiCoverageEntries)
+
+    expect(counts.implemented).toBe(3)
+    expect(counts.planned).toBeGreaterThan(30)
+    expect(counts.unsupported).toBeGreaterThan(0)
+    expect(counts.blocked).toBe(0)
+    expect(counts.deprecated).toBe(0)
+    expect(Object.values(counts).reduce((total, count) => total + count, 0)).toBe(apiCoverageEntries.length)
   })
 })

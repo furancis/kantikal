@@ -24,8 +24,8 @@ All Suno/provider capabilities must be mapped here before implementation is call
 | Upload and extend audio | Song Lab upload rail | Suno adapter | Planned | Server | uploadAndExtend |
 | Cover | Song Lab action rail | Suno adapter | Planned | Server | coverTrack |
 | Upload and cover audio | Song Lab upload rail | Suno adapter | Planned | Server | uploadAndCover |
-| Remix/recreate | Song Lab version branch | Suno adapter | Planned | Server | remixTrack |
-| Remaster | Song Lab version branch | Suno adapter | Planned | Server | remasterTrack |
+| Remix/recreate | Song Lab version branch | Suno adapter | Unsupported | Server | remixTrack |
+| Remaster | Song Lab version branch | Suno adapter | Unsupported | Server | remasterTrack |
 | Replace section | Song Lab region editor | Suno adapter | Planned | Server | replaceSection |
 | Add instrumental | Song Lab stem composer | Suno adapter | Planned | Server | addInstrumental |
 | Add vocals | Song Lab stem composer | Suno adapter | Planned | Server | addVocals |
@@ -44,16 +44,16 @@ All Suno/provider capabilities must be mapped here before implementation is call
 | WAV conversion details | Queue strip and job drawer | Job service | Planned | Server | getWavConversionDetails |
 | Credits/cost | Cost guard | Job service | Planned | Server | getRemainingCredits |
 | Timestamped lyrics | Lyrics card timeline | Suno adapter | Planned | Server | getTimestampedLyrics |
-| Library list/search | Library | Library service | Planned | Server | listLibrary |
-| Like/unlike | Library item action | Library service | Planned | Server | toggleLike |
-| Archive/trash/delete | Cleanup console | Library service | Planned | Server | archiveOrDelete |
-| Restore from trash/archive | Library cleanup console | Library service | Planned | Server | restoreArchivedItem |
-| Visibility toggle | Library item action | Library service | Planned | Server | setVisibility |
+| Library list/search | Library | Library service | Unsupported | Server | listLibrary |
+| Like/unlike | Library item action | Library service | Unsupported | Server | toggleLike |
+| Archive/trash/delete | Cleanup console | Library service | Unsupported | Server | archiveOrDelete |
+| Restore from trash/archive | Library cleanup console | Library service | Unsupported | Server | restoreArchivedItem |
+| Visibility toggle | Library item action | Library service | Unsupported | Server | setVisibility |
 | Cover art | Stems / release pack | Export service | Planned | Server | generateCoverArt |
-| Waveform asset | Stems card | Export service | Planned | Server | exportWaveform |
-| Download audio/stems | Release Pack | Export service | Planned | Server | downloadAudioAndStems |
-| Lyrics/captions export | Release Pack | Export service | Planned | Server | exportLyricsAndCaptions |
-| Release pack / provenance bundle | Release Pack | Export service | Planned | None | buildReleasePack |
+| Waveform asset | Stems card | Export service | Unsupported | Server | exportWaveform |
+| Download audio/stems | Release Pack | Export service | Unsupported | Server | downloadAudioAndStems |
+| Lyrics/captions export | Release Pack | Export service | Unsupported | Server | exportLyricsAndCaptions |
+| Release pack / provenance bundle | Release Pack | Export service | Implemented | None | buildReleasePack |
 | Webhooks/retries | Operations console | Job service | Planned | Server | handleProviderCallback |
 | Music-video render | MV lane | ComfyUI adapter | Planned | External worker | renderMusicVideo |
 | Provider music video creation | MV lane | Suno adapter | Planned | Server | createProviderMusicVideo |
@@ -64,8 +64,18 @@ Rule: if an endpoint exists and is not in this map, API parity is incomplete. If
 Source checkpoint, 2026-05-20:
 
 - `https://docs.sunoapi.org/llms.txt`
+- `https://docs.sunoapi.org/suno-api/suno-api.json`
+- `https://docs.sunoapi.org/file-upload-api/file-upload-api.json`
+- `https://docs.sunoapi.org/suno-api/suno-voice-api.json`
 - `https://docs.sunoapi.org/suno-api/quickstart`
 - `https://docs.sunoapi.org/suno-api/generate-music`
 - `https://docs.sunoapi.org/suno-api/extend-music`
 - `https://docs.sunoapi.org/suno-api/upload-and-cover-audio`
 - `https://docs.sunoapi.org/suno-api/upload-and-extend-audio`
+
+T070 adapter checkpoint:
+
+- Endpoint-backed actions are registered in `src/api/actionCatalog.ts`.
+- Browser UI can only run the mock/local action lane or show planned, blocked, external-worker, and unsupported states.
+- Real provider dispatch is isolated in `server/sunoApiAdapter.ts`; it requires `runtime: "server"` and a server-side API key before any network call.
+- Current provider docs do not expose library management, visibility, waveform export, direct download, captions export, remix, or remaster endpoints; those stay `Unsupported` rather than disappearing from the product map.

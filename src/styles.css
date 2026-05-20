@@ -483,13 +483,42 @@ textarea {
 
 .api-box div {
   display: grid;
-  gap: 2px;
+  gap: 6px;
   padding-bottom: 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.api-box button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: fit-content;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
 .api-box small {
   color: #b7b1a6;
+}
+
+.api-result {
+  padding: 10px;
+  border: 1px solid rgba(240, 181, 76, 0.4);
+  border-radius: 8px;
+  background: rgba(240, 181, 76, 0.1);
+}
+
+.api-result.succeeded {
+  border-color: rgba(107, 218, 132, 0.42);
+  background: rgba(107, 218, 132, 0.1);
+}
+
+.api-result.blocked,
+.api-result.unsupported {
+  border-color: rgba(229, 83, 83, 0.4);
+  background: rgba(229, 83, 83, 0.1);
 }
 
 .bottom-deck {

@@ -123,6 +123,27 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
   })
 
+  it('runs API coverage actions through the provider action lane', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /run api action create song/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/create song/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/succeeded/i)
+    expect(screen.getByRole('status')).not.toHaveTextContent(/secret/i)
+  })
+
+  it('shows unsupported provider capabilities as explicit action results', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /run api action library list\/search/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/library list\/search/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/unsupported/i)
+  })
+
   it('shows release pack deliverables, provenance receipts, and archive-first cleanup', async () => {
     const user = userEvent.setup()
     render(<App />)

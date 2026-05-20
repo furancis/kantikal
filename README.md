@@ -30,4 +30,13 @@ npm run typecheck
 npm test -- --run
 npm run build
 npm run test:e2e
+npm audit --audit-level=moderate
+npm run scan:credentials
+npm run scan:wording
 ```
+
+Provider/API shape:
+
+- Client UI uses the mock/local provider action lane by default.
+- Real Suno-compatible HTTP dispatch lives under `server/` and requires server runtime plus a server-side API key.
+- API parity states are enforced from `docs/api-coverage.md`, `src/api/coverage.ts`, and `src/api/actionCatalog.ts`.
