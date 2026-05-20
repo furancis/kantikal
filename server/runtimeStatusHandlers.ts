@@ -83,8 +83,8 @@ async function probeSuno(fetchImpl: typeof fetch, input: SunoProbeInput): Promis
       ...base,
       state: input.apiKey ? 'configured' : 'blocked',
       message: input.apiKey
-        ? 'Server-side Suno key is configured, but the local QA provider is active.'
-        : 'Local QA provider is active; set SUNO_API_KEY with SUNO_PROVIDER_MODE=live for real provider dispatch.',
+        ? 'Printing Press remains the primary Suno web lane; optional Suno-compatible adapter has a key but local QA mode is active.'
+        : 'Printing Press / logged-in Suno web is the primary lane; optional Suno-compatible adapter is disabled until a valid key proves live.',
     }
   }
 
@@ -92,7 +92,8 @@ async function probeSuno(fetchImpl: typeof fetch, input: SunoProbeInput): Promis
     return {
       ...base,
       state: 'blocked',
-      message: 'Live provider mode needs SUNO_API_KEY before dispatch.',
+      message:
+        'Optional Suno-compatible adapter is blocked because live mode needs SUNO_API_KEY; Printing Press remains primary.',
     }
   }
 
@@ -112,7 +113,8 @@ async function probeSuno(fetchImpl: typeof fetch, input: SunoProbeInput): Promis
       return {
         ...base,
         state: 'online',
-        message: 'Suno API credential accepted by the remaining-credits endpoint.',
+        message:
+          'Optional Suno-compatible adapter credential accepted by the remaining-credits endpoint; Printing Press remains primary unless this adapter is explicitly chosen.',
       }
     }
 
@@ -121,14 +123,15 @@ async function probeSuno(fetchImpl: typeof fetch, input: SunoProbeInput): Promis
       ...base,
       state: rejected ? 'blocked' : 'configured',
       message: providerCode
-        ? `Suno API remaining-credits probe returned HTTP ${response.status} with provider code ${providerCode}.`
-        : `Suno API remaining-credits probe returned HTTP ${response.status}.`,
+        ? `Optional Suno-compatible adapter remaining-credits probe returned HTTP ${response.status} with provider code ${providerCode}.`
+        : `Optional Suno-compatible adapter remaining-credits probe returned HTTP ${response.status}.`,
     }
   } catch {
     return {
       ...base,
       state: 'configured',
-      message: 'Suno API key is configured, but the live remaining-credits probe did not complete.',
+      message:
+        'Optional Suno-compatible adapter key is configured, but the live remaining-credits probe did not complete.',
     }
   }
 }

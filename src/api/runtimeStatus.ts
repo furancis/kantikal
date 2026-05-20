@@ -79,7 +79,8 @@ export function createLocalRuntimeStatusClient(): RuntimeStatusClient {
           apiV1BaseUrl: 'https://api.sunoapi.org/api/v1',
           uploadBaseUrl: 'https://sunoapiorg.redpandaai.co',
           credential: 'missing',
-          message: 'Local runtime status route is unavailable; live Suno credential proof has not run.',
+          message:
+            'Printing Press / logged-in Suno web is the primary lane; optional Suno-compatible adapter proof has not run.',
         },
         comfy: {
           state: 'offline',

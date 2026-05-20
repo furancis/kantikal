@@ -184,7 +184,7 @@ const iconByKind: Record<NodeKind, ComponentType<{ size?: number }>> = {
 const featureList = [
   'Visual node canvas for idea to release workflow',
   'Prompt, lyrics, style, voice and persona workbenches',
-  'Full Suno API parity map with unsupported endpoints explicitly flagged',
+  'Full Suno capability map with unsupported endpoints explicitly flagged',
   'Batch generation, version lineage, A/B comparison and taste scoring',
   'Track Genealogy family tree with traits, mutations, dead branches and breeding suggestions',
   'Song Lab timeline with regions, sections, stems and arrangement locks',
@@ -974,12 +974,13 @@ export function App({
         <div className="runtime-card" aria-label="Runtime status">
           <p className="eyebrow">Runtime</p>
           <div className={`runtime-row ${runtimeStatus?.suno.state ?? 'blocked'}`}>
-            <strong>Suno API</strong>
+            <strong>Suno web / Printing Press</strong>
             <span>
-              {runtimeStatus?.suno.credential ?? 'missing'} credential; {runtimeStatus?.suno.providerMode ?? 'local'} mode
+              primary lane; optional adapter {runtimeStatus?.suno.credential ?? 'missing'} credential;{' '}
+              {runtimeStatus?.suno.providerMode ?? 'local'} mode
             </span>
             <small>
-              {runtimeStatus?.suno.message ?? 'runtime status pending'};{' '}
+              {runtimeStatus?.suno.message ?? 'runtime status pending'}; optional adapter:{' '}
               {runtimeStatus?.suno.apiV1BaseUrl ?? 'https://api.sunoapi.org/api/v1'}
             </small>
           </div>

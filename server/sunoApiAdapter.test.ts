@@ -5,7 +5,7 @@ import {
   normalizeProviderRecordInfo,
 } from './sunoApiAdapter'
 
-describe('server Suno API adapter', () => {
+describe('server Suno-compatible provider adapter', () => {
   it('refuses to construct with client runtime so secrets cannot move into the browser lane', () => {
     expect(() =>
       createSunoApiServerAdapter({

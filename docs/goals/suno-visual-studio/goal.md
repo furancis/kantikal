@@ -10,14 +10,14 @@ The prior tranche produced a PRD, repo, static visual shell, tests, and Greptile
 
 ## Target Result
 
-A working Claude Design-style visual application where a user can run the Suno workflow end to end through mocked/local provider adapters first, then real server-side provider adapters when credentials are present:
+A working Claude Design-style visual application where a user can run the Suno workflow end to end through Printing Press / logged-in Suno web first. Mocked/local adapters remain test scaffolding, and third-party Suno-compatible provider adapters are optional only after live proof:
 
 brief -> prompt/lyrics/style/voice -> Suno generation batches -> compare/rate/version -> Song Lab edits/stems -> optional Music Video Lane -> lipsync QA -> release pack.
 
 ## Non-Negotiables
 
 - Claude Design reference only; no static one-off chat surface framing.
-- Visual app first; CLI, Printing Press, Suno wrappers, and ComfyUI are hidden engines.
+- Visual app first; Printing Press / logged-in Suno web is the primary hidden engine, while third-party Suno-compatible adapters and ComfyUI are optional helpers.
 - Music video is a subordinate lane opened from a selected song/version.
 - Full Suno/provider API capability coverage is maintained.
 - Perfect lipsync is a hard export gate: phoneme, frame, mouth-shape, segment drift, and post-stitch checks.

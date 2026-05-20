@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T190
+active_task: T220
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -452,7 +452,7 @@ tasks:
           status: pass
         - cmd: git diff --check
           status: pass
-      summary: "Added an endpoint-backed provider action catalog sourced from live SunoAPI OpenAPI specs, a server-only Suno API adapter that blocks without server credentials and never returns keys, client API-console action dispatch through the provider lane, explicit unsupported states for capabilities absent from current provider docs, and server tests included in Vitest. Greptile P1 follow-ups catch provider action rejections, preserve the current release pack when replacement generation fails or returns a rejected empty batch, enforce action-catalog ownership alignment with the API coverage map, model provider callbacks as inbound server handlers, block parameter-only actions from standalone provider dispatch, and lock prompt/generation controls while the Music Video Lane is open."
+      summary: "Added an endpoint-backed provider action catalog sourced from live SunoAPI provider specs, a server-only Suno-compatible adapter that blocks without server credentials and never returns keys, client API-console action dispatch through the provider lane, explicit unsupported states for capabilities absent from current provider docs, and server tests included in Vitest. Greptile P1 follow-ups catch provider action rejections, preserve the current release pack when replacement generation fails or returns a rejected empty batch, enforce action-catalog ownership alignment with the API coverage map, model provider callbacks as inbound server handlers, block parameter-only actions from standalone provider dispatch, and lock prompt/generation controls while the Music Video Lane is open."
   - id: T080
     type: worker
     assignee: Worker
@@ -1527,7 +1527,7 @@ tasks:
       - "Do not claim live Suno success without a valid server-side SUNO_API_KEY."
       - "Keep Music Video Lane subordinate to the selected song/version."
       - "Do not overwrite newer workflow state with stale async runtime snapshots."
-      - "Follow official SunoAPI docs for provider payload spellings and required upload URLs."
+      - "Follow the current SunoAPI provider docs for optional adapter payload spellings and required upload URLs."
     expected_output:
       - "Async lipsync QA merges only the returned Music Video Lane and provenance."
       - "Provider detail actions use operation-specific providerTaskId when available."
@@ -1574,4 +1574,72 @@ tasks:
       remaining_evidence:
         - "No valid SUNO_API_KEY is currently available, so live external provider dispatch remains blocked."
         - "ComfyUI is online and proved by status/model inventory from the app route, but full MV render/stitch/lipsync worker execution is not yet the product-complete path."
-      summary: "Closed the review blockers with regression coverage: mounted music-video failures still surface, dev-server rewrites fall back to local QA, approved lipsync evidence stays approved, async lipsync runtime results no longer clobber newer workflow/job state, detail actions re-use the correct operation provider task ID, and provider payloads keep official SunoAPI upload-cover and voice-regenerate semantics."
+      summary: "Closed the review blockers with regression coverage: mounted music-video failures still surface, dev-server rewrites fall back to local QA, approved lipsync evidence stays approved, async lipsync runtime results no longer clobber newer workflow/job state, detail actions re-use the correct operation provider task ID, and provider payloads keep current SunoAPI provider upload-cover and voice-regenerate semantics."
+  - id: T220
+    type: worker
+    assignee: Codex
+    status: done
+    objective: "Correct Suno execution framing so Printing Press / logged-in Suno web is primary and the third-party provider is optional only after live proof."
+    inputs:
+      - "User correction: use Printing Press; only use sunoapi.org if it proves live."
+      - src/api/runtimeStatus.ts
+      - server/runtimeStatusHandlers.ts
+      - src/App.tsx
+      - docs/prd.md
+      - docs/api-coverage.md
+    constraints:
+      - "Do not present sunoapi.org as the official Suno API."
+      - "Do not use the optional Suno-compatible adapter without a valid server-side key and live success proof."
+      - "Use the logged-in browser as the intended official Suno web authority, but do not print or persist secrets."
+    expected_output:
+      - "Runtime UI names Suno web / Printing Press as the primary lane."
+      - "Optional Suno-compatible adapter state remains visible but disabled until proven live."
+      - "Docs preserve the full product shape while removing the provider-as-primary confusion."
+    receipt:
+      result: implemented_verified
+      full_outcome_complete: false
+      files:
+        - src/api/runtimeStatus.ts
+        - src/api/runtimeStatus.test.ts
+        - server/runtimeStatusHandlers.ts
+        - server/runtimeStatusHandlers.test.ts
+        - server/sunoApiAdapter.ts
+        - server/sunoApiAdapter.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - e2e/studio.spec.ts
+        - docs/prd.md
+        - docs/api-coverage.md
+        - docs/goals/suno-visual-studio/goal.md
+        - docs/goals/suno-visual-studio/state.yaml
+        - docs/goals/suno-visual-studio/notes/t180-ui-runtime-plan.md
+      runtime_evidence:
+        - "User env has no SUNO_API_KEY; SUNO_API_BASE_URL=https://api.sunoapi.org and SUNO_UPLOAD_BASE_URL=https://sunoapiorg.redpandaai.co remain optional adapter config only."
+        - "agent-browser connect 9335 failed because Chrome CDP port refused connection; logged-in browser exists but authenticated automation is gated by Chrome remote-debugging Allow."
+        - "printing-press probe-reachability https://suno.com/create returned standard_http with confidence 0.95."
+        - "Local app runtime route http://127.0.0.1:4174/api/runtime/status reports Printing Press / logged-in Suno web as primary, optional adapter blocked/missing, and ComfyUI online with 23 models."
+      commands:
+        - cmd: npm test -- --run src/api/runtimeStatus.test.ts server/runtimeStatusHandlers.test.ts server/sunoApiAdapter.test.ts src/App.test.tsx
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      remaining_evidence:
+        - "Authenticated Printing Press browser capture is still blocked until Chrome remote debugging is allowed for the signed-in profile."
+        - "The optional sunoapi.org adapter is not proven live because no accepted SUNO_API_KEY is present."
+      summary: "Reframed runtime, UI, tests, and docs around Printing Press / logged-in Suno web as the primary Suno execution lane. The SunoAPI-compatible provider remains an optional adapter only after live key proof."

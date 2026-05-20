@@ -65,7 +65,8 @@ describe('runtime status handlers', () => {
         state: 'online',
         providerMode: 'live',
         credential: 'present',
-        message: 'Suno API credential accepted by the remaining-credits endpoint.',
+        message:
+          'Optional Suno-compatible adapter credential accepted by the remaining-credits endpoint; Printing Press remains primary unless this adapter is explicitly chosen.',
       },
       comfy: {
         state: 'offline',
@@ -96,7 +97,7 @@ describe('runtime status handlers', () => {
         state: 'blocked',
         providerMode: 'live',
         credential: 'present',
-        message: 'Suno API remaining-credits probe returned HTTP 200 with provider code 401.',
+        message: 'Optional Suno-compatible adapter remaining-credits probe returned HTTP 200 with provider code 401.',
       },
     })
   })
@@ -124,7 +125,28 @@ describe('runtime status handlers', () => {
         state: 'configured',
         providerMode: 'live',
         credential: 'present',
-        message: 'Suno API remaining-credits probe returned HTTP 200 with provider code 500.',
+        message: 'Optional Suno-compatible adapter remaining-credits probe returned HTTP 200 with provider code 500.',
+      },
+    })
+  })
+
+  it('keeps Printing Press primary when no optional adapter key is proven live', async () => {
+    const handlers = createRuntimeStatusHandlers({
+      env: {
+        COMFYUI_MODEL_ROOT: 'Z:\\missing-model-root',
+      },
+      fetchImpl: async () => {
+        throw new Error('ComfyUI not listening')
+      },
+    })
+
+    await expect(handlers.getStatus()).resolves.toMatchObject({
+      suno: {
+        state: 'blocked',
+        providerMode: 'local',
+        credential: 'missing',
+        message:
+          'Printing Press / logged-in Suno web is the primary lane; optional Suno-compatible adapter is disabled until a valid key proves live.',
       },
     })
   })

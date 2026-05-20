@@ -106,7 +106,7 @@ UX requirements:
    - Export audio/stems/metadata from selected track.
 
 3. Runtime configuration
-   - Add explicit server runtime config for Suno API base, upload base, callback URL, and credential presence.
+   - Add explicit server runtime config for the optional Suno-compatible provider base, upload base, callback URL, and credential presence.
    - Add explicit ComfyUI runtime config for URL, health, queue, model inventory, and selected video workflow.
    - Show runtime health in a compact status rail.
 

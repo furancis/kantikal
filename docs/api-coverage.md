@@ -1,5 +1,7 @@
 # API Coverage Map
 
+Printing Press / logged-in Suno web is the primary Suno execution path. The `sunoapi.org` surface in this document is an optional Suno-compatible adapter map, not the official Suno product contract, and it must be treated as disabled until a real credential probe succeeds.
+
 All Suno/provider capabilities must be mapped here before implementation is called complete. This ledger is sourced from the current provider documentation index plus product guardrails; it is an enforcement target, not proof that real provider calls are complete.
 
 | Capability | UI Surface | Backend Owner | Status | Auth Boundary | Adapter Action |

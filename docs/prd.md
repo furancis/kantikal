@@ -8,8 +8,8 @@ The music video flow is a subfeature of the overall Suno music generation tool. 
 
 ## Non-Negotiables
 
-- Visual-first app. CLI, Printing Press, Suno API wrappers, ComfyUI and job workers are engines behind the interface.
-- Full Suno API coverage. Every available endpoint or capability must be mapped to a UI feature, a background capability, or an explicit unsupported-state record.
+- Visual-first app. Printing Press / logged-in Suno web is the primary execution lane; optional Suno-compatible API adapters, CLI helpers, ComfyUI and job workers are engines behind the interface.
+- Full Suno workflow/API capability coverage. Every available endpoint or capability must be mapped to a UI feature, a background capability, or an explicit unsupported-state record. Third-party adapters are optional and must prove live before the app uses them.
 - Perfect lipsync is a hard gate for music-video export. Approximate sync is a failed state with repair actions.
 - Destructive cleanup is allowed only with archive-first behavior, undo, receipts, and audit logs.
 - API keys and provider credentials are server-side only. They must never be exposed to client bundles.

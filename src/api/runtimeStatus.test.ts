@@ -17,7 +17,8 @@ describe('runtime status client', () => {
                 apiV1BaseUrl: 'https://api.sunoapi.org/api/v1',
                 uploadBaseUrl: 'https://sunoapiorg.redpandaai.co',
                 credential: 'present',
-                message: 'Suno API credential accepted by the remaining-credits endpoint.',
+                message:
+                  'Optional Suno-compatible adapter credential accepted by the remaining-credits endpoint; Printing Press remains primary unless this adapter is explicitly chosen.',
               },
               comfy: {
                 state: 'online',
@@ -52,6 +53,10 @@ describe('runtime status client', () => {
     await expect(client.load()).resolves.toMatchObject({
       suno: { apiBaseUrl: 'https://api.sunoapi.org' },
       comfy: { state: 'offline' },
+    })
+
+    await expect(client.load()).resolves.toMatchObject({
+      suno: { message: expect.stringContaining('Printing Press') },
     })
   })
 

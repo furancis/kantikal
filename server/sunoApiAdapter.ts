@@ -32,7 +32,7 @@ export type ProviderPollRequest = {
 
 export function createSunoApiServerAdapter(input: SunoApiServerAdapterInput): SunoApiServerAdapter {
   if (input.runtime !== 'server') {
-    throw new Error('Suno API credentials must stay server-side')
+    throw new Error('Suno-compatible provider credentials must stay server-side')
   }
 
   const baseUrl = input.baseUrl ?? 'https://api.sunoapi.org'

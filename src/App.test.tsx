@@ -122,7 +122,8 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByRole('region', { name: /track-first command room/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /no selected source track/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /generate suno batch/i })).toBeInTheDocument()
-    expect(screen.getByLabelText(/runtime status/i)).toHaveTextContent(/Suno API/i)
+    expect(screen.getByLabelText(/runtime status/i)).toHaveTextContent(/Suno web \/ Printing Press/i)
+    expect(screen.getByLabelText(/runtime status/i)).toHaveTextContent(/optional adapter/i)
     expect(screen.getByLabelText(/runtime status/i)).toHaveTextContent(/ComfyUI/i)
     expect(screen.getByRole('button', { name: /open music video lane/i })).toBeDisabled()
     expect(screen.getByText(/select a generated track before opening video/i)).toBeInTheDocument()
@@ -176,7 +177,7 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByText(/lipsync qa worker queued/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/segment drift qa result/i)).toHaveTextContent(/pending/i)
     expect(screen.getByLabelText(/post-stitch sync qa result/i)).toHaveTextContent(/pending/i)
-    expect(screen.getByText(/full suno api parity map/i)).toBeInTheDocument()
+    expect(screen.getByText(/full suno capability map/i)).toBeInTheDocument()
     expect(screen.getByText(/archive-first destructive cleanup/i)).toBeInTheDocument()
     expect(screen.getByText(/music video source: mock-track-2/i)).toBeInTheDocument()
 
