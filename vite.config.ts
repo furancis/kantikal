@@ -4,6 +4,8 @@ import { defineConfig } from 'vitest/config'
 import { createMemoryProviderExportStore, createProviderExportHandlers } from './server/providerExportHandlers'
 import { createProviderExportNodeMiddleware } from './server/providerExportRoutes'
 import { createProviderNodeMiddleware, createServerSunoProvider } from './server/providerRoutes'
+import { createRuntimeStatusHandlers } from './server/runtimeStatusHandlers'
+import { createRuntimeStatusNodeMiddleware } from './server/runtimeStatusRoutes'
 import { createSunoApiServerAdapter } from './server/sunoApiAdapter'
 
 export default defineConfig({
@@ -33,6 +35,8 @@ function providerExportRoutesPlugin(): Plugin {
         adapter,
         store: createMemoryProviderExportStore(),
       })
+      const runtimeStatusHandlers = createRuntimeStatusHandlers()
+      server.middlewares.use(createRuntimeStatusNodeMiddleware(runtimeStatusHandlers))
       server.middlewares.use(createProviderNodeMiddleware({ provider }))
       server.middlewares.use(createProviderExportNodeMiddleware(handlers))
     },

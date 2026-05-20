@@ -60,7 +60,7 @@ textarea {
 
 .studio-shell {
   display: grid;
-  grid-template-rows: auto minmax(580px, 1fr) auto;
+  grid-template-rows: auto auto minmax(580px, 1fr) auto;
   min-height: 100vh;
 }
 
@@ -82,7 +82,7 @@ textarea {
 }
 
 .topbar h1 {
-  font-size: clamp(24px, 3vw, 40px);
+  font-size: clamp(24px, 2.4vw, 34px);
 }
 
 .project-current {
@@ -115,6 +115,111 @@ textarea {
   gap: 8px;
   min-height: 38px;
   padding: 0 12px;
+}
+
+.track-command {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.1fr) minmax(300px, 0.9fr) minmax(280px, 0.8fr);
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.source-card,
+.next-action-card,
+.runtime-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 150px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(13, 16, 19, 0.82);
+}
+
+.source-card h2,
+.next-action-card h2,
+.runtime-card h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.source-card h2,
+.next-action-card h2 {
+  font-size: clamp(20px, 2vw, 30px);
+}
+
+.source-card p,
+.next-action-card p {
+  margin: 0;
+  color: #d2cbc0;
+}
+
+.next-action-card {
+  border-color: rgba(240, 181, 76, 0.34);
+  background: rgba(240, 181, 76, 0.075);
+}
+
+.next-action-card button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: fit-content;
+  min-height: 40px;
+  padding: 0 13px;
+  color: #111317;
+  border-color: rgba(240, 181, 76, 0.8);
+  background: #f0b54c;
+  font-weight: 800;
+}
+
+.runtime-card {
+  gap: 10px;
+}
+
+.runtime-row {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.runtime-row strong,
+.runtime-row span,
+.runtime-row small {
+  min-width: 0;
+}
+
+.runtime-row span {
+  color: #d8d0c4;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.runtime-row small {
+  overflow-wrap: anywhere;
+  color: #b7b1a6;
+}
+
+.runtime-row.online {
+  border-color: rgba(107, 218, 132, 0.42);
+  background: rgba(107, 218, 132, 0.1);
+}
+
+.runtime-row.blocked {
+  border-color: rgba(240, 181, 76, 0.42);
+  background: rgba(240, 181, 76, 0.1);
+}
+
+.runtime-row.offline {
+  border-color: rgba(229, 83, 83, 0.4);
+  background: rgba(229, 83, 83, 0.1);
 }
 
 .workspace {
@@ -696,6 +801,10 @@ textarea {
 }
 
 @media (max-width: 1050px) {
+  .track-command {
+    grid-template-columns: 1fr;
+  }
+
   .workspace {
     grid-template-columns: 84px minmax(0, 1fr);
   }

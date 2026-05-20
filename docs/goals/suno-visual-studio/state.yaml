@@ -1,11 +1,11 @@
 version: 2
 slug: suno-visual-studio
-updated: 2026-05-20
+updated: 2026-05-21
 mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T170
+active_task: T190
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -1187,7 +1187,7 @@ tasks:
   - id: T170
     type: worker
     assignee: Worker
-    status: active
+    status: done
     objective: "Replace the remaining simulated/planned product lanes with real executable provider and lipsync/MV worker integrations."
     inputs:
       - docs/api-coverage.md
@@ -1293,3 +1293,132 @@ tasks:
         - "Live external Suno credential success is not claimed; provider calls are typed and server-owned, with tests using local fetch doubles."
         - "ComfyUI render remains blocked on external-worker execution; lipsync has a local executable evaluator boundary and evidence gate."
       summary: "Added typed provider payload builders for endpoint-backed actions, promoted executable API coverage entries from planned to implemented while preserving blocked and unsupported gaps, wired provider callbacks and server-parameter actions as implemented server semantics, added a fetch/local Music Video Runtime client that emits lipsync evaluator evidence, and made video export approval require passing threshold evidence tied to the selected track. Local full gate and PR #8 hosted CI/Greptile checks passed; live external Suno credential success and mounted ComfyUI render execution remain unproven."
+  - id: T180
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Implement the track-first Suno visual flow shell, runtime status bridge, and native QA coverage around Suno and local ComfyUI readiness."
+    inputs:
+      - docs/goals/suno-visual-studio/goal.md
+      - docs/goals/suno-visual-studio/state.yaml
+      - docs/goals/suno-visual-studio/notes/t180-ui-runtime-plan.md
+      - docs/api-coverage.md
+      - src/App.tsx
+      - src/styles.css
+      - server/sunoApiAdapter.ts
+      - src/api/musicVideoRuntime.ts
+      - "Local ComfyUI install at D:\\Dev\\ComfyUI"
+    constraints:
+      - "Keep the full Suno music generation workflow as the product center."
+      - "Music Video Lane remains subordinate to the selected song/version."
+      - "Do not hide missing live runtime proof behind mock success."
+      - "Use native design, browser, Playwright, CI, and Greptile QA before any completion claim."
+      - "No static chat-surface framing."
+    expected_output:
+      - "Track-first visual command room above the workflow canvas."
+      - "One next-action path that advances generate -> choose track -> Song Lab -> optional MV -> lipsync -> release."
+      - "Runtime status bridge for Suno base URLs, credential presence, ComfyUI health, and model inventory."
+      - "Native QA covering unit, build, e2e, local runtime route, and browser visual smoke."
+    allowed_files:
+      - docs/**
+      - src/**
+      - server/**
+      - e2e/**
+      - vite.config.ts
+      - package.json
+      - package-lock.json
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    receipt:
+      result: implemented_verified
+      full_outcome_complete: false
+      files:
+        - docs/goals/suno-visual-studio/notes/t180-ui-runtime-plan.md
+        - docs/goals/suno-visual-studio/state.yaml
+        - server/runtimeStatusHandlers.ts
+        - server/runtimeStatusRoutes.ts
+        - src/api/runtimeStatus.ts
+        - src/api/runtimeStatus.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/main.tsx
+        - src/styles.css
+        - vite.config.ts
+        - e2e/studio.spec.ts
+      verified_inputs:
+        - "Repo clean before planning on feature/visual-studio-t170."
+        - "Chrome/history showed Suno product origin but no reachable CDP API tab."
+        - "Repo/docs use Suno-compatible API base https://api.sunoapi.org and upload base https://sunoapiorg.redpandaai.co."
+        - "ComfyUI install found at D:\\Dev\\ComfyUI with LTX 2.3 and Wan 2.2 I2V models."
+        - "ComfyUI was not listening on http://127.0.0.1:8188 during the final planning check."
+      runtime_evidence:
+        - "Local dev route http://127.0.0.1:4174/api/runtime/status returned Suno credential missing, API v1 base https://api.sunoapi.org/api/v1, upload base https://sunoapiorg.redpandaai.co."
+        - "Runtime route found 23 local ComfyUI model files under D:\\Dev\\ComfyUI\\ComfyUI\\models."
+        - "Runtime route reported ComfyUI offline because http://127.0.0.1:8188 was not listening during verification."
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: git diff --check
+          status: pass
+        - cmd: browser screenshot smoke at .omx/logs/t180-studio.png
+          status: pass
+      summary: "Implemented the track-first command room and next-action controller so the first screen now centers the selected source track and guides the full Suno flow before exposing debug/API detail. Added a server runtime status route mounted in Vite, fetch/local client fallback, visible Suno/Comfy status, Comfy model inventory, and tests. The app is running locally at http://127.0.0.1:4174. Full outcome remains incomplete until live Suno credential success and local ComfyUI worker execution are proven."
+  - id: T190
+    type: worker
+    assignee: Worker
+    status: active
+    objective: "Prove or explicitly block live Suno credential execution and local ComfyUI worker execution against the installed runtime."
+    inputs:
+      - server/runtimeStatusHandlers.ts
+      - src/api/musicVideoRuntime.ts
+      - server/sunoApiAdapter.ts
+      - docs/goals/suno-visual-studio/state.yaml
+      - "Local ComfyUI install at D:\\Dev\\ComfyUI"
+    constraints:
+      - "Do not print or persist Suno credentials."
+      - "Do not claim live Suno success without an actual server-side credential-backed response."
+      - "Do not claim ComfyUI worker success unless http://127.0.0.1:8188 is listening and a minimal workflow/job path is exercised."
+      - "Music Video Lane remains subordinate to the selected song/version."
+    expected_output:
+      - "Credential-safe live Suno smoke or explicit missing-credential blocker."
+      - "ComfyUI health/model/object-info proof and minimal worker queue proof, or explicit runtime blocker."
+      - "UI/runtime status updated to distinguish configured, blocked, offline, and proven states."
+      - "Fresh local QA gate plus PR/Greptile evidence before completion claims."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - vite.config.ts
+      - package.json
+      - package-lock.json
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm run scan:credentials
+      - npm run scan:wording
+      - git diff --check

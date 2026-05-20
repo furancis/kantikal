@@ -44,6 +44,11 @@ import {
 import { createMockSunoProvider, executeProviderAction } from './api/provider'
 import type { ProviderActionResult, SunoProvider } from './api/provider'
 import {
+  createLocalRuntimeStatusClient,
+  type RuntimeStatus,
+  type RuntimeStatusClient,
+} from './api/runtimeStatus'
+import {
   applyArchiveFirstCleanup,
   compareTracks,
   createWorkflow,
@@ -102,6 +107,13 @@ type WorkflowNode = {
   y: number
   meta: string[]
   trackId?: string
+}
+
+type PrimaryAction = {
+  id: 'generate' | 'choose-track' | 'song-lab' | 'video' | 'lipsync' | 'release' | 'done'
+  label: string
+  detail: string
+  disabled?: boolean
 }
 
 const initialBrief: BriefInput = {
@@ -181,6 +193,7 @@ type AppProps = {
   provider?: SunoProvider
   exportRuntime?: ProviderExportRuntimeClient
   musicVideoRuntime?: MusicVideoRuntimeClient
+  runtimeStatusClient?: RuntimeStatusClient
   projectStore?: ProjectStore
   projectId?: string
 }
@@ -212,16 +225,19 @@ export function App({
   provider: injectedProvider,
   exportRuntime: injectedExportRuntime,
   musicVideoRuntime: injectedMusicVideoRuntime,
+  runtimeStatusClient: injectedRuntimeStatusClient,
   projectStore: injectedProjectStore,
   projectId = defaultProjectId,
 }: AppProps = {}) {
   const mockProvider = useMemo(() => createMockSunoProvider(), [])
   const localExportRuntime = useMemo(() => createLocalProviderExportRuntimeClient(), [])
   const localMusicVideoRuntime = useMemo(() => createLocalMusicVideoRuntimeClient(), [])
+  const localRuntimeStatusClient = useMemo(() => createLocalRuntimeStatusClient(), [])
   const localProjectStore = useMemo(() => createBrowserProjectStore(), [])
   const provider = injectedProvider ?? mockProvider
   const exportRuntime = injectedExportRuntime ?? localExportRuntime
   const musicVideoRuntime = injectedMusicVideoRuntime ?? localMusicVideoRuntime
+  const runtimeStatusClient = injectedRuntimeStatusClient ?? localRuntimeStatusClient
   const projectStore = injectedProjectStore ?? localProjectStore
   const coverageCounts = useMemo(() => apiCoverageStatusCounts(apiCoverageEntries), [])
   const [activeProjectId, setActiveProjectId] = useState(projectId)
@@ -236,6 +252,8 @@ export function App({
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [videoExportError, setVideoExportError] = useState<string | null>(null)
   const [exportRuntimeError, setExportRuntimeError] = useState<string | null>(null)
+  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null)
+  const [runtimeStatusError, setRuntimeStatusError] = useState<string | null>(null)
   const [apiActionResult, setApiActionResult] = useState<ProviderActionResult | null>(null)
   const projectHydrated = hydratedProjectId === activeProjectId
 
@@ -244,6 +262,27 @@ export function App({
     [workflow, releasePack, recentProjects, activeProjectId],
   )
   const selected = workflowNodes.find((node) => node.id === selectedId) ?? workflowNodes[0]
+
+  useEffect(() => {
+    let cancelled = false
+    void runtimeStatusClient
+      .load()
+      .then((status) => {
+        if (!cancelled) {
+          setRuntimeStatus(status)
+          setRuntimeStatusError(null)
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setRuntimeStatus(null)
+          setRuntimeStatusError(errorMessage(error, 'Runtime status failed'))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [runtimeStatusClient])
 
   useEffect(() => {
     setActiveProjectId(projectId)
@@ -354,6 +393,10 @@ export function App({
   const cleanupTargets = discardedGeneratedTracks(workflow)
   const cleanupStatus = workflow.cleanupPlan?.status ?? 'idle'
   const promptLocked = isGenerating || Boolean(workflow.musicVideoLane)
+  const primaryAction = nextActionForWorkflow(workflow, releasePack, videoExportReady)
+  const selectedTrackLabel = workflow.selectedTrack
+    ? `${workflow.selectedTrack.title} (${workflow.selectedTrack.id})`
+    : 'No selected source track'
 
   async function handleGenerate(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault()
@@ -681,6 +724,45 @@ export function App({
     }
   }
 
+  function handlePrimaryAction() {
+    if (primaryAction.id === 'generate') {
+      void handleGenerate()
+      return
+    }
+    if (primaryAction.id === 'choose-track') {
+      const firstTrack = workflow.generationBatch?.tracks[0]
+      if (firstTrack) {
+        setWorkflow((current) => selectTrack(current, firstTrack.id))
+        setReleasePack(null)
+        setSelectedId('track')
+      } else {
+        setSelectedId('batch')
+      }
+      return
+    }
+    if (primaryAction.id === 'song-lab') {
+      handleOpenSongLab()
+      return
+    }
+    if (primaryAction.id === 'video') {
+      handleOpenVideoLane()
+      return
+    }
+    if (primaryAction.id === 'lipsync') {
+      void handleRunLipsyncQa()
+      return
+    }
+    if (primaryAction.id === 'release') {
+      if (workflow.musicVideoLane?.exportStatus === 'ready') {
+        handleCreateVideoReleasePack()
+      } else {
+        handleCreateReleasePack()
+      }
+      return
+    }
+    setSelectedId('export')
+  }
+
   function handleQueueLipsyncRepair() {
     setWorkflow((current) => queueLipsyncRepair(current))
     setVideoExportError(null)
@@ -719,7 +801,7 @@ export function App({
       <header className="topbar">
         <div>
           <p className="eyebrow">Suno Visual Studio</p>
-          <h1>Visual music generation operating app</h1>
+          <h1>Track-first visual music studio</h1>
           <p className="project-current">Current project: {activeProjectId}</p>
         </div>
         <div className="topbar-actions" aria-label="Project controls">
@@ -751,6 +833,53 @@ export function App({
           {projectStoreError}
         </p>
       )}
+      {runtimeStatusError && (
+        <p className="form-error" role="alert">
+          {runtimeStatusError}
+        </p>
+      )}
+
+      <section className="track-command" aria-label="Track-first command room">
+        <div className="source-card">
+          <p className="eyebrow">Source of truth</p>
+          <h2>{selectedTrackLabel}</h2>
+          <p>
+            Make the song first. Versions, Song Lab, exports, and the optional music video lane all hang off this
+            selected track.
+          </p>
+        </div>
+        <div className="next-action-card">
+          <p className="eyebrow">Next action</p>
+          <h2>{primaryAction.label}</h2>
+          <p>{primaryAction.detail}</p>
+          <button
+            aria-label="Run primary next action"
+            disabled={primaryAction.disabled || (primaryAction.id === 'generate' && promptLocked)}
+            onClick={handlePrimaryAction}
+            type="button"
+          >
+            <Play size={16} />
+            Run next step
+          </button>
+        </div>
+        <div className="runtime-card" aria-label="Runtime status">
+          <p className="eyebrow">Runtime</p>
+          <div className={`runtime-row ${runtimeStatus?.suno.state ?? 'blocked'}`}>
+            <strong>Suno API</strong>
+            <span>{runtimeStatus?.suno.credential ?? 'missing'} credential</span>
+            <small>{runtimeStatus?.suno.apiV1BaseUrl ?? 'https://api.sunoapi.org/api/v1'}</small>
+          </div>
+          <div className={`runtime-row ${runtimeStatus?.comfy.state ?? 'offline'}`}>
+            <strong>ComfyUI</strong>
+            <span>{runtimeStatus?.comfy.state ?? 'offline'}</span>
+            <small>
+              {runtimeStatus
+                ? `${runtimeStatus.comfy.modelCount} models; ${runtimeStatus.comfy.baseUrl}`
+                : 'model inventory pending'}
+            </small>
+          </div>
+        </div>
+      </section>
 
       <section className="workspace" aria-label="Suno workflow workspace">
         <aside className="prompt-rail">
@@ -1804,6 +1933,66 @@ function toGeneratedTrackNode(track: GeneratedTrack, index: number, isSelected: 
     y: 58 + index * 3,
     meta: ['candidate take', track.id, `${track.durationSeconds}s`],
     trackId: track.id,
+  }
+}
+
+function nextActionForWorkflow(
+  workflow: SunoWorkflow,
+  releasePack: ReleasePack | null,
+  videoExportReady: boolean,
+): PrimaryAction {
+  if (!workflow.generationBatch) {
+    return {
+      id: 'generate',
+      label: 'Generate Suno batch',
+      detail: 'Start with a real batch so every downstream surface has a source song.',
+    }
+  }
+
+  if (!workflow.selectedTrack) {
+    return {
+      id: 'choose-track',
+      label: 'Choose source track',
+      detail: 'Pick one generated version. Song Lab, exports, and MV stay locked until this exists.',
+    }
+  }
+
+  if (!workflow.songLab) {
+    return {
+      id: 'song-lab',
+      label: 'Open Song Lab',
+      detail: 'Inspect sections, stems, locks, and edit actions for the selected source.',
+    }
+  }
+
+  if (!workflow.musicVideoLane) {
+    return {
+      id: 'video',
+      label: 'Open optional MV lane',
+      detail: 'Storyboard and lipsync remain a child workflow of the selected song.',
+    }
+  }
+
+  if (!videoExportReady) {
+    return {
+      id: 'lipsync',
+      label: 'Run lipsync QA',
+      detail: 'Video export stays blocked until evaluator evidence clears every sync check.',
+    }
+  }
+
+  if (!releasePack) {
+    return {
+      id: 'release',
+      label: 'Create release pack',
+      detail: 'Bundle audio, video, metadata, prompts, and provenance after gates pass.',
+    }
+  }
+
+  return {
+    id: 'done',
+    label: 'Inspect release pack',
+    detail: 'Release pack is ready; review contents, provenance, and archive cleanup receipts.',
   }
 }
 

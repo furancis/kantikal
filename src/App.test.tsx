@@ -117,7 +117,12 @@ describe('Suno Visual Studio shell', () => {
   it('keeps the music video lane subordinate to the song workflow', () => {
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: /visual music generation operating app/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /track-first visual music studio/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /track-first command room/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /no selected source track/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /generate suno batch/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/runtime status/i)).toHaveTextContent(/Suno API/i)
+    expect(screen.getByLabelText(/runtime status/i)).toHaveTextContent(/ComfyUI/i)
     expect(screen.getByRole('button', { name: /open music video lane/i })).toBeDisabled()
     expect(screen.getByText(/select a generated track before opening video/i)).toBeInTheDocument()
     expect(screen.getByText(/54 mapped capabilities/i)).toBeInTheDocument()
@@ -144,10 +149,13 @@ describe('Suno Visual Studio shell', () => {
 
     expect(await screen.findByRole('button', { name: /neon khaliji club hook v1/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /neon khaliji club hook v2/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /choose source track/i })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /generated track mock-track-2/i }))
 
     expect(screen.getByRole('heading', { name: /chosen track/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /neon khaliji club hook v2 \(mock-track-2\)/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /open song lab/i })).toBeInTheDocument()
     expect(screen.getByText(/selected source: mock-track-2/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /open music video lane/i })).toBeEnabled()
 
