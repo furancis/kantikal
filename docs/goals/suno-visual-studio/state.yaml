@@ -30,9 +30,9 @@ tasks:
     evidence: docs/api-coverage.md
   - id: greptile
     title: Configure and trigger Greptile
-    status: in_progress
-    evidence: .greptile/config.json
+    status: done
+    evidence: .greptile/config.json; PR #1; Greptile review 8833525 comments addressed in app, tests, and API map
   - id: verify
     title: Run full verification suite
     status: done
-    evidence: npm ci; npm run lint; npm run typecheck; npm test -- --run; npm run build; npm run test:e2e; npm audit --audit-level=moderate
+    evidence: npm run lint; npm run typecheck; npm test -- --run; npm run build; npm run test:e2e; npm audit --audit-level=moderate; Claude Design wording scan; credential literal scan

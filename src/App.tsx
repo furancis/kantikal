@@ -302,13 +302,18 @@ export function App() {
               <span key={item}>{item}</span>
             ))}
           </div>
-          <div className="lipsync-gate">
-            <h3>Perfect lipsync gate</h3>
-            <p>Video export stays blocked until phoneme, frame and mouth-shape drift all pass hard thresholds.</p>
-            <div className="meter" aria-label="Lipsync readiness">
-              <span />
+          {selected.kind === 'video' && (
+            <div className="lipsync-gate">
+              <h3>Perfect lipsync gate</h3>
+              <p>
+                Video export stays blocked until phoneme, frame, mouth-shape, segment drift, and
+                post-stitch checks all pass hard thresholds.
+              </p>
+              <div className="meter" aria-label="Lipsync readiness">
+                <span />
+              </div>
             </div>
-          </div>
+          )}
           <div className="api-box">
             <h3>API coverage</h3>
             {apiCoverage.map(([label, detail]) => (

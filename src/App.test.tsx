@@ -17,9 +17,13 @@ describe('Suno Visual Studio shell', () => {
     const user = userEvent.setup()
     render(<App />)
 
+    expect(screen.queryByRole('heading', { name: /perfect lipsync gate/i })).not.toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: /music video lane/i }))
 
     expect(screen.getByRole('heading', { name: /perfect lipsync gate/i })).toBeInTheDocument()
+    expect(screen.getByText(/segment drift/i)).toBeInTheDocument()
+    expect(screen.getByText(/post-stitch/i)).toBeInTheDocument()
     expect(screen.getByText(/full suno api parity map/i)).toBeInTheDocument()
     expect(screen.getByText(/archive-first destructive cleanup/i)).toBeInTheDocument()
   })

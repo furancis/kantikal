@@ -8,6 +8,7 @@ All Suno/provider capabilities must be mapped here before implementation is call
 | Custom mode | Prompt/lyrics inspector | Suno adapter | Planned |
 | Instrumental | Prompt/lyrics inspector | Suno adapter | Planned |
 | Lyrics generation | Lyrics card | Suno adapter | Planned |
+| Model/version selection | Prompt inspector | Suno adapter | Planned |
 | Upload/reference audio | Brief and voice cards | Upload adapter | Planned |
 | Personas/voices | Voice card and library | Identity adapter | Planned |
 | Extend | Song Lab timeline | Suno adapter | Planned |
@@ -21,7 +22,13 @@ All Suno/provider capabilities must be mapped here before implementation is call
 | Library list/search | Library | Library service | Planned |
 | Like/unlike | Library item action | Library service | Planned |
 | Archive/trash/delete | Cleanup console | Library service | Planned |
+| Restore from trash/archive | Library cleanup console | Library service | Planned |
+| Visibility toggle | Library item action | Library service | Planned |
+| Cover art | Stems / release pack | Export service | Planned |
+| Waveform asset | Stems card | Export service | Planned |
 | Download audio/stems | Release Pack | Export service | Planned |
+| Lyrics/captions export | Release Pack | Export service | Planned |
+| Release pack / provenance bundle | Release Pack | Export service | Planned |
 | Webhooks/retries | Operations console | Job service | Planned |
 | Music-video render | MV lane | ComfyUI adapter | Planned |
 | Lipsync QA | MV lane export gate | QA service | Planned |
