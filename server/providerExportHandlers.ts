@@ -3,6 +3,7 @@ import { dirname } from 'node:path'
 import {
   recordProviderCallback,
   recordProviderTaskUpdate,
+  type ProviderTaskOutput,
   type SunoWorkflow,
 } from '../src/domain/workflow'
 import {
@@ -21,6 +22,7 @@ export type ProviderExportStore = {
 export type ProviderExportHandlers = {
   pollProviderTask(input: ProviderPollHandlerInput): Promise<ProviderExportHandlerResult>
   receiveProviderCallback(input: ProviderCallbackHandlerInput): Promise<ProviderExportHandlerResult>
+  recordProviderVideoOutput(input: ProviderVideoOutputHandlerInput): Promise<ProviderExportHandlerResult>
   hydrateProviderExports(projectId: string): Promise<ProviderExportSnapshot | null>
 }
 
@@ -40,6 +42,11 @@ export type ProviderCallbackHandlerInput = {
   action: string
   capability: string
   receiptId: string
+}
+
+export type ProviderVideoOutputHandlerInput = {
+  projectId: string
+  workflow: SunoWorkflow
 }
 
 export type ProviderExportHandlerResult = {
@@ -133,6 +140,36 @@ export function createProviderExportHandlers(input: {
         receiptId: request.receiptId,
       })
       return persist(request.projectId, recordProviderCallback(workflow, callback))
+    },
+
+    async recordProviderVideoOutput(request) {
+      const workflow = await workflowWithStoredState(request.projectId, request.workflow)
+      const lane = workflow.musicVideoLane
+      if (!lane) {
+        return persist(request.projectId, workflow)
+      }
+
+      const outputs: ProviderTaskOutput[] = [
+        {
+          kind: 'video',
+          label: `${lane.sourceTrackId} provider video`,
+          url: `local-export://${lane.sourceTrackId}/video.mp4`,
+          sourceTrackId: lane.sourceTrackId,
+        },
+      ]
+
+      return persist(
+        request.projectId,
+        recordProviderTaskUpdate(workflow, {
+          providerTaskId: `video-${lane.sourceTrackId}`,
+          action: 'createProviderMusicVideo',
+          capability: 'Provider music video creation',
+          providerStatus: 'SUCCESS',
+          message: 'Provider video output received through HTTP route',
+          outputs,
+          receiptId: `video-${lane.sourceTrackId}`,
+        }),
+      )
     },
 
     async hydrateProviderExports(projectId) {

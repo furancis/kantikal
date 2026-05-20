@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T130
+active_task: T140
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -835,7 +835,7 @@ tasks:
   - id: T130
     type: worker
     assignee: Worker
-    status: active
+    status: done
     objective: "Mount the provider export handlers behind an actual local HTTP runtime and wire the visual app to a fetch-backed route client with offline fallback."
     inputs:
       - server/providerExportHandlers.ts
@@ -874,3 +874,81 @@ tasks:
     stop_if:
       - "A route path would require exposing provider credential material to browser code."
       - "A live external callback URL or production account change would be required."
+    receipt:
+      result: done
+      changed_files:
+        - server/providerExportHandlers.ts
+        - server/providerExportRoutes.ts
+        - server/providerExportRoutes.test.ts
+        - src/api/exportRuntime.ts
+        - src/api/exportRuntime.test.ts
+        - src/main.tsx
+        - vite.config.ts
+        - e2e/studio.spec.ts
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: credential literal rg scan
+          status: pass
+        - cmd: static chat surface wording rg scan
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Mounted provider export handlers behind local HTTP Request/Response routes and Vite dev middleware. The app now uses a fetch-backed export runtime client with local fallback, and Playwright proves the Downloads lane goes through the HTTP export route while unit tests prove fallback behavior when the route is unavailable. Added callback and video-output route adapters without exposing provider credential material."
+  - id: T140
+    type: worker
+    assignee: Worker
+    status: active
+    objective: "Mount provider generation and API action dispatch behind server HTTP routes and wire the visual app to a fetch-backed SunoProvider with offline fallback."
+    inputs:
+      - server/sunoApiAdapter.ts
+      - src/api/provider.ts
+      - src/api/actionCatalog.ts
+      - src/App.tsx
+      - src/main.tsx
+      - vite.config.ts
+    constraints:
+      - "Browser code must never receive provider credentials."
+      - "Offline tests must keep the local mock provider fallback."
+      - "Implemented, planned, blocked, and unsupported API outcomes must remain explicit."
+      - "Provider callbacks remain inbound export routes, not outgoing API actions."
+    expected_output:
+      - "Request/Response route adapters for generation and provider action dispatch."
+      - "Fetch-backed SunoProvider client used by the app with local mock fallback."
+      - "Dev/test server wiring that proves browser actions call the HTTP provider route."
+      - "Tests proving credential material is not returned and failed provider routes preserve workflow evidence."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+      - vite.config.ts
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    stop_if:
+      - "A provider action route would require exposing server credentials to the browser."
+      - "A live external provider call is required without existing local credential authority."
