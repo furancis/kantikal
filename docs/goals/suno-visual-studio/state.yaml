@@ -1,0 +1,799 @@
+version: 2
+slug: suno-visual-studio
+updated: 2026-05-20
+mode: specific
+goal:
+  status: active
+  title: "Real Suno Visual Studio"
+active_task: T120
+intake:
+  original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
+  interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
+  likely_misfire: "Mistaking a static shell, PRD, or mocked-only demo for the requested working app."
+  authority: requested
+  proof_type:
+    - test
+    - demo
+    - review
+    - deliverable
+  completion_proof: "Final PM/Judge audit proves the functional app satisfies the full workflow, TDD, CI, and Greptile requirements."
+guardrails:
+  - claude_design_reference_only
+  - visual_app_first
+  - cli_hidden_engine_only
+  - music_video_subfeature
+  - perfect_lipsync_gate
+  - full_api_coverage
+  - archive_first_cleanup
+  - server_side_secrets
+  - tdd_required
+  - greptile_every_pr
+agents:
+  scout: unknown
+  worker: unknown
+  judge: unknown
+tasks:
+  - id: T001
+    type: pm
+    assignee: PM
+    status: done
+    objective: "Correct the previous overclaim and reopen the GoalBuddy board for the real product."
+    inputs:
+      - "User correction on 2026-05-20"
+      - "Existing scaffold and PR #1"
+    constraints:
+      - "Do not claim the static shell is the full app."
+    expected_output:
+      - "Corrected goal.md"
+      - "Active state.yaml"
+    receipt:
+      result: done
+      changed_files:
+        - docs/goals/suno-visual-studio/goal.md
+        - docs/goals/suno-visual-studio/state.yaml
+      summary: "Goal repaired: previous tranche is recorded as scaffold only; real functional app remains active."
+  - id: T010
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "TDD the core workflow state machine and provider boundary for the full Suno flow."
+    inputs:
+      - docs/prd.md
+      - docs/api-coverage.md
+      - src/App.tsx
+    constraints:
+      - "Music video remains subordinate to selected song/version."
+      - "No client-side secrets."
+      - "Write tests before accepting implementation."
+      - "Use mocked provider first; no real Suno credential requirement."
+    expected_output:
+      - "Typed workflow model"
+      - "Mock Suno/provider adapter boundary"
+      - "Tests proving brief -> batch -> selected track -> MV gate -> release pack path"
+      - "Receipt with commands"
+    allowed_files:
+      - src/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+      - docs/goals/suno-visual-studio/state.yaml
+      - docs/goals/suno-visual-studio/notes/**
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+    stop_if:
+      - "Real provider credentials are required."
+      - "Need files outside allowed_files."
+      - "Verification fails twice for the same unknown reason."
+    receipt:
+      result: done
+      changed_files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/api/provider.ts
+        - src/api/provider.test.ts
+      commands:
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+      summary: "Added TDD core workflow state machine and mocked server-side provider boundary. Proves brief -> batch -> selected track -> subordinate MV lane -> lipsync-gated release pack path. Removed dead release-ready stage after Greptile review."
+  - id: T020
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Make the visual canvas create and edit workflow objects instead of displaying static cards."
+    allowed_files:
+      - src/**
+      - e2e/**
+      - docs/goals/suno-visual-studio/state.yaml
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+    stop_if:
+      - "T010 is not done."
+    receipt:
+      result: done
+      changed_files:
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+      commands:
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+      summary: "Canvas is now driven by editable workflow state. User can edit brief, lyrics, style, and voice; generate a mock Suno batch; select generated track cards; open subordinate MV lane from the selected track; and create an audio release-pack node."
+  - id: T030
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Implement API coverage enforcement and server-only provider configuration."
+    allowed_files:
+      - src/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+    stop_if:
+      - "Provider docs or real API behavior is needed but unverified."
+    receipt:
+      result: done
+      changed_files:
+        - src/api/coverage.ts
+        - src/api/coverage.test.ts
+        - src/api/provider.ts
+        - src/api/provider.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - docs/api-coverage.md
+        - docs/goals/suno-visual-studio/goal.md
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: credential literal scan
+          status: pass
+        - cmd: static chat surface wording scan
+          status: pass
+      summary: "Added a typed 54-capability API parity manifest tied to docs, test enforcement for API coverage completeness, server-only provider runtime config with redacted public status, a UI inspector that exposes implemented/planned capability counts without hiding pending work, provider-error feedback, and stale-batch clearing after prompt edits."
+  - id: T040
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Build subordinate Music Video Lane with lipsync QA state, repair loop, and blocked export behavior."
+    allowed_files:
+      - src/**
+      - e2e/**
+      - docs/goals/suno-visual-studio/state.yaml
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+    stop_if:
+      - "T020 is not done."
+    receipt:
+      result: done
+      changed_files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: credential literal scan
+          status: pass
+        - cmd: static chat surface wording scan
+          status: pass
+      summary: "Added stateful subordinate Music Video Lane QA: visible pending/pass/repair-required lipsync checks, blocked video export with user-facing error, explicit repair queue, passing rerun that marks repair applied, disabled post-ready QA reruns, and video-inclusive release pack creation."
+  - id: T050
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Add release pack generation, archive-first cleanup, and provenance receipts."
+    allowed_files:
+      - src/**
+      - e2e/**
+      - docs/goals/suno-visual-studio/state.yaml
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+    stop_if:
+      - "Workflow model cannot represent cleanup/provenance safely."
+    receipt:
+      result: done
+      changed_files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: credential literal scan
+          status: pass
+        - cmd: static chat surface wording scan
+          status: pass
+      summary: "Added structured release pack contents and provenance receipts, plus archive-first cleanup planning, apply, and restore. Cleanup cannot target the selected source track and discarded generated takes are archived with receipts before being removed from the active workspace. Greptile P1 follow-up keeps the current release pack when a replacement generation attempt fails before producing a new batch."
+  - id: T060
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Add CI checks and Greptile-on-every-PR documentation/config."
+    allowed_files:
+      - .github/**
+      - .greptile/**
+      - docs/**
+      - package.json
+      - package-lock.json
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+    stop_if:
+      - "GitHub or Greptile credential authority is missing for live enforcement."
+    receipt:
+      result: done
+      changed_files:
+        - .github/workflows/ci.yml
+        - .github/scripts/greptile-review.mjs
+        - .github/scripts/scan-credentials.mjs
+        - .github/scripts/scan-wording.mjs
+        - .greptile/config.json
+        - .greptile/files.json
+        - .greptile/rules.md
+        - docs/ci.md
+        - docs/greptile.md
+        - docs/goals/suno-visual-studio/state.yaml
+        - eslint.config.js
+        - package.json
+        - src/api/scanCredentialsScript.test.ts
+      commands:
+        - cmd: node --check .github/scripts/greptile-review.mjs; node --check .github/scripts/scan-credentials.mjs; node --check .github/scripts/scan-wording.mjs
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: credential literal rg scan
+          status: pass
+        - cmd: static chat surface wording rg scan
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Added PR-gated GitHub Actions verification, repo-local scan scripts, and a Greptile PR-head runner that triggers review when the key is exposed, waits for completion, fails on unaddressed Greptile comments, and falls back to enforcing the live Greptile app check when PR secrets are withheld. Documented CI, branch-protection requirements, and updated Greptile scope/rules to preserve CI and review gates. Greptile P1 follow-up extends credential scanning to TOML and colon-style key assignments while allowing GitHub secret references."
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    objective: "Audit whether the full original outcome is complete."
+    inputs:
+      - "All task receipts"
+      - "Latest verification"
+      - "Latest Greptile review"
+      - "Current dirty diff"
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "missing evidence"
+      - "next task if not complete"
+    receipt:
+      result: not_complete
+      full_outcome_complete: false
+      evidence:
+        - "Local verification on head 2b63dc93ea50f9cdaa2d865544dce113b912c7e9 passed: lint, typecheck, 24 unit tests, build, Playwright e2e, npm audit, credential scan, wording scan, raw scans, git diff --check."
+        - "GitHub PR #1 checks passed on head 2b63dc93ea50f9cdaa2d865544dce113b912c7e9: verify, greptile-review fallback, and Greptile Review app check."
+        - "Greptile review 8845971 completed on head 2b63dc93ea50f9cdaa2d865544dce113b912c7e9 with zero unaddressed generated comments."
+      missing_evidence:
+        - "API coverage is mapped but only create song and custom mode are implemented; the remaining provider, library, job, export, voice, stems, and music-video capabilities are still planned."
+        - "No real server-backed provider adapter exists yet for credentials-present operation."
+        - "Song Lab, Library, Taste System, worker health, queue/cost, uploads, webhooks, stems, cover art, and real export/download surfaces are not yet functional end to end."
+      summary: "The current repo is a verified visual TDD slice with CI and Greptile gates, not the full requested product. Continue with server-backed provider/API execution work before any completion claim."
+  - id: T070
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Implement the server-backed provider/API execution layer so the full API parity map becomes actionable instead of documentation-only."
+    inputs:
+      - docs/prd.md
+      - docs/api-coverage.md
+      - src/api/coverage.ts
+      - src/api/provider.ts
+      - src/App.tsx
+    constraints:
+      - "Verify current provider/API docs before encoding real endpoint behavior."
+      - "Secrets must remain server-side and must not enter the client bundle."
+      - "Keep mocked/local provider behavior available for offline tests."
+      - "Expose unsupported/planned/blocked states explicitly rather than hiding gaps."
+    expected_output:
+      - "Server-owned provider adapter boundary with capability action dispatch."
+      - "Typed job/status/error model for API actions."
+      - "UI/API console can invoke implemented mock actions and show planned/blocked provider actions truthfully."
+      - "Tests proving secrets are server-only and provider failures preserve existing workflow evidence."
+    allowed_files:
+      - src/**
+      - server/**
+      - scripts/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    stop_if:
+      - "Current external API behavior cannot be verified from live docs or a real provider surface."
+      - "Real credential use would print or persist a secret."
+    receipt:
+      result: done
+      changed_files:
+        - src/api/actionCatalog.ts
+        - src/api/actionCatalog.test.ts
+        - src/api/coverage.ts
+        - src/api/coverage.test.ts
+        - src/api/provider.ts
+        - server/sunoApiAdapter.ts
+        - server/sunoApiAdapter.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - vite.config.ts
+        - tsconfig.json
+        - README.md
+        - docs/api-coverage.md
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: credential literal rg scan
+          status: pass
+        - cmd: static chat surface wording rg scan
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Added an endpoint-backed provider action catalog sourced from live SunoAPI OpenAPI specs, a server-only Suno API adapter that blocks without server credentials and never returns keys, client API-console action dispatch through the provider lane, explicit unsupported states for capabilities absent from current provider docs, and server tests included in Vitest. Greptile P1 follow-ups catch provider action rejections, preserve the current release pack when replacement generation fails or returns a rejected empty batch, enforce action-catalog ownership alignment with the API coverage map, model provider callbacks as inbound server handlers, block parameter-only actions from standalone provider dispatch, and lock prompt/generation controls while the Music Video Lane is open."
+  - id: T080
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Implement Song Lab, comparison, queue/job state, and library/taste workflow surfaces so the visual app moves beyond generation-only canvas interactions."
+    inputs:
+      - docs/prd.md
+      - docs/api-coverage.md
+      - src/domain/workflow.ts
+      - src/App.tsx
+      - src/api/actionCatalog.ts
+    constraints:
+      - "Keep Music Video Lane subordinate to a selected song/version."
+      - "Do not hide unsupported provider/library actions."
+      - "Preserve release packs and provenance when provider or job actions fail."
+      - "Keep destructive actions archive-first."
+    expected_output:
+      - "Version comparison and taste/rating state for generated tracks."
+      - "Song Lab state for sections, region locks, stems, and edit actions."
+      - "Queue/job status model tied to provider action results."
+      - "Library/taste surfaces that truthfully distinguish local project state from unsupported provider library APIs."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    stop_if:
+      - "A real provider/library capability is assumed without current docs or explicit unsupported state."
+      - "A UI action would discard user workflow evidence without archive/provenance."
+    receipt:
+      result: done
+      changed_files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: credential literal rg scan
+          status: pass
+        - cmd: static chat surface wording rg scan
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Added first-class workflow state and visual app surfaces for version comparison, taste ratings, Song Lab sections/locks/stems/edit actions, provider-result job queue entries, and local project library saves. Provider library actions remain explicitly unsupported rather than implied as upstream sync, and provider action failures are persisted as queue evidence without discarding selected song, Music Video Lane, or release-pack state."
+  - id: T090
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Implement Music Video Lane scene planning, ComfyUI render graph state, worker queue health, and exact lipsync failure ranges while keeping video subordinate to the selected song."
+    inputs:
+      - docs/prd.md
+      - docs/api-coverage.md
+      - src/domain/workflow.ts
+      - src/App.tsx
+      - src/api/actionCatalog.ts
+    constraints:
+      - "Music Video Lane remains a subfeature opened from a selected track/version."
+      - "Original audio stays source-of-truth unless an explicit branch action exists."
+      - "ComfyUI/render workers must be modeled as worker jobs, not client-side secret or local-path assumptions."
+      - "Perfect lipsync cannot pass from a generic confidence score; it needs named checks and exact failure ranges."
+    expected_output:
+      - "Scene cards tied to selected song sections and timestamps."
+      - "ComfyUI render plan state with model, seed, references, asset routing, and worker job status."
+      - "Worker health/queue surfaces for render, stitch, and QA jobs."
+      - "Lipsync QA failure ranges and repair actions visible before video release export."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    stop_if:
+      - "A ComfyUI provider or local worker capability is assumed without explicit mocked/planned/blocked state."
+      - "A video export path can bypass perfect lipsync range-level QA."
+    receipt:
+      result: done
+      changed_files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+        - docs/goals/suno-visual-studio/state.yaml
+        - .github/scripts/scan-wording.mjs
+        - src/api/scanWordingScript.test.ts
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: credential literal rg scan
+          status: pass
+        - cmd: static chat surface wording rg scan
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Added subordinate Music Video Lane planning surfaces and state: timestamped scene cards from song sections, ComfyUI render graph planning with model/seed/reference/asset routing nodes, external render/stitch/QA worker health and job queues, and exact lipsync failure ranges that mark affected scenes for repair and keep video export blocked until range-level QA clears. Greptile P1 follow-up aligned wording-scan TOML coverage with the credential scanner and added a regression test."
+  - id: T100
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Implement source asset, upload, voice/persona, and cover-art workflow lanes so generation inputs become durable project assets instead of plain prompt fields."
+    inputs:
+      - docs/prd.md
+      - docs/api-coverage.md
+      - src/domain/workflow.ts
+      - src/App.tsx
+      - src/api/actionCatalog.ts
+      - server/sunoApiAdapter.ts
+    constraints:
+      - "Uploaded/source assets must be project evidence with provenance, not loose client-only strings."
+      - "Voice/persona surfaces must preserve consent notes and avoid pretending unsupported provider cloning is live."
+      - "Cover-art/image/video references must feed Song Lab and Music Video Lane without replacing the selected song as source-of-truth."
+      - "Server-side provider payloads must not expose secrets to the client bundle."
+    expected_output:
+      - "Project asset library for audio references, lyrics docs, cover art, persona references, and video references."
+      - "Upload/import actions modeled through provider/server boundaries with blocked/planned/unsupported states where real API support is absent."
+      - "Voice/persona workbench state with consent, tags, prompt-safe notes, and provider action results."
+      - "Cover-art/source-asset references visible in generation, Song Lab, and Music Video Lane inspectors."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    stop_if:
+      - "A real upload or voice-clone provider capability is assumed without current docs or explicit unsupported state."
+      - "Any asset action would persist or display credential material."
+    receipt:
+      result: done
+      changed_files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: credential literal rg scan
+          status: pass
+        - cmd: static chat surface wording rg scan
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Added durable project asset state for lyrics docs, reference audio, cover art, persona references, and video references; provider-bound import receipts with planned/blocked server ownership; a consent-preserving voice/persona workbench; and propagation of source asset IDs into Song Lab and the subordinate Music Video Lane ComfyUI render plan. CI follow-up stabilized the visual canvas into a responsive non-overlapping grid after the Source assets node intercepted Voice/persona clicks at the hosted runner viewport."
+  - id: T110
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Implement provider job polling, callback intake, and download/export lanes so generated songs, stems, covers, and videos can move from provider jobs into durable local project assets."
+    inputs:
+      - docs/prd.md
+      - docs/api-coverage.md
+      - src/api/actionCatalog.ts
+      - src/api/provider.ts
+      - server/sunoApiAdapter.ts
+      - src/domain/workflow.ts
+      - src/App.tsx
+    constraints:
+      - "Provider job state must distinguish mocked, planned, blocked, unsupported, completed, and failed outcomes."
+      - "Downloads and exports must be server-owned or local mock data; no client-side provider secrets."
+      - "Music video export remains subordinate to a selected song and perfect lipsync gate."
+      - "Archive-first cleanup must continue preserving recoverable project evidence."
+    expected_output:
+      - "Job polling and callback state model for provider task IDs."
+      - "Download/export manager for audio, stems, cover art, and video outputs."
+      - "UI surfaces that show queued, ready, blocked, and failed downloads without hiding unsupported provider gaps."
+      - "Tests and E2E coverage proving completed jobs become durable local project assets."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    stop_if:
+      - "A provider download/export endpoint is assumed without current docs or an explicit planned/unsupported state."
+      - "Any export path can bypass selected-song ownership or lipsync approval."
+    receipt:
+      result: done
+      changed_files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - server/sunoApiAdapter.ts
+        - server/sunoApiAdapter.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+        - .github/scripts/scan-credentials.mjs
+        - src/api/scanCredentialsScript.test.ts
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: credential literal rg scan
+          status: pass
+        - cmd: static chat surface wording rg scan
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Added provider task polling and callback intake state that turns completed Suno generation records into durable local project assets and export downloads for generated audio, cover art, and stems. Added provider callback failure receipts, server-side normalization for record-info and callback payloads, a visual Provider export manager lane, and video-output blocking that keeps Music Video Lane export subordinate to selected-song ownership and perfect lipsync approval. Tightened credential scanning so ordinary task/webhook identifiers are not false positives while long-form secret patterns remain blocked."
+  - id: T120
+    type: worker
+    assignee: Worker
+    status: active
+    objective: "Implement server runtime routes and local persistence for provider jobs, callbacks, and export downloads so the visual app can leave in-memory-only export state."
+    inputs:
+      - docs/prd.md
+      - docs/api-coverage.md
+      - server/sunoApiAdapter.ts
+      - src/domain/workflow.ts
+      - src/App.tsx
+      - src/api/provider.ts
+    constraints:
+      - "Server routes own provider credentials and callback intake."
+      - "Local persistence must store project/export metadata without provider secrets."
+      - "Downloads must preserve provenance and selected-song ownership."
+      - "Music video exports remain blocked unless the perfect lipsync gate is ready."
+    expected_output:
+      - "Route/handler layer for provider poll, callback, and export/download records."
+      - "Local project export store with durable metadata and no secret material."
+      - "UI/server integration path that can hydrate export status from server-owned state."
+      - "Tests proving callbacks and poll results persist across workflow reload boundaries."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    stop_if:
+      - "Persistence would expose provider credential material."
+      - "Route implementation requires changing external production account state."

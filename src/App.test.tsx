@@ -1,0 +1,519 @@
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it } from 'vitest'
+import { App } from './App'
+import type { SunoProvider } from './api/provider'
+import type { GenerationBatch } from './domain/workflow'
+
+describe('Suno Visual Studio shell', () => {
+  it('keeps the music video lane subordinate to the song workflow', () => {
+    render(<App />)
+
+    expect(screen.getByRole('heading', { name: /visual music generation operating app/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /open music video lane/i })).toBeDisabled()
+    expect(screen.getByText(/select a generated track before opening video/i)).toBeInTheDocument()
+    expect(screen.getByText(/54 mapped capabilities/i)).toBeInTheDocument()
+    expect(screen.getByText(/custom voice creation/i)).toBeInTheDocument()
+    expect(screen.getByText(/^WAV conversion$/i)).toBeInTheDocument()
+  })
+
+  it('creates editable workflow objects from the visual app', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    expect(screen.queryByRole('heading', { name: /perfect lipsync gate/i })).not.toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.clear(screen.getByLabelText(/lyrics/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/lyrics/i, { selector: 'textarea' }), 'Verse pre chorus')
+    await user.clear(screen.getByLabelText(/style/i, { selector: 'input' }))
+    await user.type(screen.getByLabelText(/style/i, { selector: 'input' }), 'Gulf percussion and electro-pop')
+    await user.clear(screen.getByLabelText(/voice/i, { selector: 'input' }))
+    await user.type(screen.getByLabelText(/voice/i, { selector: 'input' }), 'Consented bright tenor persona')
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+
+    expect(await screen.findByRole('button', { name: /neon khaliji club hook v1/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /neon khaliji club hook v2/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /generated track mock-track-2/i }))
+
+    expect(screen.getByRole('heading', { name: /chosen track/i })).toBeInTheDocument()
+    expect(screen.getByText(/selected source: mock-track-2/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /open music video lane/i })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: /open music video lane/i }))
+
+    expect(screen.getByRole('heading', { name: /perfect lipsync gate/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /scene cards/i })).toBeInTheDocument()
+    expect(screen.getByText(/hook scene/i)).toBeInTheDocument()
+    expect(screen.getByText(/65s-108s/i)).toBeInTheDocument()
+    expect(screen.getByText(/ComfyUI render worker planned/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /plan comfyui render graph/i }))
+    expect(screen.getAllByText(/wan-video-lipsync/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/scene-prompts/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /queue music video render/i }))
+    expect(screen.getByText(/ComfyUI render worker blocked/i)).toBeInTheDocument()
+    expect(screen.getByText(/stitch worker queued/i)).toBeInTheDocument()
+    expect(screen.getByText(/lipsync qa worker queued/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/segment drift qa result/i)).toHaveTextContent(/pending/i)
+    expect(screen.getByLabelText(/post-stitch sync qa result/i)).toHaveTextContent(/pending/i)
+    expect(screen.getByText(/full suno api parity map/i)).toBeInTheDocument()
+    expect(screen.getByText(/archive-first destructive cleanup/i)).toBeInTheDocument()
+    expect(screen.getByText(/music video source: mock-track-2/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /create video release pack/i }))
+    expect(screen.getByRole('alert')).toHaveTextContent(/blocked until lipsync qa passes/i)
+
+    await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
+    expect(screen.getByLabelText(/phoneme lock qa result/i)).toHaveTextContent(/pass/i)
+    expect(screen.getByLabelText(/segment drift qa result/i)).toHaveTextContent(/repair required/i)
+    expect(screen.getByLabelText(/post-stitch sync qa result/i)).toHaveTextContent(/repair required/i)
+    expect(screen.getByText(/exact failure ranges/i)).toBeInTheDocument()
+    expect(screen.getByText(/range-segmentDrift-1/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/65s-108s/i).length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: /queue repair pass/i }))
+    expect(screen.getByText(/repair-1 queued/i)).toBeInTheDocument()
+    expect(screen.getByText(/segment drift, post-stitch/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
+    expect(screen.getByLabelText(/video export gate state/i)).toHaveTextContent(/video export ready/i)
+    expect(screen.getByLabelText(/segment drift qa result/i)).toHaveTextContent(/pass/i)
+    expect(screen.getByText(/repair-1 applied/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /run lipsync qa/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /open music video lane/i })).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: /create video release pack/i }))
+    expect(screen.getByRole('heading', { name: /release pack/i })).toBeInTheDocument()
+    expect(screen.getByText(/video included/i)).toBeInTheDocument()
+  })
+
+  it('surfaces provider failures instead of dropping rejected generation promises', async () => {
+    const user = userEvent.setup()
+    const failingProvider: SunoProvider = {
+      async generateBatch() {
+        throw new Error('Provider rate limit')
+      },
+    }
+
+    render(<App provider={failingProvider} />)
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/provider rate limit/i)
+    expect(screen.queryByRole('button', { name: /gulf chorus engine v1/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps the current release pack when a replacement generation fails', async () => {
+    const user = userEvent.setup()
+    let calls = 0
+    const flakyProvider: SunoProvider = {
+      async generateBatch() {
+        calls += 1
+        if (calls === 1) {
+          return {
+            providerJobId: 'first-provider-job',
+            tracks: [{ id: 'first-track-1', title: 'First provider v1', durationSeconds: 150 }],
+          }
+        }
+
+        throw new Error('Provider rate limit')
+      },
+    }
+
+    render(<App provider={flakyProvider} />)
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /first provider v1/i }))
+    await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
+
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/provider rate limit/i)
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+  })
+
+  it('keeps the current release pack when a replacement batch is rejected', async () => {
+    const user = userEvent.setup()
+    let calls = 0
+    const emptyBatchProvider: SunoProvider = {
+      async generateBatch() {
+        calls += 1
+        if (calls === 1) {
+          return {
+            providerJobId: 'first-provider-job',
+            tracks: [{ id: 'first-track-1', title: 'First provider v1', durationSeconds: 150 }],
+          }
+        }
+
+        return {
+          providerJobId: 'empty-provider-job',
+          tracks: [],
+        }
+      },
+    }
+
+    render(<App provider={emptyBatchProvider} />)
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /first provider v1/i }))
+    await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
+
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/requires at least one track/i)
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+  })
+
+  it('runs API coverage actions through the provider action lane', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /run api action create song/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/create song/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/succeeded/i)
+    expect(screen.getByRole('status')).not.toHaveTextContent(/secret/i)
+  })
+
+  it('surfaces comparison, Song Lab, queue, and local library workflow state', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
+
+    await user.click(screen.getByRole('button', { name: /version comparison/i }))
+    await user.click(screen.getByRole('button', { name: /rate mock-track-2 as taste match/i }))
+    await user.click(screen.getByRole('button', { name: /compare mock-track-1 vs mock-track-2/i }))
+
+    expect(screen.getByText(/taste score: 5/i)).toBeInTheDocument()
+    expect(screen.getByText(/winner mock-track-2/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /song lab/i }))
+    await user.click(screen.getByRole('button', { name: /open song lab/i }))
+
+    expect(screen.getByRole('heading', { name: /song lab/i })).toBeInTheDocument()
+    expect(screen.getByText(/source track: mock-track-2/i)).toBeInTheDocument()
+    expect(screen.getByText(/full mix source/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /lock hook region/i }))
+    await user.click(screen.getByRole('button', { name: /queue replace section/i }))
+
+    expect(screen.getByText(/hook locked/i)).toBeInTheDocument()
+    expect(screen.getByText(/songlab-edit-1 queued/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /save selected to local library/i }))
+
+    expect(screen.getByRole('heading', { name: /local library/i })).toBeInTheDocument()
+    expect(screen.getAllByText(/provider library api unsupported/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/mock-track-2 saved locally/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /run api action create song/i }))
+    expect(await screen.findByRole('status')).toHaveTextContent(/create song/i)
+    await user.click(screen.getByRole('button', { name: /run api action library list\/search/i }))
+    expect(await screen.findByRole('status')).toHaveTextContent(/library list\/search/i)
+
+    await user.click(screen.getByRole('button', { name: /job queue/i }))
+
+    expect(screen.getByRole('heading', { name: /job queue/i })).toBeInTheDocument()
+    expect(screen.getAllByText(/create song completed/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/library list\/search unsupported/i).length).toBeGreaterThan(0)
+  })
+
+  it('surfaces source assets and persona references as provider-bound project evidence', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /source assets: 2 assets/i }))
+
+    expect(screen.getByRole('heading', { name: /project asset library/i })).toBeInTheDocument()
+    expect(screen.getByText(/asset-lyrics-draft available/i)).toBeInTheDocument()
+    expect(screen.getByText(/asset-persona-seed available/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /import reference audio/i }))
+    expect(await screen.findByText(/asset-reference-audio-3 planned/i)).toBeInTheDocument()
+    expect(screen.getByText(/uploadReferenceAudio planned/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /generate cover art asset/i }))
+    expect(await screen.findByText(/asset-cover-art-4 planned/i)).toBeInTheDocument()
+    expect(screen.getByText(/generateCoverArt planned/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /plan video reference/i }))
+    expect(await screen.findByText(/asset-video-reference-5 blocked/i)).toBeInTheDocument()
+    expect(screen.getByText(/renderMusicVideo blocked/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /voice \/ persona/i }))
+    expect(screen.getByRole('heading', { name: /persona workbench/i })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /create persona reference/i }))
+    expect(await screen.findByText(/consented bright tenor persona planned/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/consent note: reusable vocal identity/i).length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /dark cinematic lift v2/i }))
+    await user.click(screen.getByRole('button', { name: /open song lab/i }))
+
+    expect(screen.getByText(/source assets: asset-lyrics-draft/i)).toHaveTextContent(/asset-cover-art-4/i)
+    expect(screen.getByText(/source assets: asset-lyrics-draft/i)).toHaveTextContent(/asset-video-reference-5/i)
+
+    await user.click(screen.getByRole('button', { name: /open music video lane/i }))
+    expect(screen.getByText(/source assets: asset-lyrics-draft/i)).toHaveTextContent(/asset-cover-art-4/i)
+    await user.click(screen.getByRole('button', { name: /plan comfyui render graph/i }))
+    expect(screen.getByText(/Reference assets/i)).toHaveTextContent(/asset-cover-art-4/i)
+  })
+
+  it('surfaces provider polling and export downloads as durable project assets', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /dark cinematic lift v2/i }))
+    await user.click(screen.getByRole('button', { name: /downloads \/ exports/i }))
+
+    expect(screen.getByRole('heading', { name: /provider export manager/i })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /poll selected generation job/i }))
+
+    expect(screen.getByText(/Get music generation details ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/audio ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/cover-art ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/stem ready/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /source assets:/i }))
+    expect(screen.getByText(/asset-generated-audio-/i)).toBeInTheDocument()
+    expect(screen.getByText(/generated-audio; .*master audio/i)).toBeInTheDocument()
+  })
+
+  it('shows unsupported provider capabilities as explicit action results', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /run api action library list\/search/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/library list\/search/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/unsupported/i)
+  })
+
+  it('shows a blocked API action result when a provider action rejects', async () => {
+    const user = userEvent.setup()
+    const rejectingProvider: SunoProvider = {
+      async generateBatch() {
+        throw new Error('Generation not used')
+      },
+      async executeAction() {
+        throw new Error('Server adapter offline')
+      },
+    }
+
+    render(<App provider={rejectingProvider} />)
+
+    await user.click(screen.getByRole('button', { name: /run api action create song/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/create song/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/blocked/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/server adapter offline/i)
+  })
+
+  it('shows release pack deliverables, provenance receipts, and archive-first cleanup', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
+    await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
+
+    expect(screen.getByRole('heading', { name: /release pack/i })).toBeInTheDocument()
+    expect(screen.getByText(/audio only/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /package contents/i })).toBeInTheDocument()
+    expect(screen.getByText(/master audio/i)).toBeInTheDocument()
+    expect(screen.getByText(/release metadata/i)).toBeInTheDocument()
+    expect(screen.getByText(/prompt and lyric inputs/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /provenance receipts/i })).toBeInTheDocument()
+    expect(screen.getByText(/source-track-locked/i)).toBeInTheDocument()
+    expect(screen.getByText(/prompt-inputs-captured/i)).toBeInTheDocument()
+    expect(screen.getByText(/release-pack-created/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /plan archive-first cleanup/i }))
+
+    expect(screen.getByText(/cleanup archived/i)).toBeInTheDocument()
+    expect(screen.getByText(/archive-1/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/mock-track-1/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/discard unselected generated takes/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /apply cleanup/i }))
+
+    expect(screen.getByText(/cleanup applied/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /neon khaliji club hook v1/i })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /restore archived tracks/i }))
+
+    expect(screen.getByText(/cleanup restored/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /neon khaliji club hook v1/i })).toBeInTheDocument()
+  })
+
+  it('keeps an audio release pack when blocked video export fails', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
+    await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
+
+    expect(screen.getByText(/audio only/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /open music video lane/i }))
+    await user.click(screen.getByRole('button', { name: /create video release pack/i }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/blocked until lipsync qa passes/i)
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /release pack: audio/i }))
+
+    expect(screen.getByText(/audio only/i)).toBeInTheDocument()
+    expect(screen.getByText(/master audio/i)).toBeInTheDocument()
+  })
+
+  it('keeps completed video and release state when reselecting the chosen generated track', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
+    await user.click(screen.getByRole('button', { name: /open music video lane/i }))
+    await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
+    await user.click(screen.getByRole('button', { name: /queue repair pass/i }))
+    await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
+    await user.click(screen.getByRole('button', { name: /create video release pack/i }))
+
+    expect(screen.getByText(/video included/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /generated track mock-track-2/i }))
+    await user.click(
+      screen.getByRole('button', {
+        name: /storyboard and lipsync qa opened from mock-track-2; video export ready/i,
+      }),
+    )
+
+    expect(screen.getByLabelText(/video export gate state/i)).toHaveTextContent(/video export ready/i)
+    expect(screen.getByRole('button', { name: /release pack: audio, video/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /release pack: audio, video/i }))
+
+    expect(screen.getByText(/video included/i)).toBeInTheDocument()
+    expect(screen.getByText(/lipsync-approved video/i)).toBeInTheDocument()
+  })
+
+  it('locks prompt and generation controls while the music video lane is open', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
+    await user.click(screen.getByRole('button', { name: /open music video lane/i }))
+
+    expect(screen.getByLabelText(/brief/i, { selector: 'textarea' })).toBeDisabled()
+    expect(screen.getByLabelText(/lyrics/i, { selector: 'textarea' })).toBeDisabled()
+    expect(screen.getByLabelText(/style/i, { selector: 'input' })).toBeDisabled()
+    expect(screen.getByLabelText(/voice/i, { selector: 'input' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /run generation/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /generate mock suno batch/i })).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
+
+    expect(screen.getByRole('heading', { name: /perfect lipsync gate/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/segment drift qa result/i)).toHaveTextContent(/repair required/i)
+  })
+
+  it('keeps an audio release pack through lipsync QA and repair work', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
+    await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
+    await user.click(screen.getByRole('button', { name: /open music video lane/i }))
+
+    await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
+
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /queue repair pass/i }))
+
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /release pack: audio/i }))
+
+    expect(screen.getByText(/audio only/i)).toBeInTheDocument()
+    expect(screen.getByText(/master audio/i)).toBeInTheDocument()
+  })
+
+  it('clears stale generated tracks and video selection when the brief changes', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
+
+    expect(screen.getByRole('button', { name: /open music video lane/i })).toBeEnabled()
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Fresh hook')
+
+    expect(screen.queryByRole('button', { name: /neon khaliji club hook v1/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /neon khaliji club hook v2/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /chosen track/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /open music video lane/i })).toBeDisabled()
+  })
+
+  it('disables every generation entry point while provider work is in flight', async () => {
+    const user = userEvent.setup()
+    let resolveBatch: (batch: GenerationBatch) => void = () => {
+      throw new Error('Slow provider was not called')
+    }
+    const slowProvider: SunoProvider = {
+      generateBatch() {
+        return new Promise<GenerationBatch>((resolve) => {
+          resolveBatch = resolve
+        })
+      },
+    }
+
+    render(<App provider={slowProvider} />)
+
+    await user.click(screen.getByRole('button', { name: /run generation/i }))
+
+    expect(screen.getByRole('button', { name: /run generation/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /generate mock suno batch/i })).toBeDisabled()
+    expect(screen.getByLabelText(/brief/i, { selector: 'textarea' })).toBeDisabled()
+    expect(screen.getByLabelText(/lyrics/i, { selector: 'textarea' })).toBeDisabled()
+    expect(screen.getByLabelText(/style/i, { selector: 'input' })).toBeDisabled()
+    expect(screen.getByLabelText(/voice/i, { selector: 'input' })).toBeDisabled()
+
+    resolveBatch({
+      providerJobId: 'slow-provider',
+      tracks: [{ id: 'slow-track-1', title: 'Slow provider v1', durationSeconds: 150 }],
+    })
+
+    expect(await screen.findByRole('button', { name: /slow provider v1/i })).toBeInTheDocument()
+  })
+})
