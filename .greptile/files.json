@@ -1,0 +1,26 @@
+{
+  "files": [
+    {
+      "path": "docs/prd.md",
+      "description": "Canonical product requirements and non-negotiables."
+    },
+    {
+      "path": "docs/api-coverage.md",
+      "description": "Full Suno/provider capability coverage ledger."
+    },
+    {
+      "path": "src/App.tsx",
+      "description": "Visual workflow canvas and product-shape UI anchors.",
+      "scope": ["src/**"]
+    },
+    {
+      "path": "src/App.test.tsx",
+      "description": "Regression tests for workflow shape and MV subfeature boundary.",
+      "scope": ["src/**"]
+    },
+    {
+      "path": "docs/goals/suno-visual-studio/goal.md",
+      "description": "GoalBuddy board goal and acceptance criteria."
+    }
+  ]
+}

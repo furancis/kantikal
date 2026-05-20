@@ -1,0 +1,38 @@
+version: 1
+slug: suno-visual-studio
+status: active
+updated: 2026-05-20
+target_result: Dynamic visual Suno music generation app with music video as subfeature.
+guardrails:
+  - visual_app_first
+  - cli_hidden_engine_only
+  - music_video_subfeature
+  - perfect_lipsync_gate
+  - full_api_coverage
+  - archive_first_cleanup
+  - server_side_secrets
+tasks:
+  - id: prd
+    title: Write full PRD
+    status: done
+    evidence: docs/prd.md
+  - id: scaffold
+    title: Create React/Vite repo
+    status: done
+    evidence: package.json
+  - id: visual-shell
+    title: Build visual workflow MVP shell
+    status: done
+    evidence: src/App.tsx
+  - id: api-coverage
+    title: Preserve full API coverage map
+    status: done
+    evidence: docs/api-coverage.md
+  - id: greptile
+    title: Configure and trigger Greptile
+    status: in_progress
+    evidence: .greptile/config.json
+  - id: verify
+    title: Run full verification suite
+    status: done
+    evidence: npm ci; npm run lint; npm run typecheck; npm test -- --run; npm run build; npm run test:e2e; npm audit --audit-level=moderate
