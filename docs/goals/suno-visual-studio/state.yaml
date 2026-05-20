@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T060
+active_task: T999
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -285,7 +285,7 @@ tasks:
   - id: T060
     type: worker
     assignee: Worker
-    status: active
+    status: done
     objective: "Add CI checks and Greptile-on-every-PR documentation/config."
     allowed_files:
       - .github/**
@@ -300,7 +300,47 @@ tasks:
       - npm run build
     stop_if:
       - "GitHub or Greptile credential authority is missing for live enforcement."
-    receipt: null
+    receipt:
+      result: done
+      changed_files:
+        - .github/workflows/ci.yml
+        - .github/scripts/greptile-review.mjs
+        - .github/scripts/scan-credentials.mjs
+        - .github/scripts/scan-wording.mjs
+        - .greptile/config.json
+        - .greptile/files.json
+        - .greptile/rules.md
+        - docs/ci.md
+        - docs/greptile.md
+        - docs/goals/suno-visual-studio/state.yaml
+        - eslint.config.js
+        - package.json
+      commands:
+        - cmd: node --check .github/scripts/greptile-review.mjs; node --check .github/scripts/scan-credentials.mjs; node --check .github/scripts/scan-wording.mjs
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: credential literal rg scan
+          status: pass
+        - cmd: static chat surface wording rg scan
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Added PR-gated GitHub Actions verification, repo-local scan scripts, and a Greptile PR-head runner that triggers review, waits for completion, and fails on unaddressed Greptile comments. Documented CI, branch-protection requirements, and updated Greptile scope/rules to preserve CI and review gates."
   - id: T999
     type: judge
     assignee: Judge

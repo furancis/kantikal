@@ -58,6 +58,12 @@
       "rule": "Provider API keys and credentials must not be exposed in client code, docs examples, logs, screenshots, or bundles.",
       "scope": ["src/**", "docs/**"],
       "severity": "high"
+    },
+    {
+      "id": "ci-and-greptile-pr-gates",
+      "rule": "Pull requests must keep CI and Greptile review gates active: lint, typecheck, unit tests, build, browser E2E, dependency audit, credential literal scan, forbidden product wording scan, and unaddressed Greptile comment check.",
+      "scope": [".github/**", ".greptile/**", "docs/**", "package.json"],
+      "severity": "high"
     }
   ],
   "disabledRules": []

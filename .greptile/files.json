@@ -21,6 +21,18 @@
     {
       "path": "docs/goals/suno-visual-studio/goal.md",
       "description": "GoalBuddy board goal and acceptance criteria."
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "description": "Required CI and PR review gates."
+    },
+    {
+      "path": ".github/scripts/greptile-review.mjs",
+      "description": "Greptile PR-head trigger, polling, and unaddressed-comment enforcement."
+    },
+    {
+      "path": "docs/ci.md",
+      "description": "CI and Greptile branch-protection instructions."
     }
   ]
 }

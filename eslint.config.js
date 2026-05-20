@@ -17,4 +17,11 @@ export default tseslint.config(
       },
     },
   },
+  {
+    files: ['.github/scripts/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2023,
+      globals: globals.node,
+    },
+  },
 )

@@ -23,3 +23,7 @@ Destructive cleanup needs archive-first behavior, undo where possible, and recei
 ## Secrets
 
 No provider key belongs in client code or repo docs.
+
+## PR Gates
+
+Every pull request must keep CI and Greptile gates active. The required suite is lint, typecheck, unit tests, build, browser E2E, dependency audit, credential literal scan, forbidden product wording scan, and unaddressed Greptile comment check.

@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "scan:credentials": "node .github/scripts/scan-credentials.mjs",
+    "scan:wording": "node .github/scripts/scan-wording.mjs",
     "test": "vitest",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit"
