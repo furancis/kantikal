@@ -9,7 +9,7 @@ Codex verified the Greptile HTTP MCP endpoint with the locally shared key on 202
 
 Repo review requires a hosted GitHub or GitLab pull request. Local-only work can use the `.greptile` rules plus the local review suite until a PR exists.
 
-Every GitHub pull request runs `.github/scripts/greptile-review.mjs` through the `greptile-review` job in `.github/workflows/ci.yml`. The job requires the GitHub repository secret `GREPTILE_API_KEY`, triggers Greptile on the pull request head, waits for completion, and fails the PR when Greptile leaves unaddressed generated comments.
+Every GitHub pull request runs `.github/scripts/greptile-review.mjs` through the `greptile-review` job in `.github/workflows/ci.yml`. When GitHub exposes the repository secret `GREPTILE_API_KEY`, the job triggers Greptile on the pull request head, waits for completion, and fails the PR when Greptile leaves unaddressed generated comments. When GitHub withholds repository secrets from the PR context, the job falls back to enforcing the live `Greptile Review` app check/status on the same head SHA.
 
 ## Review Scope
 

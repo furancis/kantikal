@@ -340,7 +340,7 @@ tasks:
           status: pass
         - cmd: git diff --check
           status: pass
-      summary: "Added PR-gated GitHub Actions verification, repo-local scan scripts, and a Greptile PR-head runner that triggers review, waits for completion, and fails on unaddressed Greptile comments. Documented CI, branch-protection requirements, and updated Greptile scope/rules to preserve CI and review gates."
+      summary: "Added PR-gated GitHub Actions verification, repo-local scan scripts, and a Greptile PR-head runner that triggers review when the key is exposed, waits for completion, fails on unaddressed Greptile comments, and falls back to enforcing the live Greptile app check when PR secrets are withheld. Documented CI, branch-protection requirements, and updated Greptile scope/rules to preserve CI and review gates."
   - id: T999
     type: judge
     assignee: Judge

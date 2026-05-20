@@ -62,8 +62,10 @@ jobs:
     needs: verify
     if: github.event_name == 'pull_request'
     permissions:
+      checks: read
       contents: read
       pull-requests: read
+      statuses: read
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -76,6 +78,7 @@ jobs:
       - name: Trigger and verify Greptile review
         env:
           GREPTILE_API_KEY: ${{ secrets.GREPTILE_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_REF: ${{ github.head_ref }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}

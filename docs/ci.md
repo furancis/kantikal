@@ -22,11 +22,12 @@ Every pull request must also pass `greptile-review`.
 
 The job calls `.github/scripts/greptile-review.mjs`, which:
 
-- requires the repository secret `GREPTILE_API_KEY`
-- triggers Greptile on the pull request head SHA
+- uses the repository secret `GREPTILE_API_KEY` when the PR context exposes it
+- triggers Greptile on the pull request head SHA when the key is available
 - polls until the head review reaches a terminal state
 - fails if Greptile does not complete
 - fails if Greptile reports unaddressed generated comments after the review starts
+- falls back to enforcing the live `Greptile Review` GitHub check/status when GitHub withholds repository secrets from the PR context
 
 The key is never stored in the repo. Configure it as a GitHub repository secret named `GREPTILE_API_KEY`.
 
