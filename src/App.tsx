@@ -187,7 +187,6 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
   async function handleGenerate(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault()
     setIsGenerating(true)
-    setReleasePack(null)
     setGenerateError(null)
     setVideoExportError(null)
     try {
@@ -196,6 +195,7 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
         ...briefInput,
         count: 2,
       })
+      setReleasePack(null)
       setWorkflow(submitGenerationBatch(baseWorkflow, generationBatch))
       setSelectedId('batch')
     } catch (error) {

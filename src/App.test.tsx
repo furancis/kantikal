@@ -92,6 +92,37 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.queryByRole('button', { name: /gulf chorus engine v1/i })).not.toBeInTheDocument()
   })
 
+  it('keeps the current release pack when a replacement generation fails', async () => {
+    const user = userEvent.setup()
+    let calls = 0
+    const flakyProvider: SunoProvider = {
+      async generateBatch() {
+        calls += 1
+        if (calls === 1) {
+          return {
+            providerJobId: 'first-provider-job',
+            tracks: [{ id: 'first-track-1', title: 'First provider v1', durationSeconds: 150 }],
+          }
+        }
+
+        throw new Error('Provider rate limit')
+      },
+    }
+
+    render(<App provider={flakyProvider} />)
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /first provider v1/i }))
+    await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
+
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/provider rate limit/i)
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+  })
+
   it('shows release pack deliverables, provenance receipts, and archive-first cleanup', async () => {
     const user = userEvent.setup()
     render(<App />)

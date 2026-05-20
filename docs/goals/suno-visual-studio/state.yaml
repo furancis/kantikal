@@ -281,7 +281,7 @@ tasks:
           status: pass
         - cmd: static chat surface wording scan
           status: pass
-      summary: "Added structured release pack contents and provenance receipts, plus archive-first cleanup planning, apply, and restore. Cleanup cannot target the selected source track and discarded generated takes are archived with receipts before being removed from the active workspace."
+      summary: "Added structured release pack contents and provenance receipts, plus archive-first cleanup planning, apply, and restore. Cleanup cannot target the selected source track and discarded generated takes are archived with receipts before being removed from the active workspace. Greptile P1 follow-up keeps the current release pack when a replacement generation attempt fails before producing a new batch."
   - id: T060
     type: worker
     assignee: Worker
