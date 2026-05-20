@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, type Dirent } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 import type { RuntimeStatus, RuntimeState } from '../src/api/runtimeStatus'
@@ -6,6 +6,7 @@ import type { RuntimeStatus, RuntimeState } from '../src/api/runtimeStatus'
 export type RuntimeStatusHandlersInput = {
   fetchImpl?: typeof fetch
   env?: NodeJS.ProcessEnv
+  readDir?: ReadDirWithTypes
 }
 
 type ComfySystemStats = {
@@ -18,6 +19,8 @@ type ComfySystemStats = {
   }>
 }
 
+type ReadDirWithTypes = (current: string, options: { withFileTypes: true }) => Promise<Dirent[]>
+
 const defaultComfyBaseUrl = 'http://127.0.0.1:8188'
 const defaultModelRoot = 'D:\\Dev\\ComfyUI\\ComfyUI\\models'
 const modelExtensions = new Set(['.safetensors', '.ckpt', '.pth', '.pt', '.gguf'])
@@ -25,6 +28,7 @@ const modelExtensions = new Set(['.safetensors', '.ckpt', '.pth', '.pt', '.gguf'
 export function createRuntimeStatusHandlers(input: RuntimeStatusHandlersInput = {}) {
   const fetchImpl = input.fetchImpl ?? fetch
   const env = input.env ?? process.env
+  const readDir = input.readDir ?? readdir
 
   return {
     async getStatus(): Promise<RuntimeStatus> {
@@ -33,7 +37,7 @@ export function createRuntimeStatusHandlers(input: RuntimeStatusHandlersInput = 
       const uploadBaseUrl = env.SUNO_UPLOAD_BASE_URL ?? 'https://sunoapiorg.redpandaai.co'
       const comfyBaseUrl = env.COMFYUI_BASE_URL ?? defaultComfyBaseUrl
       const modelRoot = env.COMFYUI_MODEL_ROOT ?? defaultModelRoot
-      const models = await listModelFiles(modelRoot)
+      const models = await listModelFiles(modelRoot, readDir)
       const comfy = await probeComfy(fetchImpl, comfyBaseUrl, modelRoot, models)
 
       return {
@@ -102,26 +106,37 @@ function comfyStatus(
   }
 }
 
-async function listModelFiles(modelRoot: string): Promise<string[]> {
+async function listModelFiles(modelRoot: string, readDir: ReadDirWithTypes): Promise<string[]> {
   if (!existsSync(modelRoot)) {
     return []
   }
 
   const files: string[] = []
-  await collectModelFiles(modelRoot, modelRoot, files)
+  await collectModelFiles(modelRoot, modelRoot, files, readDir)
   return files.sort().slice(0, 24)
 }
 
-async function collectModelFiles(root: string, current: string, output: string[]): Promise<void> {
-  const entries = await readdir(current, { withFileTypes: true })
+async function collectModelFiles(
+  root: string,
+  current: string,
+  output: string[],
+  readDir: ReadDirWithTypes,
+): Promise<void> {
+  let entries: Dirent[]
+  try {
+    entries = await readDir(current, { withFileTypes: true })
+  } catch {
+    return
+  }
+
   for (const entry of entries) {
     const fullPath = path.join(current, entry.name)
     if (entry.isDirectory()) {
-      await collectModelFiles(root, fullPath, output)
+      await collectModelFiles(root, fullPath, output, readDir)
       continue
     }
     if (modelExtensions.has(path.extname(entry.name).toLowerCase())) {
-      output.push(path.relative(root, fullPath).replaceAll(path.sep, '\\'))
+      output.push(path.relative(root, fullPath).split(path.sep).join('/'))
     }
   }
 }
