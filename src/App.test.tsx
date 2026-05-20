@@ -229,6 +229,47 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getAllByText(/library list\/search unsupported/i).length).toBeGreaterThan(0)
   })
 
+  it('surfaces source assets and persona references as provider-bound project evidence', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /source assets: 2 assets/i }))
+
+    expect(screen.getByRole('heading', { name: /project asset library/i })).toBeInTheDocument()
+    expect(screen.getByText(/asset-lyrics-draft available/i)).toBeInTheDocument()
+    expect(screen.getByText(/asset-persona-seed available/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /import reference audio/i }))
+    expect(await screen.findByText(/asset-reference-audio-3 planned/i)).toBeInTheDocument()
+    expect(screen.getByText(/uploadReferenceAudio planned/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /generate cover art asset/i }))
+    expect(await screen.findByText(/asset-cover-art-4 planned/i)).toBeInTheDocument()
+    expect(screen.getByText(/generateCoverArt planned/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /plan video reference/i }))
+    expect(await screen.findByText(/asset-video-reference-5 blocked/i)).toBeInTheDocument()
+    expect(screen.getByText(/renderMusicVideo blocked/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /voice \/ persona/i }))
+    expect(screen.getByRole('heading', { name: /persona workbench/i })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /create persona reference/i }))
+    expect(await screen.findByText(/consented bright tenor persona planned/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/consent note: reusable vocal identity/i).length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /dark cinematic lift v2/i }))
+    await user.click(screen.getByRole('button', { name: /open song lab/i }))
+
+    expect(screen.getByText(/source assets: asset-lyrics-draft/i)).toHaveTextContent(/asset-cover-art-4/i)
+    expect(screen.getByText(/source assets: asset-lyrics-draft/i)).toHaveTextContent(/asset-video-reference-5/i)
+
+    await user.click(screen.getByRole('button', { name: /open music video lane/i }))
+    expect(screen.getByText(/source assets: asset-lyrics-draft/i)).toHaveTextContent(/asset-cover-art-4/i)
+    await user.click(screen.getByRole('button', { name: /plan comfyui render graph/i }))
+    expect(screen.getByText(/Reference assets/i)).toHaveTextContent(/asset-cover-art-4/i)
+  })
+
   it('shows unsupported provider capabilities as explicit action results', async () => {
     const user = userEvent.setup()
     render(<App />)

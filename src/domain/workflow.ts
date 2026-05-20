@@ -73,6 +73,7 @@ export type SongLab = {
   sections: SongLabSection[]
   stems: SongStem[]
   editActions: SongLabEditAction[]
+  assetRefs: string[]
 }
 
 export type ProviderJobStatus = 'planned' | 'blocked' | 'unsupported' | 'completed'
@@ -114,6 +115,60 @@ export type LocalLibraryItem = {
 export type LocalLibraryState = {
   providerLibraryStatus: 'unsupported'
   items: LocalLibraryItem[]
+}
+
+export type ProjectAssetKind =
+  | 'reference-audio'
+  | 'lyrics-doc'
+  | 'cover-art'
+  | 'persona-reference'
+  | 'video-reference'
+
+export type ProjectAssetStatus = 'available' | 'planned' | 'blocked' | 'unsupported'
+
+export type ProjectAsset = {
+  id: string
+  kind: ProjectAssetKind
+  label: string
+  status: ProjectAssetStatus
+  source: 'prompt' | 'provider'
+  providerAction?: string
+  authBoundary: string
+  sourceIds: string[]
+  tags: string[]
+  consentNote?: string
+}
+
+export type ProjectAssetImport = {
+  id: string
+  assetId: string
+  action: string
+  capability: string
+  status: ProviderJobStatus
+  authBoundary: string
+  endpoint?: string
+  message: string
+  receiptId: string
+}
+
+export type ProjectAssetLibrary = {
+  items: ProjectAsset[]
+  imports: ProjectAssetImport[]
+}
+
+export type VoicePersona = {
+  id: string
+  label: string
+  consentNote: string
+  tags: string[]
+  assetId: string
+  providerStatus: ProjectAssetStatus
+  actionReceipts: string[]
+}
+
+export type VoicePersonaState = {
+  activePersonaId: string | null
+  personas: VoicePersona[]
 }
 
 const lipsyncCheckNames = ['phoneme', 'frame', 'mouthShape', 'segmentDrift', 'postStitch'] as const
@@ -193,6 +248,7 @@ export type MusicVideoLane = {
   exportStatus: 'blocked' | 'ready'
   lipsync: LipsyncChecks | null
   repairAttempts: LipsyncRepairAttempt[]
+  assetRefs: string[]
   scenes: MusicVideoScene[]
   renderPlan: ComfyRenderPlan | null
   workerHealth: MusicVideoWorkerHealth[]
@@ -246,6 +302,8 @@ export type SunoWorkflow = BriefInput & {
   songLab: SongLab | null
   jobQueue: ProviderJob[]
   localLibrary: LocalLibraryState
+  projectAssets: ProjectAssetLibrary
+  voicePersonas: VoicePersonaState
   archiveEntries: ArchiveEntry[]
   cleanupPlan: CleanupPlan | null
   cleanupReceipts: CleanupReceipt[]
@@ -271,6 +329,8 @@ export function createWorkflow(input: BriefInput): SunoWorkflow {
     songLab: null,
     jobQueue: [],
     localLibrary: createLocalLibraryState(),
+    projectAssets: createProjectAssetLibrary(input),
+    voicePersonas: createVoicePersonaState(input),
     archiveEntries: [],
     cleanupPlan: null,
     cleanupReceipts: [],
@@ -395,6 +455,7 @@ export function openSongLab(workflow: SunoWorkflow): SunoWorkflow {
       sections: createSongLabSections(selectedTrack),
       stems: createSongStems(selectedTrack),
       editActions: [],
+      assetRefs: assetIdsForWorkflow(workflow),
     },
     provenance: appendOnce(workflow.provenance, 'song-lab-opened'),
   }
@@ -461,24 +522,71 @@ export function recordProviderJobResult(
   workflow: SunoWorkflow,
   result: ProviderJobResultInput,
 ): SunoWorkflow {
-  const job: ProviderJob = {
-    id: `job-${workflow.jobQueue.length + 1}`,
+  return {
+    ...workflow,
+    jobQueue: [...workflow.jobQueue, createProviderJob(workflow, result)],
+    provenance: appendOnce(workflow.provenance, 'provider-job-result'),
+  }
+}
+
+export function recordProjectAssetImport(
+  workflow: SunoWorkflow,
+  input: {
+    kind: ProjectAssetKind
+    label: string
+    sourceIds: string[]
+    tags?: string[]
+    consentNote?: string
+  },
+  result: ProviderJobResultInput,
+): SunoWorkflow {
+  const existingAsset =
+    input.kind === 'persona-reference'
+      ? workflow.projectAssets.items.find((asset) => asset.kind === 'persona-reference')
+      : undefined
+  const assetId = existingAsset?.id ?? `asset-${input.kind}-${workflow.projectAssets.items.length + 1}`
+  const asset: ProjectAsset = {
+    id: assetId,
+    kind: input.kind,
+    label: input.label,
+    status: providerOutcomeToAssetStatus(result.outcome),
+    source: 'provider',
+    providerAction: result.action,
+    authBoundary: result.authBoundary,
+    sourceIds: input.sourceIds,
+    tags: input.tags ?? [],
+    consentNote: input.consentNote,
+  }
+  const importJob: ProjectAssetImport = {
+    id: `asset-import-${workflow.projectAssets.imports.length + 1}`,
+    assetId,
     action: result.action,
     capability: result.capability,
-    outcome: result.outcome,
     status: providerOutcomeToJobStatus(result.outcome),
-    message: result.message,
     authBoundary: result.authBoundary,
     endpoint: result.endpoint,
-    providerTaskId: result.providerTaskId,
+    message: result.message,
     receiptId: result.receiptId,
-    sourceTrackId: workflow.selectedTrack?.id ?? workflow.musicVideoLane?.sourceTrackId,
   }
+
+  const assetIndex = workflow.projectAssets.items.findIndex((candidate) => candidate.id === assetId)
+  const nextAssets =
+    assetIndex === -1
+      ? [...workflow.projectAssets.items, asset]
+      : workflow.projectAssets.items.map((candidate, index) => (index === assetIndex ? asset : candidate))
 
   return {
     ...workflow,
-    jobQueue: [...workflow.jobQueue, job],
-    provenance: appendOnce(workflow.provenance, 'provider-job-result'),
+    projectAssets: {
+      items: nextAssets,
+      imports: [...workflow.projectAssets.imports, importJob],
+    },
+    voicePersonas:
+      input.kind === 'persona-reference'
+        ? upsertVoicePersona(workflow.voicePersonas, asset, result.receiptId)
+        : workflow.voicePersonas,
+    jobQueue: [...workflow.jobQueue, createProviderJob(workflow, result)],
+    provenance: appendOnce(workflow.provenance, 'project-asset-import'),
   }
 }
 
@@ -522,6 +630,7 @@ export function openMusicVideoLane(workflow: SunoWorkflow): SunoWorkflow {
     workflow.songLab?.sourceTrackId === selectedTrack.id
       ? workflow.songLab.sections
       : createSongLabSections(selectedTrack)
+  const assetRefs = assetIdsForWorkflow(workflow)
 
   return {
     ...workflow,
@@ -531,7 +640,8 @@ export function openMusicVideoLane(workflow: SunoWorkflow): SunoWorkflow {
       exportStatus: 'blocked',
       lipsync: null,
       repairAttempts: [],
-      scenes: createMusicVideoScenes(selectedTrack, sectionSource),
+      assetRefs,
+      scenes: createMusicVideoScenes(selectedTrack, sectionSource, assetRefs),
       renderPlan: null,
       workerHealth: createDefaultMusicVideoWorkerHealth(),
       workerJobs: [],
@@ -548,16 +658,17 @@ export function planComfyRenderGraph(
     throw new Error('ComfyUI render planning requires an open music video lane')
   }
 
+  const referenceAssetIds = mergeIds([...input.referenceAssetIds, ...workflow.musicVideoLane.assetRefs])
   const renderPlan: ComfyRenderPlan = {
     id: `comfy-${workflow.musicVideoLane.sourceTrackId}`,
     sourceTrackId: workflow.musicVideoLane.sourceTrackId,
     model: input.model,
     seed: input.seed,
-    referenceAssetIds: input.referenceAssetIds,
+    referenceAssetIds,
     nodes: createComfyRenderGraphNodes(
       input.model,
       input.seed,
-      input.referenceAssetIds,
+      referenceAssetIds,
       workflow.musicVideoLane.scenes,
     ),
     status: 'planned',
@@ -936,6 +1047,52 @@ function createLocalLibraryState(): LocalLibraryState {
   }
 }
 
+function createProjectAssetLibrary(input: BriefInput): ProjectAssetLibrary {
+  return {
+    items: [
+      {
+        id: 'asset-lyrics-draft',
+        kind: 'lyrics-doc',
+        label: 'Prompt lyrics document',
+        status: 'available',
+        source: 'prompt',
+        authBoundary: 'none',
+        sourceIds: ['lyrics'],
+        tags: ['lyrics', 'prompt-history'],
+      },
+      {
+        id: 'asset-persona-seed',
+        kind: 'persona-reference',
+        label: 'Prompt voice persona',
+        status: 'available',
+        source: 'prompt',
+        authBoundary: 'none',
+        sourceIds: ['voice'],
+        tags: ['consent', 'prompt-safe'],
+        consentNote: input.voice,
+      },
+    ],
+    imports: [],
+  }
+}
+
+function createVoicePersonaState(input: BriefInput): VoicePersonaState {
+  return {
+    activePersonaId: 'persona-prompt',
+    personas: [
+      {
+        id: 'persona-prompt',
+        label: 'Prompt voice persona',
+        consentNote: input.voice,
+        tags: ['consent', 'prompt-safe'],
+        assetId: 'asset-persona-seed',
+        providerStatus: 'available',
+        actionReceipts: [],
+      },
+    ],
+  }
+}
+
 function ensureTrackInActiveBatch(workflow: SunoWorkflow, trackId: string): GeneratedTrack {
   const track = workflow.generationBatch?.tracks.find((candidate) => candidate.id === trackId)
   if (!track) {
@@ -988,7 +1145,11 @@ function createSongStems(track: GeneratedTrack): SongStem[] {
   ]
 }
 
-function createMusicVideoScenes(track: GeneratedTrack, sections: SongLabSection[]): MusicVideoScene[] {
+function createMusicVideoScenes(
+  track: GeneratedTrack,
+  sections: SongLabSection[],
+  assetRefs: string[],
+): MusicVideoScene[] {
   const modeBySection: Record<string, MusicVideoSceneMode> = {
     intro: 'narrative',
     verse: 'performance',
@@ -1004,7 +1165,7 @@ function createMusicVideoScenes(track: GeneratedTrack, sections: SongLabSection[
     endSeconds: section.endSeconds,
     mode: modeBySection[section.id] ?? 'performance',
     prompt: `${track.title} ${section.label.toLowerCase()} visual treatment`,
-    assetRefs: [`audio:${track.id}`, `section:${section.id}`],
+    assetRefs: [`audio:${track.id}`, `section:${section.id}`, ...assetRefs],
     sourceTrackId: track.id,
     status: 'planned',
   }))
@@ -1168,6 +1329,61 @@ function providerOutcomeToJobStatus(outcome: ProviderJobResultInput['outcome']):
     return 'completed'
   }
   return outcome
+}
+
+function providerOutcomeToAssetStatus(outcome: ProviderJobResultInput['outcome']): ProjectAssetStatus {
+  if (outcome === 'succeeded') {
+    return 'available'
+  }
+  return outcome
+}
+
+function createProviderJob(workflow: SunoWorkflow, result: ProviderJobResultInput): ProviderJob {
+  return {
+    id: `job-${workflow.jobQueue.length + 1}`,
+    action: result.action,
+    capability: result.capability,
+    outcome: result.outcome,
+    status: providerOutcomeToJobStatus(result.outcome),
+    message: result.message,
+    authBoundary: result.authBoundary,
+    endpoint: result.endpoint,
+    providerTaskId: result.providerTaskId,
+    receiptId: result.receiptId,
+    sourceTrackId: workflow.selectedTrack?.id ?? workflow.musicVideoLane?.sourceTrackId,
+  }
+}
+
+function upsertVoicePersona(
+  state: VoicePersonaState,
+  asset: ProjectAsset,
+  receiptId: string,
+): VoicePersonaState {
+  const persona: VoicePersona = {
+    id: 'persona-provider',
+    label: asset.label,
+    consentNote: asset.consentNote ?? '',
+    tags: asset.tags,
+    assetId: asset.id,
+    providerStatus: asset.status,
+    actionReceipts: [receiptId],
+  }
+
+  return {
+    activePersonaId: persona.id,
+    personas: [
+      ...state.personas.filter((candidate) => candidate.id !== persona.id),
+      persona,
+    ],
+  }
+}
+
+function assetIdsForWorkflow(workflow: SunoWorkflow): string[] {
+  return workflow.projectAssets.items.map((asset) => asset.id)
+}
+
+function mergeIds(values: string[]): string[] {
+  return values.filter((value, index) => values.indexOf(value) === index)
 }
 
 function appendOnce(values: string[], value: string): string[] {

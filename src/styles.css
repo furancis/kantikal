@@ -462,6 +462,8 @@ textarea {
 .comparison-list,
 .song-section-list,
 .job-list,
+.asset-list,
+.persona-list,
 .library-list,
 .scene-list,
 .render-list,
@@ -484,6 +486,8 @@ textarea {
 .comparison-list div,
 .song-section-list div,
 .job-list div,
+.asset-list div,
+.persona-list div,
 .library-list div,
 .scene-list div,
 .render-list div,
@@ -502,6 +506,8 @@ textarea {
 .comparison-list small,
 .song-section-list small,
 .job-list small,
+.asset-list small,
+.persona-list small,
 .library-list small,
 .scene-list small,
 .render-list small,
@@ -516,6 +522,22 @@ textarea {
 }
 
 .song-section-list div.locked {
+  border-color: rgba(107, 218, 132, 0.42);
+  background: rgba(107, 218, 132, 0.1);
+}
+
+.asset-list div.blocked {
+  border-color: rgba(229, 83, 83, 0.4);
+  background: rgba(229, 83, 83, 0.1);
+}
+
+.asset-list div.planned {
+  border-color: rgba(240, 181, 76, 0.42);
+  background: rgba(240, 181, 76, 0.1);
+}
+
+.asset-list div.available,
+.persona-list div {
   border-color: rgba(107, 218, 132, 0.42);
   background: rgba(107, 218, 132, 0.1);
 }

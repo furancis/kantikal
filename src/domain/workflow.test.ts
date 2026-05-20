@@ -10,6 +10,7 @@ import {
   openMusicVideoLane,
   planArchiveFirstCleanup,
   planComfyRenderGraph,
+  recordProjectAssetImport,
   queueSongLabEdit,
   queueLipsyncRepair,
   queueMusicVideoRender,
@@ -183,7 +184,7 @@ describe('Suno workflow state machine', () => {
       sourceTrackId: 'song_a',
       model: 'wan-video-lipsync',
       seed: 4242,
-      referenceAssetIds: ['persona-ref', 'cover-ref'],
+      referenceAssetIds: ['persona-ref', 'cover-ref', 'asset-lyrics-draft', 'asset-persona-seed'],
       status: 'planned',
     })
     expect(planned.musicVideoLane?.renderPlan?.nodes.map((node) => node.id)).toEqual([
@@ -303,6 +304,207 @@ describe('Suno workflow state machine', () => {
     expect(passed.musicVideoLane?.failureRanges).toEqual([])
     expect(passed.musicVideoLane?.exportStatus).toBe('ready')
     expect(toReleasePack(passed, { includeVideo: true }).includesVideo).toBe(true)
+  })
+
+  it('turns prompt inputs into durable project assets and voice persona state', () => {
+    const workflow = createWorkflow({
+      brief: 'Arabic pop hook',
+      lyrics: 'chorus lyric document',
+      style: 'pop',
+      voice: 'consented bright tenor persona',
+    })
+
+    expect(workflow.projectAssets.items.map((asset) => `${asset.kind}:${asset.status}`)).toEqual([
+      'lyrics-doc:available',
+      'persona-reference:available',
+    ])
+    expect(workflow.projectAssets.items.find((asset) => asset.kind === 'persona-reference')).toMatchObject({
+      id: 'asset-persona-seed',
+      consentNote: 'consented bright tenor persona',
+      authBoundary: 'none',
+      sourceIds: ['voice'],
+    })
+    expect(workflow.voicePersonas.activePersonaId).toBe('persona-prompt')
+    expect(workflow.voicePersonas.personas[0]).toMatchObject({
+      assetId: 'asset-persona-seed',
+      consentNote: 'consented bright tenor persona',
+      providerStatus: 'available',
+      tags: ['consent', 'prompt-safe'],
+    })
+  })
+
+  it('records upload, cover-art, persona, and video references as provider-bound asset imports', () => {
+    const workflow = createWorkflow({
+      brief: 'Arabic pop hook',
+      lyrics: 'chorus',
+      style: 'pop',
+      voice: 'consented persona',
+    })
+
+    const withReferenceAudio = recordProjectAssetImport(
+      workflow,
+      {
+        kind: 'reference-audio',
+        label: 'Hook guide reference audio',
+        sourceIds: ['brief'],
+        tags: ['reference', 'upload'],
+      },
+      {
+        action: 'uploadReferenceAudio',
+        capability: 'Upload/reference audio',
+        outcome: 'planned',
+        message: 'Upload/reference audio is mapped to a server provider action.',
+        authBoundary: 'server',
+        endpoint: '/api/file-url-upload',
+        receiptId: 'provider-action-upload-reference-audio',
+      },
+    )
+    const withCoverArt = recordProjectAssetImport(
+      withReferenceAudio,
+      {
+        kind: 'cover-art',
+        label: 'Release cover art direction',
+        sourceIds: ['style'],
+        tags: ['cover', 'release'],
+      },
+      {
+        action: 'generateCoverArt',
+        capability: 'Cover art',
+        outcome: 'planned',
+        message: 'Cover art waits for the server adapter lane.',
+        authBoundary: 'server',
+        endpoint: '/api/v1/suno/cover/generate',
+        receiptId: 'provider-action-cover-art',
+      },
+    )
+    const withPersona = recordProjectAssetImport(
+      withCoverArt,
+      {
+        kind: 'persona-reference',
+        label: 'Consented tenor persona',
+        sourceIds: ['voice'],
+        tags: ['consent', 'voice'],
+        consentNote: 'consented persona',
+      },
+      {
+        action: 'createCustomVoice',
+        capability: 'Custom voice creation',
+        outcome: 'planned',
+        message: 'Custom voice creation waits for server credentials.',
+        authBoundary: 'server',
+        endpoint: '/api/v1/voice/generate',
+        receiptId: 'provider-action-custom-voice',
+      },
+    )
+    const withVideoReference = recordProjectAssetImport(
+      withPersona,
+      {
+        kind: 'video-reference',
+        label: 'Performance framing reference',
+        sourceIds: ['brief'],
+        tags: ['video', 'reference'],
+      },
+      {
+        action: 'renderMusicVideo',
+        capability: 'Render music video',
+        outcome: 'blocked',
+        message: 'Render music video requires an external worker lane.',
+        authBoundary: 'external-worker',
+        receiptId: 'provider-action-render-music-video',
+      },
+    )
+
+    expect(withVideoReference.projectAssets.items.map((asset) => `${asset.kind}:${asset.status}`)).toEqual([
+      'lyrics-doc:available',
+      'persona-reference:planned',
+      'reference-audio:planned',
+      'cover-art:planned',
+      'video-reference:blocked',
+    ])
+    expect(withVideoReference.projectAssets.imports.map((job) => `${job.action}:${job.status}:${job.authBoundary}`)).toEqual([
+      'uploadReferenceAudio:planned:server',
+      'generateCoverArt:planned:server',
+      'createCustomVoice:planned:server',
+      'renderMusicVideo:blocked:external-worker',
+    ])
+    expect(withVideoReference.jobQueue.map((job) => `${job.action}:${job.status}`)).toEqual([
+      'uploadReferenceAudio:planned',
+      'generateCoverArt:planned',
+      'createCustomVoice:planned',
+      'renderMusicVideo:blocked',
+    ])
+    expect(JSON.stringify(withVideoReference.projectAssets)).not.toContain('secret')
+  })
+
+  it('carries project asset references into Song Lab and Music Video Lane render planning', () => {
+    const workflowWithAssets = recordProjectAssetImport(
+      recordProjectAssetImport(
+        createWorkflow({
+          brief: 'Arabic pop hook',
+          lyrics: 'chorus',
+          style: 'pop',
+          voice: 'consented persona',
+        }),
+        {
+          kind: 'reference-audio',
+          label: 'Hook guide reference audio',
+          sourceIds: ['brief'],
+          tags: ['reference'],
+        },
+        {
+          action: 'uploadReferenceAudio',
+          capability: 'Upload/reference audio',
+          outcome: 'planned',
+          message: 'planned',
+          authBoundary: 'server',
+          receiptId: 'provider-action-upload-reference-audio',
+        },
+      ),
+      {
+        kind: 'cover-art',
+        label: 'Cover art direction',
+        sourceIds: ['style'],
+        tags: ['cover'],
+      },
+      {
+        action: 'generateCoverArt',
+        capability: 'Cover art',
+        outcome: 'planned',
+        message: 'planned',
+        authBoundary: 'server',
+        receiptId: 'provider-action-cover-art',
+      },
+    )
+
+    const selected = selectTrack(
+      submitGenerationBatch(workflowWithAssets, {
+        providerJobId: 'job_015',
+        tracks: [{ id: 'song_a', title: 'Night Lift A', durationSeconds: 154 }],
+      }),
+      'song_a',
+    )
+    const songLab = openSongLab(selected)
+    const video = openMusicVideoLane(songLab)
+    const renderPlan = planComfyRenderGraph(video, {
+      model: 'wan-video-lipsync',
+      seed: 4242,
+      referenceAssetIds: [],
+    })
+
+    expect(songLab.songLab?.assetRefs).toEqual([
+      'asset-lyrics-draft',
+      'asset-persona-seed',
+      'asset-reference-audio-3',
+      'asset-cover-art-4',
+    ])
+    expect(video.musicVideoLane?.assetRefs).toEqual(songLab.songLab?.assetRefs)
+    expect(video.musicVideoLane?.scenes[0].assetRefs).toEqual(
+      expect.arrayContaining(['asset-reference-audio-3', 'asset-cover-art-4']),
+    )
+    expect(renderPlan.musicVideoLane?.renderPlan?.referenceAssetIds).toEqual(songLab.songLab?.assetRefs)
+    expect(renderPlan.musicVideoLane?.renderPlan?.nodes.find((node) => node.id === 'references')?.value).toContain(
+      'asset-cover-art-4',
+    )
   })
 
   it('generates release pack deliverables and provenance receipts', () => {

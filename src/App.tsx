@@ -39,6 +39,7 @@ import {
   openMusicVideoLane,
   planComfyRenderGraph,
   planArchiveFirstCleanup,
+  recordProjectAssetImport,
   queueSongLabEdit,
   queueLipsyncRepair,
   queueMusicVideoRender,
@@ -53,6 +54,7 @@ import {
   type GeneratedTrack,
   type LipsyncCheckName,
   type LipsyncChecks,
+  type ProjectAssetKind,
   type ReleasePack,
   type SunoWorkflow,
 } from './domain/workflow'
@@ -63,6 +65,7 @@ type NodeKind =
   | 'lyrics'
   | 'style'
   | 'voice'
+  | 'assets'
   | 'batch'
   | 'generated'
   | 'track'
@@ -147,6 +150,7 @@ const iconByKind: Record<NodeKind, ComponentType<{ size?: number }>> = {
   lyrics: Mic2,
   style: SlidersHorizontal,
   voice: Bot,
+  assets: Boxes,
   batch: Sparkles,
   generated: FileAudio,
   track: FileAudio,
@@ -174,6 +178,16 @@ const featureList = [
 
 type AppProps = {
   provider?: SunoProvider
+}
+
+type ProjectAssetAction = {
+  kind: ProjectAssetKind
+  label: string
+  action: string
+  capability: string
+  sourceIds: string[]
+  tags: string[]
+  consentNote?: string
 }
 
 export function App({ provider: injectedProvider }: AppProps = {}) {
@@ -211,7 +225,13 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
     setGenerateError(null)
     setVideoExportError(null)
     try {
-      const baseWorkflow = createWorkflow(briefInput)
+      const baseWorkflow = {
+        ...createWorkflow(briefInput),
+        projectAssets: workflow.projectAssets,
+        voicePersonas: workflow.voicePersonas,
+        jobQueue: workflow.jobQueue,
+        provenance: workflow.provenance,
+      }
       const generationBatch = await provider.generateBatch({
         ...briefInput,
         count: 2,
@@ -260,6 +280,63 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
   function handleProviderActionResult(result: ProviderActionResult) {
     setApiActionResult(result)
     setWorkflow((current) => recordProviderJobResult(current, result))
+  }
+
+  async function handleImportProjectAsset(input: ProjectAssetAction) {
+    try {
+      const result = await executeProviderAction(provider, {
+        action: input.action,
+        capability: input.capability,
+        brief: briefInput.brief,
+        lyrics: briefInput.lyrics,
+        style: briefInput.style,
+        voice: briefInput.voice,
+        payload: {
+          label: input.label,
+          sourceIds: input.sourceIds,
+          tags: input.tags,
+        },
+      })
+      setApiActionResult(result)
+      setWorkflow((current) =>
+        recordProjectAssetImport(
+          current,
+          {
+            kind: input.kind,
+            label: input.label,
+            sourceIds: input.sourceIds,
+            tags: input.tags,
+            consentNote: input.consentNote,
+          },
+          result,
+        ),
+      )
+      setSelectedId(input.kind === 'persona-reference' ? 'voice' : 'project-assets')
+    } catch (error) {
+      const result: ProviderActionResult = {
+        action: input.action,
+        capability: input.capability,
+        outcome: 'blocked',
+        message: error instanceof Error ? error.message : 'Project asset action failed',
+        authBoundary: 'server',
+        receiptId: `asset-action-error-${input.action}`,
+      }
+      setApiActionResult(result)
+      setWorkflow((current) =>
+        recordProjectAssetImport(
+          current,
+          {
+            kind: input.kind,
+            label: input.label,
+            sourceIds: input.sourceIds,
+            tags: input.tags,
+            consentNote: input.consentNote,
+          },
+          result,
+        ),
+      )
+      setSelectedId(input.kind === 'persona-reference' ? 'voice' : 'project-assets')
+    }
   }
 
   function handleFieldChange(field: keyof BriefInput) {
@@ -590,6 +667,124 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
               </button>
             </div>
           )}
+          {selected.kind === 'voice' && (
+            <div className="workflow-section">
+              <h3>Persona workbench</h3>
+              <p>Active persona: {workflow.voicePersonas.activePersonaId ?? 'none'}</p>
+              <div className="persona-list" aria-label="Voice personas">
+                {workflow.voicePersonas.personas.map((persona) => (
+                  <div key={persona.id}>
+                    <strong>
+                      {persona.label} {persona.providerStatus}
+                    </strong>
+                    <small>
+                      Consent note: {persona.consentNote}; asset {persona.assetId}
+                    </small>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  void handleImportProjectAsset({
+                    kind: 'persona-reference',
+                    label: 'Consented bright tenor persona',
+                    action: 'createCustomVoice',
+                    capability: 'Custom voice creation',
+                    sourceIds: ['voice'],
+                    tags: ['consent', 'voice', 'prompt-safe'],
+                    consentNote: briefInput.voice,
+                  })
+                }
+              >
+                <Mic2 size={16} />
+                Create persona reference
+              </button>
+            </div>
+          )}
+          {selected.kind === 'assets' && (
+            <div className="workflow-section">
+              <h3>Project asset library</h3>
+              <p>
+                Source assets are project evidence. Provider-backed imports stay planned or blocked until a
+                server/worker lane can execute them.
+              </p>
+              <div className="asset-list" aria-label="Project assets">
+                {workflow.projectAssets.items.map((asset) => (
+                  <div className={asset.status} key={asset.id}>
+                    <strong>
+                      {asset.id} {asset.status}
+                    </strong>
+                    <small>
+                      {asset.kind}; {asset.label}; {asset.authBoundary}
+                    </small>
+                  </div>
+                ))}
+              </div>
+              <div className="gate-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleImportProjectAsset({
+                      kind: 'reference-audio',
+                      label: 'Hook guide reference audio',
+                      action: 'uploadReferenceAudio',
+                      capability: 'Upload/reference audio',
+                      sourceIds: ['brief'],
+                      tags: ['reference', 'upload'],
+                    })
+                  }
+                >
+                  <FileAudio size={16} />
+                  Import reference audio
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleImportProjectAsset({
+                      kind: 'cover-art',
+                      label: 'Release cover art direction',
+                      action: 'generateCoverArt',
+                      capability: 'Cover art',
+                      sourceIds: ['style'],
+                      tags: ['cover', 'release'],
+                    })
+                  }
+                >
+                  <Sparkles size={16} />
+                  Generate cover art asset
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleImportProjectAsset({
+                      kind: 'video-reference',
+                      label: 'Performance framing reference',
+                      action: 'renderMusicVideo',
+                      capability: 'Music-video render',
+                      sourceIds: ['brief'],
+                      tags: ['video', 'reference'],
+                    })
+                  }
+                >
+                  <Video size={16} />
+                  Plan video reference
+                </button>
+              </div>
+              {workflow.projectAssets.imports.length > 0 && (
+                <div className="asset-list" aria-label="Project asset import jobs">
+                  {workflow.projectAssets.imports.map((job) => (
+                    <div className={job.status} key={job.id}>
+                      <strong>
+                        {job.action} {job.status}
+                      </strong>
+                      <small>{job.message}</small>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {selected.kind === 'compare' && workflow.generationBatch && (
             <div className="workflow-section">
               <h3>Version comparison</h3>
@@ -638,6 +833,7 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
               {workflow.songLab ? (
                 <>
                   <p>Source track: {workflow.songLab.sourceTrackId}</p>
+                  <p>Source assets: {workflow.songLab.assetRefs.join(', ')}</p>
                   <div className="song-section-list" aria-label="Song Lab sections">
                     {workflow.songLab.sections.map((section) => (
                       <div className={section.locked ? 'locked' : ''} key={section.id}>
@@ -761,6 +957,7 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
             <div className="lipsync-gate">
               <h3>Perfect lipsync gate</h3>
               <p>Music video source: {workflow.musicVideoLane.sourceTrackId}</p>
+              <p>Source assets: {workflow.musicVideoLane.assetRefs.join(', ')}</p>
               <p
                 aria-label="Video export gate state"
                 className={`gate-state ${videoExportReady ? 'ready' : 'blocked'}`}
@@ -1095,6 +1292,20 @@ function buildWorkflowNodes(workflow: SunoWorkflow, releasePack: ReleasePack | n
       x: 50,
       y: 17,
       meta: ['persona', 'voice', 'consent'],
+    },
+    {
+      id: 'project-assets',
+      kind: 'assets',
+      title: 'Source assets',
+      summary: `${workflow.projectAssets.items.length} assets and ${workflow.projectAssets.imports.length} import receipts`,
+      status: workflow.projectAssets.imports.some((job) => job.status === 'blocked') ? 'needs-review' : 'ready',
+      x: 48,
+      y: 31,
+      meta: [
+        'uploads',
+        'cover art',
+        workflow.voicePersonas.activePersonaId ? `persona ${workflow.voicePersonas.activePersonaId}` : 'persona',
+      ],
     },
     {
       id: 'local-library',

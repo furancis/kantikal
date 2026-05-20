@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T100
+active_task: T110
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -604,7 +604,7 @@ tasks:
   - id: T100
     type: worker
     assignee: Worker
-    status: active
+    status: done
     objective: "Implement source asset, upload, voice/persona, and cover-art workflow lanes so generation inputs become durable project assets instead of plain prompt fields."
     inputs:
       - docs/prd.md
@@ -642,3 +642,79 @@ tasks:
     stop_if:
       - "A real upload or voice-clone provider capability is assumed without current docs or explicit unsupported state."
       - "Any asset action would persist or display credential material."
+    receipt:
+      result: done
+      changed_files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: credential literal rg scan
+          status: pass
+        - cmd: static chat surface wording rg scan
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Added durable project asset state for lyrics docs, reference audio, cover art, persona references, and video references; provider-bound import receipts with planned/blocked server ownership; a consent-preserving voice/persona workbench; and propagation of source asset IDs into Song Lab and the subordinate Music Video Lane ComfyUI render plan."
+  - id: T110
+    type: worker
+    assignee: Worker
+    status: active
+    objective: "Implement provider job polling, callback intake, and download/export lanes so generated songs, stems, covers, and videos can move from provider jobs into durable local project assets."
+    inputs:
+      - docs/prd.md
+      - docs/api-coverage.md
+      - src/api/actionCatalog.ts
+      - src/api/provider.ts
+      - server/sunoApiAdapter.ts
+      - src/domain/workflow.ts
+      - src/App.tsx
+    constraints:
+      - "Provider job state must distinguish mocked, planned, blocked, unsupported, completed, and failed outcomes."
+      - "Downloads and exports must be server-owned or local mock data; no client-side provider secrets."
+      - "Music video export remains subordinate to a selected song and perfect lipsync gate."
+      - "Archive-first cleanup must continue preserving recoverable project evidence."
+    expected_output:
+      - "Job polling and callback state model for provider task IDs."
+      - "Download/export manager for audio, stems, cover art, and video outputs."
+      - "UI surfaces that show queued, ready, blocked, and failed downloads without hiding unsupported provider gaps."
+      - "Tests and E2E coverage proving completed jobs become durable local project assets."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    stop_if:
+      - "A provider download/export endpoint is assumed without current docs or an explicit planned/unsupported state."
+      - "Any export path can bypass selected-song ownership or lipsync approval."
