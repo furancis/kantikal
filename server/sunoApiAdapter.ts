@@ -18,6 +18,14 @@ export type SunoApiServerAdapterInput = ProviderRuntimeConfigInput & {
 
 export type SunoApiServerAdapter = {
   executeProviderAction(request: ExecuteProviderActionRequest): Promise<ProviderActionResult>
+  pollProviderTask(request: ProviderPollRequest): Promise<ProviderTaskUpdateInput>
+}
+
+export type ProviderPollRequest = {
+  providerTaskId: string
+  action: string
+  capability: string
+  receiptId: string
 }
 
 export function createSunoApiServerAdapter(input: SunoApiServerAdapterInput): SunoApiServerAdapter {
@@ -124,6 +132,60 @@ export function createSunoApiServerAdapter(input: SunoApiServerAdapterInput): Su
         authBoundary: definition.authBoundary,
         endpoint: definition.path,
         providerTaskId: extractProviderTaskId(providerBody),
+      })
+    },
+
+    async pollProviderTask(request) {
+      const definition = providerActionDefinitionByAction(request.action)
+      if (!definition || definition.execution !== 'server-ready' || definition.method !== 'GET' || !definition.path) {
+        return {
+          providerTaskId: request.providerTaskId,
+          action: request.action,
+          capability: request.capability,
+          providerStatus: 'FAILED',
+          message: `${request.capability} does not have a pollable server endpoint.`,
+          outputs: [],
+          receiptId: request.receiptId,
+        }
+      }
+
+      if (!input.apiKey) {
+        return {
+          providerTaskId: request.providerTaskId,
+          action: request.action,
+          capability: request.capability,
+          providerStatus: 'FAILED',
+          message: `${request.capability} needs a server-side API key before provider polling.`,
+          outputs: [],
+          receiptId: request.receiptId,
+        }
+      }
+
+      const response = await fetchImpl(buildUrl(baseUrl, definition.path, 'GET', { taskId: request.providerTaskId }), {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${input.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      })
+      const providerBody = await readProviderBody(response)
+
+      if (!response.ok) {
+        return {
+          providerTaskId: request.providerTaskId,
+          action: request.action,
+          capability: request.capability,
+          providerStatus: 'FAILED',
+          message: `${request.capability} provider poll failed with HTTP ${response.status}.`,
+          outputs: [],
+          receiptId: request.receiptId,
+        }
+      }
+
+      return normalizeProviderRecordInfo(providerBody, {
+        action: request.action,
+        capability: request.capability,
+        receiptId: request.receiptId,
       })
     },
   }

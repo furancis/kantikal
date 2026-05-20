@@ -3,7 +3,12 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from './App'
 import type { SunoProvider } from './api/provider'
-import type { GenerationBatch } from './domain/workflow'
+import type { ProviderExportRuntimeClient } from './api/exportRuntime'
+import {
+  createWorkflow,
+  recordProviderTaskUpdate,
+  type GenerationBatch,
+} from './domain/workflow'
 
 describe('Suno Visual Studio shell', () => {
   it('keeps the music video lane subordinate to the song workflow', () => {
@@ -336,6 +341,59 @@ describe('Suno Visual Studio shell', () => {
     await user.click(screen.getByRole('button', { name: /source assets:/i }))
     expect(screen.getByText(/asset-generated-audio-/i)).toBeInTheDocument()
     expect(screen.getByText(/generated-audio; .*master audio/i)).toBeInTheDocument()
+  })
+
+  it('hydrates provider export state from the runtime boundary on load', async () => {
+    const hydratedWorkflow = recordProviderTaskUpdate(createWorkflow({
+      brief: 'Hydrated export hook',
+      lyrics: 'Verse chorus',
+      style: 'cinematic pop',
+      voice: 'consented lead',
+    }), {
+      providerTaskId: 'task_hydrated',
+      action: 'pollGenerationStatus',
+      capability: 'Get music generation details',
+      providerStatus: 'SUCCESS',
+      message: 'Server persisted export state',
+      outputs: [
+        {
+          kind: 'audio',
+          label: 'Hydrated master audio',
+          url: 'local-export://hydrated/master.mp3',
+        },
+      ],
+      receiptId: 'poll-task-hydrated',
+    })
+    const exportRuntime: ProviderExportRuntimeClient = {
+      async hydrate() {
+        return {
+          projectId: 'default-project',
+          projectAssets: hydratedWorkflow.projectAssets,
+          exports: hydratedWorkflow.exports,
+          jobQueue: hydratedWorkflow.jobQueue,
+          provenance: hydratedWorkflow.provenance,
+        }
+      },
+      async pollGenerationTask() {
+        throw new Error('poll not used')
+      },
+      async receiveFailedCallback() {
+        throw new Error('callback not used')
+      },
+      async recordProviderVideoOutput() {
+        throw new Error('video not used')
+      },
+    }
+    const user = userEvent.setup()
+
+    render(<App exportRuntime={exportRuntime} />)
+
+    await screen.findByRole('button', { name: /downloads \/ exports: 1 provider tasks and 1 download assets/i })
+    await user.click(screen.getByRole('button', { name: /downloads \/ exports/i }))
+
+    expect(screen.getByText(/Get music generation details ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/audio ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/Hydrated master audio/i)).toBeInTheDocument()
   })
 
   it('shows unsupported provider capabilities as explicit action results', async () => {

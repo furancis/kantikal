@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T120
+active_task: T130
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -759,7 +759,7 @@ tasks:
   - id: T120
     type: worker
     assignee: Worker
-    status: active
+    status: done
     objective: "Implement server runtime routes and local persistence for provider jobs, callbacks, and export downloads so the visual app can leave in-memory-only export state."
     inputs:
       - docs/prd.md
@@ -797,3 +797,80 @@ tasks:
     stop_if:
       - "Persistence would expose provider credential material."
       - "Route implementation requires changing external production account state."
+    receipt:
+      result: done
+      changed_files:
+        - server/providerExportHandlers.ts
+        - server/providerExportHandlers.test.ts
+        - server/sunoApiAdapter.ts
+        - src/api/exportRuntime.ts
+        - src/api/exportState.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: credential literal rg scan
+          status: pass
+        - cmd: static chat surface wording rg scan
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Added server-owned provider export handlers and local export persistence: provider record-info polling now normalizes and persists export task/download state without secrets, provider callbacks are idempotent by task/type, and file-backed export state reloads across store instances. Added shared export snapshots, app hydration from a runtime boundary, and a local runtime client that preserves the offline visual workflow while keeping the server route-handler boundary ready for HTTP mounting."
+  - id: T130
+    type: worker
+    assignee: Worker
+    status: active
+    objective: "Mount the provider export handlers behind an actual local HTTP runtime and wire the visual app to a fetch-backed route client with offline fallback."
+    inputs:
+      - server/providerExportHandlers.ts
+      - server/sunoApiAdapter.ts
+      - src/api/exportRuntime.ts
+      - src/App.tsx
+      - package.json
+      - vite.config.ts
+    constraints:
+      - "HTTP route handlers must not send or persist provider secrets to the client."
+      - "Offline tests must keep working without real Suno credentials."
+      - "The visual app should degrade to the local runtime client when no server route is available."
+      - "Provider callbacks must remain inbound handlers, not outgoing provider actions."
+    expected_output:
+      - "Request/Response route adapters for hydrate, poll, callback, and video-output export paths."
+      - "Fetch-backed export runtime client used by the app with tested offline fallback."
+      - "Dev/test server wiring or documented route mount point that can run locally."
+      - "E2E or integration proof that UI actions can use the HTTP route path."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+      - vite.config.ts
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    stop_if:
+      - "A route path would require exposing provider credential material to browser code."
+      - "A live external callback URL or production account change would be required."
