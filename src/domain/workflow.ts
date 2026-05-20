@@ -250,6 +250,26 @@ export type LipsyncCheckName = (typeof lipsyncCheckNames)[number]
 
 export type LipsyncChecks = Record<LipsyncCheckName, boolean>
 
+export type LipsyncEvidenceMetrics = {
+  phonemeDriftMs: number
+  frameOffsetFrames: number
+  mouthShapeScore: number
+  segmentDriftMs: number
+  postStitchDriftMs: number
+}
+
+export type LipsyncEvaluatorEvidence = {
+  id: string
+  evaluator: 'external-worker' | 'local-worker'
+  sourceTrackId: string
+  sourceVideoUrl: string
+  checkedAt: string
+  checks: LipsyncChecks
+  metrics: LipsyncEvidenceMetrics
+  thresholds: LipsyncEvidenceMetrics
+  failureRanges: LipsyncFailureRange[]
+}
+
 export type LipsyncRepairAttempt = {
   id: string
   failedChecks: LipsyncCheckName[]
@@ -320,6 +340,7 @@ export type MusicVideoLane = {
   sourceTrackId: string
   exportStatus: 'blocked' | 'ready'
   lipsync: LipsyncChecks | null
+  lipsyncEvidence: LipsyncEvaluatorEvidence | null
   repairAttempts: LipsyncRepairAttempt[]
   assetRefs: string[]
   scenes: MusicVideoScene[]
@@ -798,6 +819,7 @@ export function openMusicVideoLane(workflow: SunoWorkflow): SunoWorkflow {
       sourceTrackId: selectedTrack.id,
       exportStatus: 'blocked',
       lipsync: null,
+      lipsyncEvidence: null,
       repairAttempts: [],
       assetRefs,
       scenes: createMusicVideoScenes(selectedTrack, sectionSource, assetRefs),
@@ -876,16 +898,20 @@ export function evaluateLipsync(
   workflow: SunoWorkflow,
   lipsync: LipsyncChecks,
   failureRanges: LipsyncFailureRange[] = [],
+  evidence: LipsyncEvaluatorEvidence | null = null,
 ): SunoWorkflow {
   if (!workflow.musicVideoLane) {
     throw new Error('Lipsync QA requires an open music video lane')
   }
 
-  const exportStatus = failedLipsyncChecks(lipsync).length === 0 ? 'ready' : 'blocked'
+  const evidenceApproved = isLipsyncEvidenceApproved(workflow.musicVideoLane, evidence)
+  const exportStatus = failedLipsyncChecks(lipsync).length === 0 && evidenceApproved ? 'ready' : 'blocked'
   const activeFailureRanges =
     exportStatus === 'ready'
       ? []
-      : failureRanges.length > 0
+      : evidence?.failureRanges.length
+        ? evidence.failureRanges
+        : failureRanges.length > 0
         ? failureRanges
         : deriveLipsyncFailureRanges(workflow.musicVideoLane.scenes, lipsync)
 
@@ -895,6 +921,7 @@ export function evaluateLipsync(
       ...workflow.musicVideoLane,
       exportStatus,
       lipsync,
+      lipsyncEvidence: evidence,
       failureRanges: activeFailureRanges,
       scenes:
         exportStatus === 'ready'
@@ -923,7 +950,26 @@ export function isPerfectLipsyncApproved(lane: MusicVideoLane | null | undefined
   if (!lane?.lipsync || lane.exportStatus !== 'ready') {
     return false
   }
-  return failedLipsyncChecks(lane.lipsync).length === 0
+  return failedLipsyncChecks(lane.lipsync).length === 0 && isLipsyncEvidenceApproved(lane, lane.lipsyncEvidence)
+}
+
+function isLipsyncEvidenceApproved(
+  lane: MusicVideoLane,
+  evidence: LipsyncEvaluatorEvidence | null | undefined,
+): boolean {
+  if (!evidence || evidence.sourceTrackId !== lane.sourceTrackId || evidence.failureRanges.length > 0) {
+    return false
+  }
+  if (failedLipsyncChecks(evidence.checks).length > 0) {
+    return false
+  }
+  return (
+    evidence.metrics.phonemeDriftMs <= evidence.thresholds.phonemeDriftMs &&
+    evidence.metrics.frameOffsetFrames <= evidence.thresholds.frameOffsetFrames &&
+    evidence.metrics.mouthShapeScore >= evidence.thresholds.mouthShapeScore &&
+    evidence.metrics.segmentDriftMs <= evidence.thresholds.segmentDriftMs &&
+    evidence.metrics.postStitchDriftMs <= evidence.thresholds.postStitchDriftMs
+  )
 }
 
 export function queueLipsyncRepair(workflow: SunoWorkflow): SunoWorkflow {
@@ -1181,11 +1227,14 @@ function toReleasePackReceipts(workflow: SunoWorkflow, includeVideo: boolean): P
   ]
 
   if (includeVideo) {
+    const evidenceId = workflow.musicVideoLane?.lipsyncEvidence?.id
     receipts.push({
       id: `receipt-video-${selectedTrack.id}`,
       action: 'lipsync-qa-passed',
-      detail: 'Music-video export passed all hard lipsync checks',
-      sourceIds: [selectedTrack.id],
+      detail: evidenceId
+        ? `Music-video export passed evaluator-backed hard lipsync checks in ${evidenceId}`
+        : 'Music-video export passed all hard lipsync checks',
+      sourceIds: evidenceId ? [selectedTrack.id, evidenceId] : [selectedTrack.id],
     })
   }
 

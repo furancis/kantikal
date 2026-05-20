@@ -18,6 +18,7 @@ import {
   projectSnapshotFromState,
   summarizeProject,
 } from './projectStore'
+import { createLipsyncEvaluatorEvidence, passingLipsyncChecks } from '../test/lipsyncEvidence'
 
 const briefInput = {
   brief: 'Persistent khaliji hook',
@@ -36,13 +37,13 @@ function fullWorkflow(): SunoWorkflow {
   })
   const selected = selectTrack(generated, 'persist-track-2')
   const songLab = openSongLab(selected)
-  const videoReady = evaluateLipsync(openMusicVideoLane(songLab), {
-    phoneme: true,
-    frame: true,
-    mouthShape: true,
-    segmentDrift: true,
-    postStitch: true,
-  })
+  const videoOpen = openMusicVideoLane(songLab)
+  const videoReady = evaluateLipsync(
+    videoOpen,
+    passingLipsyncChecks,
+    [],
+    createLipsyncEvaluatorEvidence(videoOpen.musicVideoLane!),
+  )
   const exported = recordProviderTaskUpdate(videoReady, {
     providerTaskId: 'task_persist',
     action: 'pollGenerationStatus',

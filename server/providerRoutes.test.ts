@@ -16,6 +16,7 @@ describe('provider request routes', () => {
         adapter: createSunoApiServerAdapter({
           runtime: 'server',
           apiKey: 'server-secret',
+          callbackUrl: 'http://local.test/api/provider-exports/project-a/callback',
           fetchImpl: async () =>
             new Response(JSON.stringify({ code: 200, msg: 'success', data: { taskId: 'task_http_generate' } }), {
               status: 200,
@@ -60,6 +61,7 @@ describe('provider request routes', () => {
         adapter: createSunoApiServerAdapter({
           runtime: 'server',
           apiKey: 'server-secret',
+          callbackUrl: 'http://local.test/api/provider-exports/project-a/callback',
           fetchImpl: async (url, init) => {
             calls.push({ url: String(url), init: init ?? {} })
             return new Response(JSON.stringify({ code: 200, msg: 'success', data: { taskId: 'task_lyrics' } }), {
@@ -90,6 +92,10 @@ describe('provider request routes', () => {
     expect(calls[0].init.headers).toMatchObject({
       Authorization: 'Bearer server-secret',
       'Content-Type': 'application/json',
+    })
+    expect(JSON.parse(String(calls[0].init.body))).toMatchObject({
+      prompt: 'hook',
+      callBackUrl: 'http://local.test/api/provider-exports/project-a/callback',
     })
     expect(response.status).toBe(200)
     expect(payload.result).toMatchObject({

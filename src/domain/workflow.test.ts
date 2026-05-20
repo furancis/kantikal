@@ -23,7 +23,57 @@ import {
   selectTrack,
   submitGenerationBatch,
   toReleasePack,
+  type LipsyncChecks,
+  type LipsyncEvaluatorEvidence,
+  type LipsyncFailureRange,
+  type MusicVideoLane,
 } from './workflow'
+
+const passingLipsyncChecks: LipsyncChecks = {
+  phoneme: true,
+  frame: true,
+  mouthShape: true,
+  segmentDrift: true,
+  postStitch: true,
+}
+
+function evaluatorEvidence(
+  lane: MusicVideoLane,
+  checks: LipsyncChecks = passingLipsyncChecks,
+  failureRanges: LipsyncFailureRange[] = [],
+): LipsyncEvaluatorEvidence {
+  return {
+    id: `test-lipsync-evidence-${lane.sourceTrackId}`,
+    evaluator: 'local-worker',
+    sourceTrackId: lane.sourceTrackId,
+    sourceVideoUrl: `local-export://${lane.sourceTrackId}/stitched-video.mp4`,
+    checkedAt: '1970-01-01T00:00:00.000Z',
+    checks,
+    metrics: failureRanges.length > 0
+      ? {
+          phonemeDriftMs: 20,
+          frameOffsetFrames: 1,
+          mouthShapeScore: 0.95,
+          segmentDriftMs: 92,
+          postStitchDriftMs: 70,
+        }
+      : {
+          phonemeDriftMs: 10,
+          frameOffsetFrames: 0,
+          mouthShapeScore: 0.98,
+          segmentDriftMs: 14,
+          postStitchDriftMs: 16,
+        },
+    thresholds: {
+      phonemeDriftMs: 35,
+      frameOffsetFrames: 1,
+      mouthShapeScore: 0.92,
+      segmentDriftMs: 45,
+      postStitchDriftMs: 45,
+    },
+    failureRanges,
+  }
+}
 
 describe('Suno workflow state machine', () => {
   it('moves from brief to selected track while keeping music video subordinate', () => {
@@ -96,13 +146,12 @@ describe('Suno workflow state machine', () => {
       },
     ])
 
-    const passed = evaluateLipsync(withRepair, {
-      phoneme: true,
-      frame: true,
-      mouthShape: true,
-      segmentDrift: true,
-      postStitch: true,
-    })
+    const passed = evaluateLipsync(
+      withRepair,
+      passingLipsyncChecks,
+      [],
+      evaluatorEvidence(withRepair.musicVideoLane!, passingLipsyncChecks),
+    )
 
     expect(passed.musicVideoLane?.exportStatus).toBe('ready')
     expect(passed.musicVideoLane?.repairAttempts[0]?.status).toBe('applied')
@@ -323,14 +372,9 @@ describe('Suno workflow state machine', () => {
     const queuedRepair = queueLipsyncRepair(failed)
     const passed = evaluateLipsync(
       queuedRepair,
-      {
-        phoneme: true,
-        frame: true,
-        mouthShape: true,
-        segmentDrift: true,
-        postStitch: true,
-      },
+      passingLipsyncChecks,
       [],
+      evaluatorEvidence(queuedRepair.musicVideoLane!, passingLipsyncChecks),
     )
 
     expect(passed.musicVideoLane?.failureRanges).toEqual([])
@@ -739,13 +783,12 @@ describe('Suno workflow state machine', () => {
       }),
     ])
 
-    const passed = evaluateLipsync(workflow, {
-      phoneme: true,
-      frame: true,
-      mouthShape: true,
-      segmentDrift: true,
-      postStitch: true,
-    })
+    const passed = evaluateLipsync(
+      workflow,
+      passingLipsyncChecks,
+      [],
+      evaluatorEvidence(workflow.musicVideoLane!, passingLipsyncChecks),
+    )
     const ready = recordProviderTaskUpdate(passed, videoOutput)
 
     expect(ready.exports.downloads).toEqual([

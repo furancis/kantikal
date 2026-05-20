@@ -32,6 +32,10 @@ import {
 } from './api/exportRuntime'
 import { mergeProviderExportSnapshot, type ProviderExportSnapshot } from './api/exportState'
 import {
+  createLocalMusicVideoRuntimeClient,
+  type MusicVideoRuntimeClient,
+} from './api/musicVideoRuntime'
+import {
   createBrowserProjectStore,
   projectSnapshotFromState,
   type ProjectStore,
@@ -43,7 +47,6 @@ import {
   applyArchiveFirstCleanup,
   compareTracks,
   createWorkflow,
-  evaluateLipsync,
   failedLipsyncChecks,
   lockSongLabRegion,
   openSongLab,
@@ -64,7 +67,6 @@ import {
   type BriefInput,
   type GeneratedTrack,
   type LipsyncCheckName,
-  type LipsyncChecks,
   type ProjectAssetKind,
   type ReleasePack,
   type SunoWorkflow,
@@ -142,22 +144,6 @@ const lipsyncRepairLabels: Record<LipsyncCheckName, string> = {
   postStitch: 'post-stitch',
 }
 
-const firstPassLipsyncChecks: LipsyncChecks = {
-  phoneme: true,
-  frame: true,
-  mouthShape: true,
-  segmentDrift: false,
-  postStitch: false,
-}
-
-const passingLipsyncChecks: LipsyncChecks = {
-  phoneme: true,
-  frame: true,
-  mouthShape: true,
-  segmentDrift: true,
-  postStitch: true,
-}
-
 const iconByKind: Record<NodeKind, ComponentType<{ size?: number }>> = {
   project: Boxes,
   brief: FileText,
@@ -194,6 +180,7 @@ const featureList = [
 type AppProps = {
   provider?: SunoProvider
   exportRuntime?: ProviderExportRuntimeClient
+  musicVideoRuntime?: MusicVideoRuntimeClient
   projectStore?: ProjectStore
   projectId?: string
 }
@@ -214,17 +201,27 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
 
+function providerCallbackUrl(projectId: string): string | undefined {
+  if (typeof window === 'undefined') {
+    return undefined
+  }
+  return new URL(`/api/provider-exports/${encodeURIComponent(projectId)}/callback`, window.location.origin).toString()
+}
+
 export function App({
   provider: injectedProvider,
   exportRuntime: injectedExportRuntime,
+  musicVideoRuntime: injectedMusicVideoRuntime,
   projectStore: injectedProjectStore,
   projectId = defaultProjectId,
 }: AppProps = {}) {
   const mockProvider = useMemo(() => createMockSunoProvider(), [])
   const localExportRuntime = useMemo(() => createLocalProviderExportRuntimeClient(), [])
+  const localMusicVideoRuntime = useMemo(() => createLocalMusicVideoRuntimeClient(), [])
   const localProjectStore = useMemo(() => createBrowserProjectStore(), [])
   const provider = injectedProvider ?? mockProvider
   const exportRuntime = injectedExportRuntime ?? localExportRuntime
+  const musicVideoRuntime = injectedMusicVideoRuntime ?? localMusicVideoRuntime
   const projectStore = injectedProjectStore ?? localProjectStore
   const coverageCounts = useMemo(() => apiCoverageStatusCounts(apiCoverageEntries), [])
   const [activeProjectId, setActiveProjectId] = useState(projectId)
@@ -402,6 +399,7 @@ export function App({
         style: briefInput.style,
         voice: briefInput.voice,
         payload: {
+          ...providerContextPayload(),
           prompt: briefInput.lyrics || briefInput.brief,
           style: briefInput.style,
           title: briefInput.brief,
@@ -436,6 +434,7 @@ export function App({
         style: briefInput.style,
         voice: briefInput.voice,
         payload: {
+          ...providerContextPayload(),
           label: input.label,
           sourceIds: input.sourceIds,
           tags: input.tags,
@@ -480,6 +479,31 @@ export function App({
         ),
       )
       setSelectedId(input.kind === 'persona-reference' ? 'voice' : 'project-assets')
+    }
+  }
+
+  function providerContextPayload(): Record<string, unknown> {
+    const callbackUrl = providerCallbackUrl(activeProjectId)
+    return {
+      ...(workflow.generationBatch?.providerJobId
+        ? {
+            taskId: workflow.generationBatch.providerJobId,
+            providerTaskId: workflow.generationBatch.providerJobId,
+          }
+        : {}),
+      ...(workflow.selectedTrack?.id
+        ? {
+            audioId: workflow.selectedTrack.id,
+            sourceTrackId: workflow.selectedTrack.id,
+          }
+        : {}),
+      ...(callbackUrl
+        ? {
+            callbackUrl,
+            callBackUrl: callbackUrl,
+            calBackUrl: callbackUrl,
+          }
+        : {}),
     }
   }
 
@@ -645,14 +669,16 @@ export function App({
     setSelectedId('export')
   }
 
-  function handleRunLipsyncQa() {
-    setWorkflow((current) => {
-      const hasQueuedRepair =
-        current.musicVideoLane?.repairAttempts.some((attempt) => attempt.status === 'queued') ?? false
-      return evaluateLipsync(current, hasQueuedRepair ? passingLipsyncChecks : firstPassLipsyncChecks)
-    })
-    setVideoExportError(null)
-    setSelectedId('video')
+  async function handleRunLipsyncQa() {
+    try {
+      const nextWorkflow = await musicVideoRuntime.evaluateLipsync({ projectId: activeProjectId, workflow })
+      setWorkflow(nextWorkflow)
+      setVideoExportError(null)
+      setSelectedId('video')
+    } catch (error) {
+      setVideoExportError(errorMessage(error, 'Lipsync QA runtime failed'))
+      setSelectedId('video')
+    }
   }
 
   function handleQueueLipsyncRepair() {
@@ -1351,8 +1377,24 @@ export function App({
               <div className="meter" aria-label="Lipsync readiness">
                 <span style={{ width: `${lipsyncReadinessPercent}%` }} />
               </div>
+              {workflow.musicVideoLane.lipsyncEvidence && (
+                <div className="failure-list" aria-label="Lipsync evaluator evidence">
+                  <h3>Evaluator evidence</h3>
+                  <div>
+                    <strong>{workflow.musicVideoLane.lipsyncEvidence.id}</strong>
+                    <small>
+                      {workflow.musicVideoLane.lipsyncEvidence.evaluator}; phoneme{' '}
+                      {workflow.musicVideoLane.lipsyncEvidence.metrics.phonemeDriftMs}ms; frame{' '}
+                      {workflow.musicVideoLane.lipsyncEvidence.metrics.frameOffsetFrames}; mouth{' '}
+                      {workflow.musicVideoLane.lipsyncEvidence.metrics.mouthShapeScore}; segment{' '}
+                      {workflow.musicVideoLane.lipsyncEvidence.metrics.segmentDriftMs}ms; stitch{' '}
+                      {workflow.musicVideoLane.lipsyncEvidence.metrics.postStitchDriftMs}ms
+                    </small>
+                  </div>
+                </div>
+              )}
               <div className="gate-actions">
-                <button type="button" disabled={videoExportReady} onClick={handleRunLipsyncQa}>
+                <button type="button" disabled={videoExportReady} onClick={() => void handleRunLipsyncQa()}>
                   <Gauge size={16} />
                   Run lipsync QA
                 </button>
@@ -1490,6 +1532,7 @@ export function App({
                   {apiActionResult.message}
                   {apiActionResult.endpoint ? ` Endpoint ${apiActionResult.endpoint}.` : ''}
                   {apiActionResult.providerTaskId ? ` Task ${apiActionResult.providerTaskId}.` : ''}
+                  {apiActionResult.providerResourceUrl ? ` Resource ${apiActionResult.providerResourceUrl}.` : ''}
                 </small>
               </div>
             )}

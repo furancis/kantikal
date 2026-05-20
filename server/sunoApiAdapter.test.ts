@@ -71,6 +71,10 @@ describe('server Suno API adapter', () => {
       Authorization: 'Bearer server-secret',
       'Content-Type': 'application/json',
     })
+    expect(JSON.parse(String(calls[0].init.body))).toMatchObject({
+      prompt: 'hook',
+      callBackUrl: 'https://example.com/callback',
+    })
     expect(result).toMatchObject({
       action: 'generateLyrics',
       outcome: 'succeeded',
@@ -78,6 +82,65 @@ describe('server Suno API adapter', () => {
       providerTaskId: 'task_123',
     })
     expect(JSON.stringify(result)).not.toContain('server-secret')
+  })
+
+  it('builds required callback payloads from server defaults before dispatch', async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = []
+    const adapter = createSunoApiServerAdapter({
+      runtime: 'server',
+      apiKey: 'server-secret',
+      baseUrl: 'https://api.sunoapi.org',
+      callbackUrl: 'http://local.test/api/provider/callback',
+      fetchImpl: async (url, init) => {
+        calls.push({ url: String(url), init: init ?? {} })
+        return new Response(JSON.stringify({ code: 200, msg: 'success', data: { task_id: 'task_default' } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      },
+    })
+
+    const result = await adapter.executeProviderAction({
+      action: 'generateLyrics',
+      capability: 'Lyrics generation',
+      payload: { prompt: 'hook' },
+    })
+
+    expect(calls).toHaveLength(1)
+    expect(JSON.parse(String(calls[0].init.body))).toMatchObject({
+      prompt: 'hook',
+      callBackUrl: 'http://local.test/api/provider/callback',
+    })
+    expect(result).toMatchObject({
+      outcome: 'succeeded',
+      providerTaskId: 'task_default',
+    })
+  })
+
+  it('blocks endpoint-backed actions before fetch when required provider fields are missing', async () => {
+    let fetchCalls = 0
+    const adapter = createSunoApiServerAdapter({
+      runtime: 'server',
+      apiKey: 'server-secret',
+      fetchImpl: async () => {
+        fetchCalls += 1
+        return new Response('{}')
+      },
+    })
+
+    const result = await adapter.executeProviderAction({
+      action: 'uploadFileUrl',
+      capability: 'URL file upload',
+      payload: {},
+    })
+
+    expect(fetchCalls).toBe(0)
+    expect(result).toMatchObject({
+      action: 'uploadFileUrl',
+      outcome: 'blocked',
+      endpoint: '/api/file-url-upload',
+    })
+    expect(result.message).toMatch(/fileUrl/i)
   })
 
   it('keeps unsupported provider actions as explicit non-network outcomes', async () => {
@@ -120,7 +183,7 @@ describe('server Suno API adapter', () => {
     expect(fetchCalls).toBe(0)
     expect(result).toMatchObject({
       action: 'handleProviderCallback',
-      outcome: 'blocked',
+      outcome: 'succeeded',
       authBoundary: 'server',
       endpoint: '/api/provider/callback',
     })
@@ -146,7 +209,7 @@ describe('server Suno API adapter', () => {
     expect(fetchCalls).toBe(0)
     expect(result).toMatchObject({
       action: 'selectModelVersion',
-      outcome: 'planned',
+      outcome: 'succeeded',
       authBoundary: 'server',
       endpoint: '/api/v1/generate',
     })

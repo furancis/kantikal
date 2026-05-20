@@ -25,8 +25,45 @@ import {
   toReleasePack,
   queueSongLabEdit,
   type GenerationBatch,
+  type LipsyncChecks,
+  type LipsyncEvaluatorEvidence,
+  type MusicVideoLane,
   type SunoWorkflow,
 } from './domain/workflow'
+
+const passingLipsyncChecks: LipsyncChecks = {
+  phoneme: true,
+  frame: true,
+  mouthShape: true,
+  segmentDrift: true,
+  postStitch: true,
+}
+
+function evaluatorEvidence(lane: MusicVideoLane): LipsyncEvaluatorEvidence {
+  return {
+    id: `test-lipsync-evidence-${lane.sourceTrackId}`,
+    evaluator: 'local-worker',
+    sourceTrackId: lane.sourceTrackId,
+    sourceVideoUrl: `local-export://${lane.sourceTrackId}/stitched-video.mp4`,
+    checkedAt: '1970-01-01T00:00:00.000Z',
+    checks: passingLipsyncChecks,
+    metrics: {
+      phonemeDriftMs: 10,
+      frameOffsetFrames: 0,
+      mouthShapeScore: 0.98,
+      segmentDriftMs: 14,
+      postStitchDriftMs: 16,
+    },
+    thresholds: {
+      phonemeDriftMs: 35,
+      frameOffsetFrames: 1,
+      mouthShapeScore: 0.92,
+      segmentDriftMs: 45,
+      postStitchDriftMs: 45,
+    },
+    failureRanges: [],
+  }
+}
 
 const persistedBrief = {
   brief: 'Hydrated khaliji hook',
@@ -53,13 +90,8 @@ function persistedWorkflowFixture(trackPrefix = 'hydrated'): SunoWorkflow {
     notes: 'Saved hydrated track',
     tags: ['hydrated'],
   })
-  const videoReady = evaluateLipsync(openMusicVideoLane(saved), {
-    phoneme: true,
-    frame: true,
-    mouthShape: true,
-    segmentDrift: true,
-    postStitch: true,
-  })
+  const videoOpen = openMusicVideoLane(saved)
+  const videoReady = evaluateLipsync(videoOpen, passingLipsyncChecks, [], evaluatorEvidence(videoOpen.musicVideoLane!))
   const exported = recordProviderTaskUpdate(videoReady, {
     providerTaskId: `task_${trackPrefix}`,
     action: 'pollGenerationStatus',
@@ -363,12 +395,12 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByText(/asset-persona-seed available/i)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /import reference audio/i }))
-    expect(await screen.findByText(/asset-reference-audio-3 planned/i)).toBeInTheDocument()
-    expect(screen.getByText(/uploadReferenceAudio planned/i)).toBeInTheDocument()
+    expect(await screen.findByText(/asset-reference-audio-3 blocked/i)).toBeInTheDocument()
+    expect(screen.getByText(/uploadReferenceAudio blocked/i)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /generate cover art asset/i }))
-    expect(await screen.findByText(/asset-cover-art-4 planned/i)).toBeInTheDocument()
-    expect(screen.getByText(/generateCoverArt planned/i)).toBeInTheDocument()
+    expect(await screen.findByText(/asset-cover-art-4 blocked/i)).toBeInTheDocument()
+    expect(screen.getByText(/generateCoverArt blocked/i)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /plan video reference/i }))
     expect(await screen.findByText(/asset-video-reference-5 blocked/i)).toBeInTheDocument()
@@ -377,7 +409,7 @@ describe('Suno Visual Studio shell', () => {
     await user.click(screen.getByRole('button', { name: /voice \/ persona/i }))
     expect(screen.getByRole('heading', { name: /persona workbench/i })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /create persona reference/i }))
-    expect(await screen.findByText(/consented bright tenor persona planned/i)).toBeInTheDocument()
+    expect(await screen.findByText(/consented bright tenor persona blocked/i)).toBeInTheDocument()
     expect(screen.getAllByText(/consent note: reusable vocal identity/i).length).toBeGreaterThan(0)
 
     await user.click(screen.getByRole('button', { name: /generate suno batch/i }))

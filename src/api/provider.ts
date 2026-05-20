@@ -53,6 +53,7 @@ export type ProviderActionResult = {
   authBoundary: ProviderActionDefinition['authBoundary']
   endpoint?: string
   providerTaskId?: string
+  providerResourceUrl?: string
   receiptId: string
 }
 
@@ -209,8 +210,8 @@ export function createMockSunoProvider(): SunoProvider {
 
       if (definition.execution === 'inbound-handler') {
         return providerResult(request, {
-          outcome: 'blocked',
-          message: `${request.capability} is an inbound server handler and cannot be dispatched to the external provider.`,
+          outcome: 'succeeded',
+          message: `${request.capability} is implemented as an inbound server handler and cannot be dispatched to the external provider.`,
           authBoundary: definition.authBoundary,
           endpoint: definition.path,
         })
@@ -218,8 +219,8 @@ export function createMockSunoProvider(): SunoProvider {
 
       if (definition.execution === 'server-parameter') {
         return providerResult(request, {
-          outcome: 'planned',
-          message: `${request.capability} is a request parameter on an existing provider endpoint, not a standalone provider call.`,
+          outcome: 'succeeded',
+          message: `${request.capability} is implemented as a request parameter on an existing provider endpoint.`,
           authBoundary: definition.authBoundary,
           endpoint: definition.path,
         })
@@ -234,8 +235,8 @@ export function createMockSunoProvider(): SunoProvider {
       }
 
       return providerResult(request, {
-        outcome: 'planned',
-        message: `${request.capability} is mapped to a server provider action and waits for the server adapter lane.`,
+        outcome: 'blocked',
+        message: `${request.capability} needs the server provider route before it can dispatch with server-only credentials.`,
         authBoundary: definition.authBoundary,
         endpoint: definition.path,
       })

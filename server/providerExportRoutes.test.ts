@@ -9,6 +9,7 @@ import {
   submitGenerationBatch,
   type SunoWorkflow,
 } from '../src/domain/workflow'
+import { createLipsyncEvaluatorEvidence, passingLipsyncChecks } from '../src/test/lipsyncEvidence'
 import { createMemoryProviderExportStore, createProviderExportHandlers } from './providerExportHandlers'
 import { createProviderExportRequestHandler } from './providerExportRoutes'
 import { createProviderExportNodeMiddleware } from './providerExportRoutes'
@@ -130,13 +131,12 @@ describe('provider export request routes', () => {
       }),
     )
     const blockedVideoPayload = await blockedVideoResponse.json()
-    const videoWorkflow = evaluateLipsync(blockedVideoWorkflow, {
-      phoneme: true,
-      frame: true,
-      mouthShape: true,
-      segmentDrift: true,
-      postStitch: true,
-    })
+    const videoWorkflow = evaluateLipsync(
+      blockedVideoWorkflow,
+      passingLipsyncChecks,
+      [],
+      createLipsyncEvaluatorEvidence(blockedVideoWorkflow.musicVideoLane!),
+    )
     const videoResponse = await route(
       new Request('http://local.test/api/provider-exports/project-a/video-output', {
         method: 'POST',

@@ -43,14 +43,19 @@ describe('API coverage enforcement', () => {
     expect(apiCoverageEntries.filter((entry) => entry.authBoundary === 'server').length).toBeGreaterThan(10)
   })
 
-  it('summarizes implementation state without hiding planned work', () => {
+  it('summarizes implementation state without hiding blocked or unsupported work', () => {
     const counts = apiCoverageStatusCounts(apiCoverageEntries)
 
-    expect(counts.implemented).toBe(3)
-    expect(counts.planned).toBeGreaterThan(30)
-    expect(counts.unsupported).toBeGreaterThan(0)
-    expect(counts.blocked).toBe(0)
+    expect(counts.implemented).toBe(41)
+    expect(counts.planned).toBe(0)
+    expect(counts.unsupported).toBe(10)
+    expect(counts.blocked).toBe(3)
     expect(counts.deprecated).toBe(0)
+    expect(apiCoverageEntries.filter((entry) => entry.status === 'blocked').map((entry) => entry.capability)).toEqual([
+      'File stream upload',
+      'Music-video render',
+      'Lipsync QA',
+    ])
     expect(Object.values(counts).reduce((total, count) => total + count, 0)).toBe(apiCoverageEntries.length)
   })
 })

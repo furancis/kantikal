@@ -7,6 +7,7 @@ import {
   selectTrack,
   submitGenerationBatch,
 } from '../domain/workflow'
+import { createLipsyncEvaluatorEvidence, passingLipsyncChecks } from '../test/lipsyncEvidence'
 import { exportSnapshotFromWorkflow } from './exportState'
 import { createFetchProviderExportRuntimeClient, createLocalProviderExportRuntimeClient } from './exportRuntime'
 
@@ -140,13 +141,12 @@ describe('fetch provider export runtime client', () => {
     const blocked = await client.recordProviderVideoOutput({ projectId: 'project-a', workflow: videoWorkflow })
     const passed = await client.recordProviderVideoOutput({
       projectId: 'project-a',
-      workflow: evaluateLipsync(videoWorkflow, {
-        phoneme: true,
-        frame: true,
-        mouthShape: true,
-        segmentDrift: true,
-        postStitch: true,
-      }),
+      workflow: evaluateLipsync(
+        videoWorkflow,
+        passingLipsyncChecks,
+        [],
+        createLipsyncEvaluatorEvidence(videoWorkflow.musicVideoLane!),
+      ),
     })
 
     expect(blocked.exports.downloads.some((download) => download.kind === 'video')).toBe(false)

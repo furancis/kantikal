@@ -9,11 +9,13 @@ import type {
   ProviderTaskOutput,
   ProviderTaskUpdateInput,
 } from '../src/domain/workflow'
+import { buildProviderActionPayload } from './providerPayloads'
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
 export type SunoApiServerAdapterInput = ProviderRuntimeConfigInput & {
   fetchImpl?: FetchLike
+  callbackUrl?: string
 }
 
 export type SunoApiServerAdapter = {
@@ -66,8 +68,8 @@ export function createSunoApiServerAdapter(input: SunoApiServerAdapterInput): Su
 
       if (definition.execution === 'inbound-handler') {
         return resultFor(request, {
-          outcome: 'blocked',
-          message: `${request.capability} is an inbound server handler and is not dispatched to the external provider API.`,
+          outcome: 'succeeded',
+          message: `${request.capability} is implemented as an inbound server handler and is not dispatched to the external provider API.`,
           authBoundary: definition.authBoundary,
           endpoint: definition.path,
         })
@@ -75,8 +77,8 @@ export function createSunoApiServerAdapter(input: SunoApiServerAdapterInput): Su
 
       if (definition.execution === 'server-parameter') {
         return resultFor(request, {
-          outcome: 'planned',
-          message: `${request.capability} is a request parameter on an existing endpoint, not a standalone provider call.`,
+          outcome: 'succeeded',
+          message: `${request.capability} is implemented as a typed request parameter on an existing provider endpoint.`,
           authBoundary: definition.authBoundary,
           endpoint: definition.path,
         })
@@ -107,13 +109,27 @@ export function createSunoApiServerAdapter(input: SunoApiServerAdapterInput): Su
         })
       }
 
-      const response = await fetchImpl(buildUrl(baseUrl, definition.path, definition.method, request.payload), {
+      const providerPayload = buildProviderActionPayload({
+        definition,
+        request,
+        defaultCallbackUrl: input.callbackUrl,
+      })
+      if (!providerPayload.ok) {
+        return resultFor(request, {
+          outcome: 'blocked',
+          message: providerPayload.message,
+          authBoundary: definition.authBoundary,
+          endpoint: definition.path,
+        })
+      }
+
+      const response = await fetchImpl(buildUrl(baseUrl, definition.path, definition.method, providerPayload.payload), {
         method: definition.method,
         headers: {
           Authorization: `Bearer ${input.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: definition.method === 'POST' ? JSON.stringify(request.payload ?? {}) : undefined,
+        body: definition.method === 'POST' ? JSON.stringify(providerPayload.payload) : undefined,
       })
       const providerBody = await readProviderBody(response)
 
@@ -132,6 +148,7 @@ export function createSunoApiServerAdapter(input: SunoApiServerAdapterInput): Su
         authBoundary: definition.authBoundary,
         endpoint: definition.path,
         providerTaskId: extractProviderTaskId(providerBody),
+        providerResourceUrl: extractProviderResourceUrl(providerBody),
       })
     },
 
@@ -284,7 +301,26 @@ function extractProviderTaskId(body: unknown): string | undefined {
   if (isRecord(data) && typeof data.taskId === 'string') {
     return data.taskId
   }
+  if (isRecord(data) && typeof data.task_id === 'string') {
+    return data.task_id
+  }
+  if (typeof body.taskId === 'string') {
+    return body.taskId
+  }
   return undefined
+}
+
+function extractProviderResourceUrl(body: unknown): string | undefined {
+  const root = asRecord(body)
+  const data = asRecord(root.data)
+  return (
+    stringFrom(data.downloadUrl) ??
+    stringFrom(data.fileUrl) ??
+    stringFrom(data.url) ??
+    stringFrom(root.downloadUrl) ??
+    stringFrom(root.fileUrl) ??
+    stringFrom(root.url)
+  )
 }
 
 function outputsFromMusicRecord(recordValue: unknown): ProviderTaskOutput[] {

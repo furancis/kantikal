@@ -1103,6 +1103,57 @@ tasks:
       - npm run scan:credentials
       - npm run scan:wording
     receipt:
+      result: local_pass_hosted_pending
+      branch: feature/visual-studio-t170
+      files:
+        - server/providerPayloads.ts
+        - server/sunoApiAdapter.ts
+        - server/sunoApiAdapter.test.ts
+        - server/providerRoutes.test.ts
+        - server/providerExportRoutes.test.ts
+        - src/api/musicVideoRuntime.ts
+        - src/api/musicVideoRuntime.test.ts
+        - src/test/lipsyncEvidence.ts
+        - src/api/coverage.ts
+        - src/api/coverage.test.ts
+        - src/api/provider.ts
+        - src/api/exportRuntime.test.ts
+        - src/api/projectStore.test.ts
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/main.tsx
+        - vite.config.ts
+        - playwright.config.ts
+        - e2e/studio.spec.ts
+        - docs/api-coverage.md
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      remaining_evidence:
+        - "Hosted CI and Greptile PR proof still need to run on the pushed branch before T170 can be marked complete."
+        - "Live external Suno credential success is not claimed; provider calls are typed and server-owned, with tests using local fetch doubles."
+        - "ComfyUI render remains blocked on external-worker execution; lipsync has a local executable evaluator boundary and evidence gate."
+      summary: "Added typed provider payload builders for endpoint-backed actions, promoted executable API coverage entries from planned to implemented while preserving blocked and unsupported gaps, wired provider callbacks and server-parameter actions as implemented server semantics, added a fetch/local Music Video Runtime client that emits lipsync evaluator evidence, and made video export approval require passing threshold evidence tied to the selected track. Local full gate passed; hosted PR/Greptile proof remains pending."
+    receipt:
       result: not_complete
       full_outcome_complete: false
       evidence:

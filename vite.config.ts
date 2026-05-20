@@ -23,6 +23,7 @@ function providerExportRoutesPlugin(): Plugin {
       const adapter = createSunoApiServerAdapter({
         runtime: 'server',
         apiKey: process.env.SUNO_API_KEY ?? 'local-dev-provider-key',
+        callbackUrl: process.env.SUNO_CALLBACK_URL ?? 'http://local.test/api/provider-exports/local/callback',
         fetchImpl: localProviderFetch,
       })
       const provider = createServerSunoProvider({
