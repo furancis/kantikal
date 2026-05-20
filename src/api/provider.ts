@@ -154,6 +154,15 @@ export function createMockSunoProvider(): SunoProvider {
         })
       }
 
+      if (definition.execution === 'server-parameter') {
+        return providerResult(request, {
+          outcome: 'planned',
+          message: `${request.capability} is a request parameter on an existing provider endpoint, not a standalone provider call.`,
+          authBoundary: definition.authBoundary,
+          endpoint: definition.path,
+        })
+      }
+
       if (definition.execution === 'local-only') {
         return providerResult(request, {
           outcome: 'succeeded',

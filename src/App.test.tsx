@@ -294,6 +294,29 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByText(/lipsync-approved video/i)).toBeInTheDocument()
   })
 
+  it('locks prompt and generation controls while the music video lane is open', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
+    await user.click(screen.getByRole('button', { name: /open music video lane/i }))
+
+    expect(screen.getByLabelText(/brief/i, { selector: 'textarea' })).toBeDisabled()
+    expect(screen.getByLabelText(/lyrics/i, { selector: 'textarea' })).toBeDisabled()
+    expect(screen.getByLabelText(/style/i, { selector: 'input' })).toBeDisabled()
+    expect(screen.getByLabelText(/voice/i, { selector: 'input' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /run generation/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /generate mock suno batch/i })).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
+
+    expect(screen.getByRole('heading', { name: /perfect lipsync gate/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/segment drift qa result/i)).toHaveTextContent(/repair required/i)
+  })
+
   it('keeps an audio release pack through lipsync QA and repair work', async () => {
     const user = userEvent.setup()
     render(<App />)

@@ -121,4 +121,30 @@ describe('server Suno API adapter', () => {
       endpoint: '/api/provider/callback',
     })
   })
+
+  it('does not dispatch parameter-only actions as standalone provider calls', async () => {
+    let fetchCalls = 0
+    const adapter = createSunoApiServerAdapter({
+      runtime: 'server',
+      apiKey: 'server-secret',
+      fetchImpl: async () => {
+        fetchCalls += 1
+        throw new Error('parameter-only actions must not fetch')
+      },
+    })
+
+    const result = await adapter.executeProviderAction({
+      action: 'selectModelVersion',
+      capability: 'Model/version selection',
+      payload: { model: 'suno-v4' },
+    })
+
+    expect(fetchCalls).toBe(0)
+    expect(result).toMatchObject({
+      action: 'selectModelVersion',
+      outcome: 'planned',
+      authBoundary: 'server',
+      endpoint: '/api/v1/generate',
+    })
+  })
 })

@@ -60,6 +60,15 @@ export function createSunoApiServerAdapter(input: SunoApiServerAdapterInput): Su
         })
       }
 
+      if (definition.execution === 'server-parameter') {
+        return resultFor(request, {
+          outcome: 'planned',
+          message: `${request.capability} is a request parameter on an existing endpoint, not a standalone provider call.`,
+          authBoundary: definition.authBoundary,
+          endpoint: definition.path,
+        })
+      }
+
       if (definition.execution === 'local-only') {
         return resultFor(request, {
           outcome: 'succeeded',

@@ -186,6 +186,7 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
   const videoExportReady = workflow.musicVideoLane?.exportStatus === 'ready'
   const cleanupTargets = discardedGeneratedTracks(workflow)
   const cleanupStatus = workflow.cleanupPlan?.status ?? 'idle'
+  const promptLocked = isGenerating || Boolean(workflow.musicVideoLane)
 
   async function handleGenerate(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault()
@@ -241,6 +242,9 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
 
   function handleFieldChange(field: keyof BriefInput) {
     return (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (workflow.musicVideoLane) {
+        return
+      }
       const value = event.target.value
       setBriefInput((current) => ({ ...current, [field]: value }))
       setWorkflow((current) => ({
@@ -337,7 +341,7 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
           <h1>Visual music generation operating app</h1>
         </div>
         <div className="topbar-actions" aria-label="Project controls">
-          <button aria-label="Run generation" disabled={isGenerating} onClick={() => void handleGenerate()}>
+          <button aria-label="Run generation" disabled={promptLocked} onClick={() => void handleGenerate()}>
             <Play size={16} />
             Run
           </button>
@@ -361,21 +365,21 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
           <form className="prompt-form" onSubmit={(event) => void handleGenerate(event)}>
             <label>
               <span>Brief</span>
-              <textarea value={briefInput.brief} onChange={handleFieldChange('brief')} disabled={isGenerating} />
+              <textarea value={briefInput.brief} onChange={handleFieldChange('brief')} disabled={promptLocked} />
             </label>
             <label>
               <span>Lyrics</span>
-              <textarea value={briefInput.lyrics} onChange={handleFieldChange('lyrics')} disabled={isGenerating} />
+              <textarea value={briefInput.lyrics} onChange={handleFieldChange('lyrics')} disabled={promptLocked} />
             </label>
             <label>
               <span>Style</span>
-              <input value={briefInput.style} onChange={handleFieldChange('style')} disabled={isGenerating} />
+              <input value={briefInput.style} onChange={handleFieldChange('style')} disabled={promptLocked} />
             </label>
             <label>
               <span>Voice</span>
-              <input value={briefInput.voice} onChange={handleFieldChange('voice')} disabled={isGenerating} />
+              <input value={briefInput.voice} onChange={handleFieldChange('voice')} disabled={promptLocked} />
             </label>
-            <button type="submit" aria-label="Generate mock Suno batch" disabled={isGenerating}>
+            <button type="submit" aria-label="Generate mock Suno batch" disabled={promptLocked}>
               <Sparkles size={16} />
               {isGenerating ? 'Generating' : 'Generate mock Suno batch'}
             </button>
