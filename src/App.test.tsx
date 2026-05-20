@@ -10,6 +10,9 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByRole('heading', { name: /visual music generation operating app/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /open music video lane/i })).toBeDisabled()
     expect(screen.getByText(/select a generated track before opening video/i)).toBeInTheDocument()
+    expect(screen.getByText(/54 mapped capabilities/i)).toBeInTheDocument()
+    expect(screen.getByText(/custom voice creation/i)).toBeInTheDocument()
+    expect(screen.getByText(/^WAV conversion$/i)).toBeInTheDocument()
   })
 
   it('creates editable workflow objects from the visual app', async () => {

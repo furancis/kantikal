@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { createMockSunoProvider, createProviderRuntimeConfig } from './provider'
+import {
+  createMockSunoProvider,
+  createProviderRuntimeConfig,
+  publicProviderStatus,
+} from './provider'
 
 describe('Suno provider boundary', () => {
   it('keeps provider credentials on the server side', () => {
@@ -14,8 +18,32 @@ describe('Suno provider boundary', () => {
       createProviderRuntimeConfig({
         runtime: 'server',
         apiKey: 'secret-key',
+        baseUrl: 'https://api.sunoapi.org',
       }),
-    ).toMatchObject({ runtime: 'server', hasApiKey: true })
+    ).toMatchObject({
+      runtime: 'server',
+      baseUrl: 'https://api.sunoapi.org',
+      hasApiKey: true,
+      credentialMode: 'server-injected',
+    })
+  })
+
+  it('exposes only redacted provider state to the client', () => {
+    const status = publicProviderStatus(
+      createProviderRuntimeConfig({
+        runtime: 'server',
+        apiKey: 'secret-key',
+        baseUrl: 'https://api.sunoapi.org',
+      }),
+    )
+
+    expect(status).toEqual({
+      provider: 'suno-compatible',
+      baseUrl: 'https://api.sunoapi.org',
+      hasApiKey: true,
+      credentialMode: 'server-injected',
+    })
+    expect(JSON.stringify(status)).not.toContain('secret-key')
   })
 
   it('generates deterministic mocked batches without real credentials', async () => {

@@ -3,11 +3,22 @@ import type { GenerationBatch } from '../domain/workflow'
 export type ProviderRuntimeConfigInput = {
   runtime: 'server' | 'client'
   apiKey?: string
+  baseUrl?: string
 }
 
 export type ProviderRuntimeConfig = {
   runtime: 'server'
+  provider: 'suno-compatible'
+  baseUrl: string
   hasApiKey: boolean
+  credentialMode: 'server-env' | 'server-injected' | 'missing'
+}
+
+export type PublicProviderStatus = {
+  provider: 'suno-compatible'
+  baseUrl: string
+  hasApiKey: boolean
+  credentialMode: ProviderRuntimeConfig['credentialMode']
 }
 
 export type GenerateBatchRequest = {
@@ -31,7 +42,19 @@ export function createProviderRuntimeConfig(
 
   return {
     runtime: 'server',
+    provider: 'suno-compatible',
+    baseUrl: input.baseUrl ?? 'https://api.sunoapi.org',
     hasApiKey: Boolean(input.apiKey),
+    credentialMode: input.apiKey ? 'server-injected' : 'missing',
+  }
+}
+
+export function publicProviderStatus(config: ProviderRuntimeConfig): PublicProviderStatus {
+  return {
+    provider: config.provider,
+    baseUrl: config.baseUrl,
+    hasApiKey: config.hasApiKey,
+    credentialMode: config.credentialMode,
   }
 }
 

@@ -16,7 +16,7 @@ brief -> prompt/lyrics/style/voice -> Suno generation batches -> compare/rate/ve
 
 ## Non-Negotiables
 
-- Claude Design reference, not Claude Artifacts.
+- Claude Design reference only; no static one-off chat surface framing.
 - Visual app first; CLI, Printing Press, Suno wrappers, and ComfyUI are hidden engines.
 - Music video is a subordinate lane opened from a selected song/version.
 - Full Suno/provider API capability coverage is maintained.

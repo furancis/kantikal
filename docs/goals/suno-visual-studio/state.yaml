@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T030
+active_task: T040
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -15,10 +15,10 @@ intake:
     - test
     - demo
     - review
-    - artifact
+    - deliverable
   completion_proof: "Final PM/Judge audit proves the functional app satisfies the full workflow, TDD, CI, and Greptile requirements."
 guardrails:
-  - claude_design_not_artifacts
+  - claude_design_reference_only
   - visual_app_first
   - cli_hidden_engine_only
   - music_video_subfeature
@@ -146,7 +146,7 @@ tasks:
   - id: T030
     type: worker
     assignee: Worker
-    status: active
+    status: done
     objective: "Implement API coverage enforcement and server-only provider configuration."
     allowed_files:
       - src/**
@@ -161,11 +161,40 @@ tasks:
       - npm run build
     stop_if:
       - "Provider docs or real API behavior is needed but unverified."
-    receipt: null
+    receipt:
+      result: done
+      changed_files:
+        - src/api/coverage.ts
+        - src/api/coverage.test.ts
+        - src/api/provider.ts
+        - src/api/provider.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - docs/api-coverage.md
+        - docs/goals/suno-visual-studio/goal.md
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: credential literal scan
+          status: pass
+        - cmd: artifact wording scan
+          status: pass
+      summary: "Added a typed 54-capability API parity manifest tied to docs, test enforcement for API coverage completeness, server-only provider runtime config with redacted public status, and a UI inspector that exposes implemented/planned capability counts without hiding pending work."
   - id: T040
     type: worker
     assignee: Worker
-    status: queued
+    status: active
     objective: "Build subordinate Music Video Lane with lipsync QA state, repair loop, and blocked export behavior."
     allowed_files:
       - src/**

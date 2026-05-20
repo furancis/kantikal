@@ -24,6 +24,7 @@ import {
 import type { ChangeEvent, ComponentType, FormEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { createMockSunoProvider } from './api/provider'
+import { apiCoverageEntries, apiCoverageStatusCounts } from './api/coverage'
 import {
   createWorkflow,
   openMusicVideoLane,
@@ -90,15 +91,6 @@ const iconByKind: Record<NodeKind, ComponentType<{ size?: number }>> = {
   export: Download,
 }
 
-const apiCoverage = [
-  ['Generate', 'Create, custom mode, lyrics, instrumental, model choice'],
-  ['Edit', 'Extend, cover, remix, remaster, replace section, stems'],
-  ['Identity', 'Voices, personas, uploads, reusable style memory'],
-  ['Library', 'Songs, versions, likes, archive, trash, destructive cleanup'],
-  ['Operations', 'Queue status, credits, costs, retries, webhooks, downloads'],
-  ['Safety', 'Consent, provenance, moderation, generated labels, audit log'],
-]
-
 const featureList = [
   'Visual node canvas for idea to release workflow',
   'Prompt, lyrics, style, voice and persona workbenches',
@@ -114,6 +106,7 @@ const featureList = [
 
 export function App() {
   const provider = useMemo(() => createMockSunoProvider(), [])
+  const coverageCounts = useMemo(() => apiCoverageStatusCounts(apiCoverageEntries), [])
   const [briefInput, setBriefInput] = useState<BriefInput>(initialBrief)
   const [workflow, setWorkflow] = useState<SunoWorkflow>(() => createWorkflow(initialBrief))
   const [releasePack, setReleasePack] = useState<ReleasePack | null>(null)
@@ -192,7 +185,7 @@ export function App() {
             <Play size={16} />
             Run
           </button>
-          <button aria-label="Open API coverage">
+          <button aria-label="Open API coverage" onClick={() => setSelectedId('api-coverage')}>
             <ShieldCheck size={16} />
             API parity
           </button>
@@ -356,10 +349,17 @@ export function App() {
           )}
           <div className="api-box">
             <h3>API coverage</h3>
-            {apiCoverage.map(([label, detail]) => (
-              <div key={label}>
-                <strong>{label}</strong>
-                <small>{detail}</small>
+            <p>
+              {apiCoverageEntries.length} mapped capabilities. {coverageCounts.implemented} implemented;
+              {' '}
+              {coverageCounts.planned} planned; server-only credentials enforced.
+            </p>
+            {apiCoverageEntries.map((entry) => (
+              <div key={entry.capability}>
+                <strong>{entry.capability}</strong>
+                <small>
+                  {entry.uiSurface} {'->'} {entry.backendOwner} {'->'} {entry.adapterAction} ({entry.status})
+                </small>
               </div>
             ))}
           </div>
