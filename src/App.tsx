@@ -198,8 +198,9 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
         ...briefInput,
         count: 2,
       })
+      const nextWorkflow = submitGenerationBatch(baseWorkflow, generationBatch)
       setReleasePack(null)
-      setWorkflow(submitGenerationBatch(baseWorkflow, generationBatch))
+      setWorkflow(nextWorkflow)
       setSelectedId('batch')
     } catch (error) {
       setGenerateError(error instanceof Error ? error.message : 'Generation failed')

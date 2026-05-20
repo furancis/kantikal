@@ -123,6 +123,40 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
   })
 
+  it('keeps the current release pack when a replacement batch is rejected', async () => {
+    const user = userEvent.setup()
+    let calls = 0
+    const emptyBatchProvider: SunoProvider = {
+      async generateBatch() {
+        calls += 1
+        if (calls === 1) {
+          return {
+            providerJobId: 'first-provider-job',
+            tracks: [{ id: 'first-track-1', title: 'First provider v1', durationSeconds: 150 }],
+          }
+        }
+
+        return {
+          providerJobId: 'empty-provider-job',
+          tracks: [],
+        }
+      },
+    }
+
+    render(<App provider={emptyBatchProvider} />)
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /first provider v1/i }))
+    await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
+
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/requires at least one track/i)
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+  })
+
   it('runs API coverage actions through the provider action lane', async () => {
     const user = userEvent.setup()
     render(<App />)
