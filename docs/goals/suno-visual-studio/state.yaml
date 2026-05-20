@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T020
+active_task: T030
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -110,7 +110,7 @@ tasks:
   - id: T020
     type: worker
     assignee: Worker
-    status: active
+    status: done
     objective: "Make the visual canvas create and edit workflow objects instead of displaying static cards."
     allowed_files:
       - src/**
@@ -124,11 +124,29 @@ tasks:
       - npm run test:e2e
     stop_if:
       - "T010 is not done."
-    receipt: null
+    receipt:
+      result: done
+      changed_files:
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+      commands:
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+      summary: "Canvas is now driven by editable workflow state. User can edit brief, lyrics, style, and voice; generate a mock Suno batch; select generated track cards; open subordinate MV lane from the selected track; and create an audio release-pack node."
   - id: T030
     type: worker
     assignee: Worker
-    status: queued
+    status: active
     objective: "Implement API coverage enforcement and server-only provider configuration."
     allowed_files:
       - src/**

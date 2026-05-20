@@ -21,16 +21,29 @@ import {
   WandSparkles,
   Waves,
 } from 'lucide-react'
-import type { ComponentType } from 'react'
+import type { ChangeEvent, ComponentType, FormEvent } from 'react'
 import { useMemo, useState } from 'react'
+import { createMockSunoProvider } from './api/provider'
+import {
+  createWorkflow,
+  openMusicVideoLane,
+  selectTrack,
+  submitGenerationBatch,
+  toReleasePack,
+  type BriefInput,
+  type GeneratedTrack,
+  type ReleasePack,
+  type SunoWorkflow,
+} from './domain/workflow'
 
-type NodeStatus = 'draft' | 'generating' | 'needs-review' | 'locked' | 'exported'
+type NodeStatus = 'draft' | 'generating' | 'needs-review' | 'locked' | 'exported' | 'ready'
 type NodeKind =
   | 'brief'
   | 'lyrics'
   | 'style'
   | 'voice'
   | 'batch'
+  | 'generated'
   | 'track'
   | 'stem'
   | 'video'
@@ -45,6 +58,14 @@ type WorkflowNode = {
   x: number
   y: number
   meta: string[]
+  trackId?: string
+}
+
+const initialBrief: BriefInput = {
+  brief: 'Arabic club-pop hook, bilingual chorus, dark cinematic lift',
+  lyrics: 'Verse, pre, chorus, bridge with syllable density markers',
+  style: 'Gulf percussion, polished electro-pop, restrained vocal glaze',
+  voice: 'Reusable vocal identity with prompt-safe consent notes',
 }
 
 const statusLabel: Record<NodeStatus, string> = {
@@ -53,6 +74,7 @@ const statusLabel: Record<NodeStatus, string> = {
   'needs-review': 'Needs review',
   locked: 'Locked',
   exported: 'Exported',
+  ready: 'Ready',
 }
 
 const iconByKind: Record<NodeKind, ComponentType<{ size?: number }>> = {
@@ -61,104 +83,12 @@ const iconByKind: Record<NodeKind, ComponentType<{ size?: number }>> = {
   style: SlidersHorizontal,
   voice: Bot,
   batch: Sparkles,
+  generated: FileAudio,
   track: FileAudio,
   stem: Waves,
   video: Video,
   export: Download,
 }
-
-const workflowNodes: WorkflowNode[] = [
-  {
-    id: 'brief',
-    kind: 'brief',
-    title: 'Idea brief',
-    summary: 'Arabic club-pop hook, bilingual chorus, dark cinematic lift.',
-    status: 'locked',
-    x: 8,
-    y: 18,
-    meta: ['reference board', 'constraints', 'target mood'],
-  },
-  {
-    id: 'lyrics',
-    kind: 'lyrics',
-    title: 'Lyrics sheet',
-    summary: 'Verse, pre, chorus, bridge with syllable density markers.',
-    status: 'needs-review',
-    x: 28,
-    y: 9,
-    meta: ['section labels', 'rhyme map', 'phoneme export'],
-  },
-  {
-    id: 'style',
-    kind: 'style',
-    title: 'Style stack',
-    summary: 'Gulf percussion, polished electro-pop, restrained vocal glaze.',
-    status: 'draft',
-    x: 29,
-    y: 37,
-    meta: ['tags', 'negative tags', 'reference taste'],
-  },
-  {
-    id: 'voice',
-    kind: 'voice',
-    title: 'Voice / persona',
-    summary: 'Reusable vocal identity with prompt-safe consent notes.',
-    status: 'draft',
-    x: 50,
-    y: 17,
-    meta: ['persona', 'voice', 'consent'],
-  },
-  {
-    id: 'batch',
-    kind: 'batch',
-    title: 'Generation batch',
-    summary: 'Six Suno variants with cost, queue, seed and model state.',
-    status: 'generating',
-    x: 49,
-    y: 45,
-    meta: ['create', 'extend', 'cover', 'remaster'],
-  },
-  {
-    id: 'track',
-    kind: 'track',
-    title: 'Chosen track',
-    summary: 'Approved song with version lineage and region locks.',
-    status: 'locked',
-    x: 70,
-    y: 24,
-    meta: ['audio source of truth', 'timeline', 'download'],
-  },
-  {
-    id: 'stem',
-    kind: 'stem',
-    title: 'Stems / edit regions',
-    summary: 'Vocals, drums, bass, music stem cards plus replacement zones.',
-    status: 'needs-review',
-    x: 69,
-    y: 53,
-    meta: ['stems', 'replace section', 'arrangement'],
-  },
-  {
-    id: 'video',
-    kind: 'video',
-    title: 'Music video lane',
-    summary: 'Storyboard and ComfyUI render plan as a subfeature of the song.',
-    status: 'draft',
-    x: 88,
-    y: 35,
-    meta: ['perfect lipsync gate', 'scene cards', 'audio preserved'],
-  },
-  {
-    id: 'export',
-    kind: 'export',
-    title: 'Release pack',
-    summary: 'Audio, video, credits, prompts, metadata and audit bundle.',
-    status: 'exported',
-    x: 88,
-    y: 68,
-    meta: ['download', 'share', 'archive', 'provenance'],
-  },
-]
 
 const apiCoverage = [
   ['Generate', 'Create, custom mode, lyrics, instrumental, model choice'],
@@ -183,12 +113,72 @@ const featureList = [
 ]
 
 export function App() {
-  const [selectedId, setSelectedId] = useState('track')
-  const selected = useMemo(
-    () => workflowNodes.find((node) => node.id === selectedId) ?? workflowNodes[0],
-    [selectedId],
+  const provider = useMemo(() => createMockSunoProvider(), [])
+  const [briefInput, setBriefInput] = useState<BriefInput>(initialBrief)
+  const [workflow, setWorkflow] = useState<SunoWorkflow>(() => createWorkflow(initialBrief))
+  const [releasePack, setReleasePack] = useState<ReleasePack | null>(null)
+  const [selectedId, setSelectedId] = useState('brief')
+  const [isGenerating, setIsGenerating] = useState(false)
+
+  const workflowNodes = useMemo(
+    () => buildWorkflowNodes(workflow, releasePack),
+    [workflow, releasePack],
   )
+  const selected = workflowNodes.find((node) => node.id === selectedId) ?? workflowNodes[0]
   const SelectedIcon = iconByKind[selected.kind]
+  const canOpenVideo = Boolean(workflow.selectedTrack)
+
+  async function handleGenerate(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault()
+    setIsGenerating(true)
+    setReleasePack(null)
+    try {
+      const baseWorkflow = createWorkflow(briefInput)
+      const generationBatch = await provider.generateBatch({
+        ...briefInput,
+        count: 2,
+      })
+      setWorkflow(submitGenerationBatch(baseWorkflow, generationBatch))
+      setSelectedId('batch')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  function handleFieldChange(field: keyof BriefInput) {
+    return (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const value = event.target.value
+      setBriefInput((current) => ({ ...current, [field]: value }))
+      setWorkflow((current) => ({
+        ...current,
+        [field]: value,
+      }))
+      setReleasePack(null)
+    }
+  }
+
+  function handleNodeSelect(node: WorkflowNode) {
+    if (node.kind === 'generated' && node.trackId) {
+      setWorkflow((current) => selectTrack(current, node.trackId as string))
+      setReleasePack(null)
+      setSelectedId('track')
+      return
+    }
+
+    setSelectedId(node.id)
+  }
+
+  function handleOpenVideoLane() {
+    setWorkflow((current) => openMusicVideoLane(current))
+    setReleasePack(null)
+    setSelectedId('video')
+  }
+
+  function handleCreateReleasePack() {
+    const nextReleasePack = toReleasePack(workflow, { includeVideo: false })
+    setReleasePack(nextReleasePack)
+    setSelectedId('export')
+  }
 
   return (
     <main className="studio-shell">
@@ -198,7 +188,7 @@ export function App() {
           <h1>Visual music generation operating app</h1>
         </div>
         <div className="topbar-actions" aria-label="Project controls">
-          <button aria-label="Run generation">
+          <button aria-label="Run generation" onClick={() => void handleGenerate()}>
             <Play size={16} />
             Run
           </button>
@@ -219,6 +209,28 @@ export function App() {
             <WandSparkles size={18} />
             <span>Prompt board</span>
           </div>
+          <form className="prompt-form" onSubmit={(event) => void handleGenerate(event)}>
+            <label>
+              <span>Brief</span>
+              <textarea value={briefInput.brief} onChange={handleFieldChange('brief')} />
+            </label>
+            <label>
+              <span>Lyrics</span>
+              <textarea value={briefInput.lyrics} onChange={handleFieldChange('lyrics')} />
+            </label>
+            <label>
+              <span>Style</span>
+              <input value={briefInput.style} onChange={handleFieldChange('style')} />
+            </label>
+            <label>
+              <span>Voice</span>
+              <input value={briefInput.voice} onChange={handleFieldChange('voice')} />
+            </label>
+            <button type="submit" aria-label="Generate mock Suno batch" disabled={isGenerating}>
+              <Sparkles size={16} />
+              {isGenerating ? 'Generating' : 'Generate mock Suno batch'}
+            </button>
+          </form>
           <div className="rail-block">
             <Library size={18} />
             <span>Library</span>
@@ -249,15 +261,15 @@ export function App() {
             <div className="health-strip">
               <span>
                 <Activity size={14} />
-                Queue live
+                {workflow.stage}
               </span>
               <span>
                 <Gauge size={14} />
-                Cost guard on
+                Mock cost guard
               </span>
               <span>
                 <GitBranch size={14} />
-                Versions tracked
+                {workflow.provenance.length} receipts
               </span>
             </div>
           </div>
@@ -275,7 +287,7 @@ export function App() {
                   aria-label={`${node.title}: ${node.summary}`}
                   className={`node-card ${selected.id === node.id ? 'selected' : ''}`}
                   key={node.id}
-                  onClick={() => setSelectedId(node.id)}
+                  onClick={() => handleNodeSelect(node)}
                   style={{ left: `${node.x}%`, top: `${node.y}%` }}
                 >
                   <span className={`status ${node.status}`}>{statusLabel[node.status]}</span>
@@ -302,9 +314,31 @@ export function App() {
               <span key={item}>{item}</span>
             ))}
           </div>
-          {selected.kind === 'video' && (
+          {selected.kind === 'track' && workflow.selectedTrack && (
+            <div className="action-box">
+              <p>Selected source: {workflow.selectedTrack.id}</p>
+              <button type="button" onClick={handleCreateReleasePack}>
+                <Download size={16} />
+                Create audio release pack
+              </button>
+            </div>
+          )}
+          <div className="action-box">
+            <button
+              type="button"
+              aria-label="Open music video lane"
+              disabled={!canOpenVideo}
+              onClick={handleOpenVideoLane}
+            >
+              <Video size={16} />
+              Open music video lane
+            </button>
+            {!canOpenVideo && <p>Select a generated track before opening video.</p>}
+          </div>
+          {selected.kind === 'video' && workflow.musicVideoLane && (
             <div className="lipsync-gate">
               <h3>Perfect lipsync gate</h3>
+              <p>Music video source: {workflow.musicVideoLane.sourceTrackId}</p>
               <p>
                 Video export stays blocked until phoneme, frame, mouth-shape, segment drift, and
                 post-stitch checks all pass hard thresholds.
@@ -312,6 +346,12 @@ export function App() {
               <div className="meter" aria-label="Lipsync readiness">
                 <span />
               </div>
+            </div>
+          )}
+          {selected.kind === 'export' && releasePack && (
+            <div className="action-box">
+              <strong>Release pack ready for {releasePack.trackId}</strong>
+              <p>Provenance: {releasePack.provenance.join(', ')}</p>
             </div>
           )}
           <div className="api-box">
@@ -351,4 +391,132 @@ export function App() {
       </section>
     </main>
   )
+}
+
+function buildWorkflowNodes(workflow: SunoWorkflow, releasePack: ReleasePack | null): WorkflowNode[] {
+  const nodes: WorkflowNode[] = [
+    {
+      id: 'brief',
+      kind: 'brief',
+      title: 'Idea brief',
+      summary: workflow.brief,
+      status: 'locked',
+      x: 8,
+      y: 18,
+      meta: ['editable brief', 'constraints', 'target mood'],
+    },
+    {
+      id: 'lyrics',
+      kind: 'lyrics',
+      title: 'Lyrics sheet',
+      summary: workflow.lyrics,
+      status: 'needs-review',
+      x: 28,
+      y: 9,
+      meta: ['editable lyrics', 'section labels', 'phoneme export'],
+    },
+    {
+      id: 'style',
+      kind: 'style',
+      title: 'Style stack',
+      summary: workflow.style,
+      status: 'draft',
+      x: 29,
+      y: 37,
+      meta: ['style prompt', 'negative tags', 'reference taste'],
+    },
+    {
+      id: 'voice',
+      kind: 'voice',
+      title: 'Voice / persona',
+      summary: workflow.voice,
+      status: 'draft',
+      x: 50,
+      y: 17,
+      meta: ['persona', 'voice', 'consent'],
+    },
+  ]
+
+  if (workflow.generationBatch) {
+    nodes.push({
+      id: 'batch',
+      kind: 'batch',
+      title: 'Generation batch',
+      summary: `${workflow.generationBatch.tracks.length} mock Suno variants from ${workflow.generationBatch.providerJobId}`,
+      status: workflow.selectedTrack ? 'locked' : 'needs-review',
+      x: 49,
+      y: 45,
+      meta: ['mock create', 'version candidates', workflow.generationBatch.providerJobId],
+    })
+
+    workflow.generationBatch.tracks.forEach((track, index) => {
+      nodes.push(toGeneratedTrackNode(track, index, workflow.selectedTrack?.id === track.id))
+    })
+  }
+
+  if (workflow.selectedTrack) {
+    nodes.push(
+      {
+        id: 'track',
+        kind: 'track',
+        title: 'Chosen track',
+        summary: `${workflow.selectedTrack.title} selected as audio source of truth (${workflow.selectedTrack.id})`,
+        status: 'locked',
+        x: 70,
+        y: 24,
+        meta: ['audio source of truth', workflow.selectedTrack.id, 'version lineage'],
+      },
+      {
+        id: 'stem',
+        kind: 'stem',
+        title: 'Stems / edit regions',
+        summary: 'Stem and region cards are ready to derive from the selected track.',
+        status: 'draft',
+        x: 69,
+        y: 53,
+        meta: ['stems', 'replace section', 'arrangement'],
+      },
+      {
+        id: 'video',
+        kind: 'video',
+        title: 'Music video lane',
+        summary: workflow.musicVideoLane
+          ? `Storyboard and lipsync QA opened from ${workflow.musicVideoLane.sourceTrackId}`
+          : 'Storyboard and ComfyUI render plan opens only from the selected song.',
+        status: workflow.musicVideoLane ? 'needs-review' : 'draft',
+        x: 88,
+        y: 35,
+        meta: ['perfect lipsync gate', 'scene cards', 'audio preserved'],
+      },
+    )
+  }
+
+  if (releasePack) {
+    nodes.push({
+      id: 'export',
+      kind: 'export',
+      title: 'Release pack',
+      summary: `Audio, metadata, prompts, and provenance bundle for ${releasePack.trackId}.`,
+      status: 'exported',
+      x: 88,
+      y: 68,
+      meta: ['download', 'share', 'archive', 'provenance'],
+    })
+  }
+
+  return nodes
+}
+
+function toGeneratedTrackNode(track: GeneratedTrack, index: number, isSelected: boolean): WorkflowNode {
+  return {
+    id: `generated-${track.id}`,
+    kind: 'generated',
+    title: track.title,
+    summary: `Generated track ${track.id}, ${track.durationSeconds}s`,
+    status: isSelected ? 'locked' : 'needs-review',
+    x: 58 + index * 9,
+    y: 58 + index * 3,
+    meta: ['candidate take', track.id, `${track.durationSeconds}s`],
+    trackId: track.id,
+  }
 }
