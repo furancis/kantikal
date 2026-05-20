@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from './App'
@@ -180,6 +180,53 @@ describe('Suno Visual Studio shell', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(/create song/i)
     expect(screen.getByRole('status')).toHaveTextContent(/succeeded/i)
     expect(screen.getByRole('status')).not.toHaveTextContent(/secret/i)
+  })
+
+  it('preserves provider action updates that land while generation is in flight', async () => {
+    const user = userEvent.setup()
+    let resolveGeneration: (batch: GenerationBatch) => void = () => undefined
+    const generationPromise = new Promise<GenerationBatch>((resolve) => {
+      resolveGeneration = resolve
+    })
+    const delayedProvider: SunoProvider = {
+      async generateBatch() {
+        return generationPromise
+      },
+      async executeAction(request) {
+        return {
+          action: request.action,
+          capability: request.capability,
+          outcome: 'succeeded',
+          message: `${request.capability} succeeded mid-generation.`,
+          authBoundary: 'server',
+          endpoint: '/api/v1/generate',
+          providerTaskId: 'mid-generation-provider-action',
+          receiptId: 'provider-action-mid-generation',
+        }
+      },
+    }
+
+    render(<App provider={delayedProvider} />)
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(screen.getByRole('button', { name: /run api action create song/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/succeeded mid-generation/i)
+
+    await act(async () => {
+      resolveGeneration({
+        providerJobId: 'delayed-provider-job',
+        tracks: [{ id: 'delayed-track-1', title: 'Delayed provider v1', durationSeconds: 153 }],
+      })
+      await generationPromise
+    })
+
+    expect(await screen.findByRole('button', { name: /delayed provider v1/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /job queue/i }))
+
+    expect(screen.getAllByText(/create song completed/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/mid-generation-provider-action/i).length).toBeGreaterThan(0)
   })
 
   it('surfaces comparison, Song Lab, queue, and local library workflow state', async () => {
