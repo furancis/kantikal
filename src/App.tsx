@@ -24,6 +24,7 @@ import {
 import type { ChangeEvent, ComponentType, FormEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { createMockSunoProvider } from './api/provider'
+import type { SunoProvider } from './api/provider'
 import { apiCoverageEntries, apiCoverageStatusCounts } from './api/coverage'
 import {
   createWorkflow,
@@ -104,14 +105,20 @@ const featureList = [
   'Release pack export for audio, video, metadata, prompts and provenance',
 ]
 
-export function App() {
-  const provider = useMemo(() => createMockSunoProvider(), [])
+type AppProps = {
+  provider?: SunoProvider
+}
+
+export function App({ provider: injectedProvider }: AppProps = {}) {
+  const mockProvider = useMemo(() => createMockSunoProvider(), [])
+  const provider = injectedProvider ?? mockProvider
   const coverageCounts = useMemo(() => apiCoverageStatusCounts(apiCoverageEntries), [])
   const [briefInput, setBriefInput] = useState<BriefInput>(initialBrief)
   const [workflow, setWorkflow] = useState<SunoWorkflow>(() => createWorkflow(initialBrief))
   const [releasePack, setReleasePack] = useState<ReleasePack | null>(null)
   const [selectedId, setSelectedId] = useState('brief')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
 
   const workflowNodes = useMemo(
     () => buildWorkflowNodes(workflow, releasePack),
@@ -125,6 +132,7 @@ export function App() {
     event?.preventDefault()
     setIsGenerating(true)
     setReleasePack(null)
+    setGenerateError(null)
     try {
       const baseWorkflow = createWorkflow(briefInput)
       const generationBatch = await provider.generateBatch({
@@ -133,6 +141,8 @@ export function App() {
       })
       setWorkflow(submitGenerationBatch(baseWorkflow, generationBatch))
       setSelectedId('batch')
+    } catch (error) {
+      setGenerateError(error instanceof Error ? error.message : 'Generation failed')
     } finally {
       setIsGenerating(false)
     }
@@ -143,10 +153,17 @@ export function App() {
       const value = event.target.value
       setBriefInput((current) => ({ ...current, [field]: value }))
       setWorkflow((current) => ({
-        ...current,
-        [field]: value,
+        ...createWorkflow({
+          brief: current.brief,
+          lyrics: current.lyrics,
+          style: current.style,
+          voice: current.voice,
+          [field]: value,
+        }),
       }))
       setReleasePack(null)
+      setGenerateError(null)
+      setSelectedId('brief')
     }
   }
 
@@ -223,6 +240,11 @@ export function App() {
               <Sparkles size={16} />
               {isGenerating ? 'Generating' : 'Generate mock Suno batch'}
             </button>
+            {generateError && (
+              <p className="form-error" role="alert">
+                {generateError}
+              </p>
+            )}
           </form>
           <div className="rail-block">
             <Library size={18} />

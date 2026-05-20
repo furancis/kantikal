@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from './App'
+import type { SunoProvider } from './api/provider'
 
 describe('Suno Visual Studio shell', () => {
   it('keeps the music video lane subordinate to the song workflow', () => {
@@ -49,5 +50,41 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByText(/full suno api parity map/i)).toBeInTheDocument()
     expect(screen.getByText(/archive-first destructive cleanup/i)).toBeInTheDocument()
     expect(screen.getByText(/music video source: mock-track-2/i)).toBeInTheDocument()
+  })
+
+  it('surfaces provider failures instead of dropping rejected generation promises', async () => {
+    const user = userEvent.setup()
+    const failingProvider: SunoProvider = {
+      async generateBatch() {
+        throw new Error('Provider rate limit')
+      },
+    }
+
+    render(<App provider={failingProvider} />)
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/provider rate limit/i)
+    expect(screen.queryByRole('button', { name: /gulf chorus engine v1/i })).not.toBeInTheDocument()
+  })
+
+  it('clears stale generated tracks and video selection when the brief changes', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
+
+    expect(screen.getByRole('button', { name: /open music video lane/i })).toBeEnabled()
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Fresh hook')
+
+    expect(screen.queryByRole('button', { name: /neon khaliji club hook v1/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /neon khaliji club hook v2/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /chosen track/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /open music video lane/i })).toBeDisabled()
   })
 })

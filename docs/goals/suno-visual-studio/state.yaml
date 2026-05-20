@@ -170,6 +170,7 @@ tasks:
         - src/api/provider.test.ts
         - src/App.tsx
         - src/App.test.tsx
+        - src/styles.css
         - docs/api-coverage.md
         - docs/goals/suno-visual-studio/goal.md
         - docs/goals/suno-visual-studio/state.yaml
@@ -188,9 +189,9 @@ tasks:
           status: pass
         - cmd: credential literal scan
           status: pass
-        - cmd: artifact wording scan
+        - cmd: static chat surface wording scan
           status: pass
-      summary: "Added a typed 54-capability API parity manifest tied to docs, test enforcement for API coverage completeness, server-only provider runtime config with redacted public status, and a UI inspector that exposes implemented/planned capability counts without hiding pending work."
+      summary: "Added a typed 54-capability API parity manifest tied to docs, test enforcement for API coverage completeness, server-only provider runtime config with redacted public status, a UI inspector that exposes implemented/planned capability counts without hiding pending work, provider-error feedback, and stale-batch clearing after prompt edits."
   - id: T040
     type: worker
     assignee: Worker
