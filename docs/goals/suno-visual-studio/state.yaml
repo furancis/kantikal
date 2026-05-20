@@ -1512,3 +1512,66 @@ tasks:
         - cmd: npm run test:e2e
           status: pass
       summary: "Added Track Genealogy under the selected track: it builds ancestors from brief/lyrics/style/voice/assets/jobs, descendants from generated versions, Song Lab edits, stems, MV variants, exports, and archived branches; computes mutation diffs, inherited traits, branch fit, dead branches, breeding suggestions, Reference DNA import, archive-first pruning, and lineage-guided generation."
+  - id: T210
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Clear PR review blockers around async lipsync state, provider task IDs, runtime fallback, and provider payload truth."
+    inputs:
+      - "PR #8 Greptile/Codex review comments"
+      - src/App.tsx
+      - src/api/musicVideoRuntime.ts
+      - server/providerPayloads.ts
+      - server/sunoApiAdapter.ts
+    constraints:
+      - "Do not claim live Suno success without a valid server-side SUNO_API_KEY."
+      - "Keep Music Video Lane subordinate to the selected song/version."
+      - "Do not overwrite newer workflow state with stale async runtime snapshots."
+      - "Follow official SunoAPI docs for provider payload spellings and required upload URLs."
+    expected_output:
+      - "Async lipsync QA merges only the returned Music Video Lane and provenance."
+      - "Provider detail actions use operation-specific providerTaskId when available."
+      - "Music-video runtime falls back only for absent/dev-rewritten routes while surfacing mounted failures."
+      - "Local lipsync approval is idempotent after perfect evidence."
+      - "Cover actions can use a provider-visible selected audio URL, and voice-regenerate accepts callback aliases while sending documented calBackUrl."
+    receipt:
+      result: implemented_verified
+      full_outcome_complete: false
+      files:
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/api/musicVideoRuntime.ts
+        - src/api/musicVideoRuntime.test.ts
+        - server/providerPayloads.ts
+        - server/sunoApiAdapter.test.ts
+        - docs/goals/suno-visual-studio/state.yaml
+      runtime_evidence:
+        - "Local app runtime route http://127.0.0.1:4174/api/runtime/status reports Suno blocked/local/missing and ComfyUI online with 23 model files."
+        - "Browser smoke at .omx/logs/t210-review-fix-browser.png shows Track Genealogy inside the full track-first studio with Suno missing/local and ComfyUI online."
+      commands:
+        - cmd: npm test -- --run src/api/musicVideoRuntime.test.ts src/domain/workflow.test.ts server/sunoApiAdapter.test.ts src/App.test.tsx
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      remaining_evidence:
+        - "No valid SUNO_API_KEY is currently available, so live external provider dispatch remains blocked."
+        - "ComfyUI is online and proved by status/model inventory from the app route, but full MV render/stitch/lipsync worker execution is not yet the product-complete path."
+      summary: "Closed the review blockers with regression coverage: mounted music-video failures still surface, dev-server rewrites fall back to local QA, approved lipsync evidence stays approved, async lipsync runtime results no longer clobber newer workflow/job state, detail actions re-use the correct operation provider task ID, and provider payloads keep official SunoAPI upload-cover and voice-regenerate semantics."

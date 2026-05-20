@@ -70,6 +70,20 @@ describe('music video runtime client', () => {
     })
   })
 
+  it('keeps already approved local lipsync evidence approved on re-evaluation', async () => {
+    const client = createLocalMusicVideoRuntimeClient()
+    const firstPass = await client.evaluateLipsync({ projectId: 'project-a', workflow: workflowWithVideoLane() })
+    const repaired = await client.evaluateLipsync({
+      projectId: 'project-a',
+      workflow: queueLipsyncRepair(firstPass),
+    })
+    const rechecked = await client.evaluateLipsync({ projectId: 'project-a', workflow: repaired })
+
+    expect(rechecked.musicVideoLane?.exportStatus).toBe('ready')
+    expect(rechecked.musicVideoLane?.failureRanges).toEqual([])
+    expect(rechecked.musicVideoLane?.lipsyncEvidence).toEqual(repaired.musicVideoLane?.lipsyncEvidence)
+  })
+
   it('uses mounted HTTP music-video runtime routes when available', async () => {
     const routedWorkflow = await createLocalMusicVideoRuntimeClient().evaluateLipsync({
       projectId: 'project-a',
@@ -105,5 +119,35 @@ describe('music video runtime client', () => {
     await expect(
       client.evaluateLipsync({ projectId: 'project-a', workflow: workflowWithVideoLane() }),
     ).rejects.toThrow(/music video worker database unavailable/i)
+  })
+
+  it('falls back to local QA when a dev-server rewrite returns non-runtime HTML with HTTP 200', async () => {
+    const client = createFetchMusicVideoRuntimeClient({
+      fetchImpl: async () =>
+        new Response('<!doctype html><title>Vite app</title>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html' },
+        }),
+    })
+
+    const workflow = await client.evaluateLipsync({ projectId: 'project-a', workflow: workflowWithVideoLane() })
+
+    expect(workflow.musicVideoLane?.exportStatus).toBe('blocked')
+    expect(workflow.musicVideoLane?.lipsyncEvidence?.evaluator).toBe('local-worker')
+  })
+
+  it('falls back to local QA when the HTTP route returns JSON without a workflow payload', async () => {
+    const client = createFetchMusicVideoRuntimeClient({
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ route: 'app-shell' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    })
+
+    const workflow = await client.evaluateLipsync({ projectId: 'project-a', workflow: workflowWithVideoLane() })
+
+    expect(workflow.musicVideoLane?.exportStatus).toBe('blocked')
+    expect(workflow.musicVideoLane?.lipsyncEvidence?.evaluator).toBe('local-worker')
   })
 })

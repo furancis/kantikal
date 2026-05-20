@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from './App'
@@ -10,6 +10,7 @@ import {
 } from './api/projectStore'
 import type { SunoProvider } from './api/provider'
 import type { ProviderExportRuntimeClient } from './api/exportRuntime'
+import type { MusicVideoRuntimeClient } from './api/musicVideoRuntime'
 import {
   applyArchiveFirstCleanup,
   createWorkflow,
@@ -379,6 +380,121 @@ describe('Suno Visual Studio shell', () => {
 
     expect(screen.getAllByText(/create song completed/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/mid-generation-provider-action/i).length).toBeGreaterThan(0)
+  })
+
+  it('preserves provider action updates that land while lipsync QA is in flight', async () => {
+    const user = userEvent.setup()
+    let resolveLipsync: (workflow: SunoWorkflow) => void = () => undefined
+    const lipsyncPromise = new Promise<SunoWorkflow>((resolve) => {
+      resolveLipsync = resolve
+    })
+    const provider: SunoProvider = {
+      async generateBatch() {
+        return {
+          providerJobId: 'task_lipsync_batch',
+          tracks: [{ id: 'lipsync-track-1', title: 'Lipsync provider v1', durationSeconds: 153 }],
+        }
+      },
+      async executeAction(request) {
+        return {
+          action: request.action,
+          capability: request.capability,
+          outcome: 'succeeded',
+          message: `${request.capability} completed during lipsync.`,
+          authBoundary: 'server',
+          endpoint: '/api/v1/lyrics',
+          providerTaskId: 'task_lipsync_parallel_action',
+          receiptId: 'provider-action-lipsync-parallel',
+        }
+      },
+    }
+    const musicVideoRuntime: MusicVideoRuntimeClient = {
+      evaluateLipsync() {
+        return lipsyncPromise
+      },
+    }
+
+    render(<App provider={provider} musicVideoRuntime={musicVideoRuntime} />)
+
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /lipsync provider v1/i }))
+    await user.click(screen.getByRole('button', { name: /open music video lane/i }))
+    await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
+    await user.click(screen.getByRole('button', { name: /run api action lyrics generation/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/completed during lipsync/i)
+
+    await act(async () => {
+      const runtimeWorkflow = openMusicVideoLane(selectTrack(submitGenerationBatch(createWorkflow(persistedBrief), {
+        providerJobId: 'task_lipsync_batch',
+        tracks: [{ id: 'lipsync-track-1', title: 'Lipsync provider v1', durationSeconds: 153 }],
+      }), 'lipsync-track-1'))
+      resolveLipsync(evaluateLipsync(
+        runtimeWorkflow,
+        passingLipsyncChecks,
+        [],
+        evaluatorEvidence(runtimeWorkflow.musicVideoLane!),
+      ))
+      await lipsyncPromise
+    })
+
+    expect(screen.getByLabelText(/video export gate state/i)).toHaveTextContent(/video export ready/i)
+
+    await user.click(screen.getByRole('button', { name: /job queue/i }))
+
+    expect(screen.getAllByText(/task_lipsync_parallel_action/i).length).toBeGreaterThan(0)
+  })
+
+  it('uses operation-scoped provider task IDs for detail actions before falling back to generation IDs', async () => {
+    const user = userEvent.setup()
+    const actionRequests: Array<{ action: string; payload?: Record<string, unknown> }> = []
+    const provider: SunoProvider = {
+      async generateBatch() {
+        return {
+          providerJobId: 'task_generation_parent',
+          tracks: [{ id: 'operation-track-1', title: 'Operation provider v1', durationSeconds: 153 }],
+        }
+      },
+      async executeAction(request) {
+        actionRequests.push({
+          action: request.action,
+          payload: request.payload as Record<string, unknown> | undefined,
+        })
+        return {
+          action: request.action,
+          capability: request.capability,
+          outcome: 'succeeded',
+          message: `${request.capability} dispatched.`,
+          authBoundary: 'server',
+          endpoint: '/api/v1/provider',
+          providerTaskId: request.action === 'createProviderMusicVideo' ? 'task_music_video_child' : `task_${request.action}`,
+          receiptId: `provider-action-${request.action}`,
+        }
+      },
+    }
+
+    render(<App provider={provider} />)
+
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /operation provider v1/i }))
+    await user.click(screen.getByRole('button', { name: /run api action provider music video creation/i }))
+    expect(await screen.findByRole('status')).toHaveTextContent(/provider music video creation dispatched/i)
+    expect(actionRequests.find((request) => request.action === 'createProviderMusicVideo')?.payload).toMatchObject({
+      taskId: 'task_generation_parent',
+      providerTaskId: 'task_generation_parent',
+    })
+
+    await user.click(screen.getByRole('button', { name: /run api action music video task details/i }))
+
+    await waitFor(() => {
+      expect(actionRequests.find((request) => request.action === 'getMusicVideoDetails')?.payload).toMatchObject({
+        taskId: 'task_music_video_child',
+        providerTaskId: 'task_music_video_child',
+      })
+    })
+    expect(actionRequests.find((request) => request.action === 'getMusicVideoDetails')?.payload).not.toMatchObject({
+      taskId: 'task_generation_parent',
+    })
   })
 
   it('surfaces comparison, Song Lab, queue, and local library workflow state', async () => {

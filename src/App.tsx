@@ -56,6 +56,7 @@ import {
   createWorkflow,
   failedLipsyncChecks,
   lockSongLabRegion,
+  mergeMusicVideoRuntimeWorkflow,
   openSongLab,
   openMusicVideoLane,
   planComfyRenderGraph,
@@ -215,6 +216,26 @@ type ProjectAssetAction = {
 
 const defaultProjectId = 'default-project'
 
+const providerTaskSourceActionsByAction: Record<string, string[]> = {
+  pollGenerationStatus: ['generateBatch'],
+  getLyricsGenerationDetails: ['generateLyrics'],
+  getMusicVideoDetails: ['createProviderMusicVideo', 'renderMusicVideo'],
+  getCoverArtDetails: ['generateCoverArt'],
+  getMidiDetails: ['generateMidi'],
+  getAudioSeparationDetails: ['separateStems'],
+  getWavConversionDetails: ['convertToWav'],
+  getVoiceValidationPhrase: ['generateVoiceValidationPhrase', 'regenerateVoiceValidationPhrase'],
+  getCustomVoiceRecord: ['createCustomVoice'],
+  generateCoverArt: ['pollGenerationStatus', 'generateBatch'],
+  getTimestampedLyrics: ['pollGenerationStatus', 'generateBatch'],
+  createProviderMusicVideo: ['pollGenerationStatus', 'generateBatch'],
+  separateStems: ['pollGenerationStatus', 'generateBatch'],
+  generateMidi: ['pollGenerationStatus', 'generateBatch'],
+  convertToWav: ['pollGenerationStatus', 'generateBatch'],
+  replaceSection: ['pollGenerationStatus', 'generateBatch'],
+  extendTrack: ['pollGenerationStatus', 'generateBatch'],
+}
+
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
@@ -224,6 +245,20 @@ function providerCallbackUrl(projectId: string): string | undefined {
     return undefined
   }
   return new URL(`/api/provider-exports/${encodeURIComponent(projectId)}/callback`, window.location.origin).toString()
+}
+
+function providerTaskActionsFor(action: string): string[] {
+  const sourceActions = providerTaskSourceActionsByAction[action] ?? []
+  return sourceActions.length > 0 ? [...sourceActions, action] : [action]
+}
+
+function isProviderFetchableUrl(url: string): boolean {
+  try {
+    const protocol = new URL(url).protocol
+    return protocol === 'https:' || protocol === 'http:'
+  } catch {
+    return false
+  }
 }
 
 export function App({
@@ -469,7 +504,7 @@ export function App({
         style: briefInput.style,
         voice: briefInput.voice,
         payload: {
-          ...providerContextPayload(),
+          ...providerContextPayload(entry),
           prompt: briefInput.lyrics || briefInput.brief,
           style: briefInput.style,
           title: briefInput.brief,
@@ -552,19 +587,27 @@ export function App({
     }
   }
 
-  function providerContextPayload(): Record<string, unknown> {
+  function providerContextPayload(entry?: ApiCoverageEntry): Record<string, unknown> {
     const callbackUrl = providerCallbackUrl(activeProjectId)
+    const providerTaskId = providerTaskIdForEntry(entry)
+    const selectedAudioUrl = selectedTrackAudioUrl()
     return {
-      ...(workflow.generationBatch?.providerJobId
+      ...(providerTaskId
         ? {
-            taskId: workflow.generationBatch.providerJobId,
-            providerTaskId: workflow.generationBatch.providerJobId,
+            taskId: providerTaskId,
+            providerTaskId,
           }
         : {}),
       ...(workflow.selectedTrack?.id
         ? {
             audioId: workflow.selectedTrack.id,
             sourceTrackId: workflow.selectedTrack.id,
+          }
+        : {}),
+      ...(selectedAudioUrl
+        ? {
+            audioUrl: selectedAudioUrl,
+            uploadUrl: selectedAudioUrl,
           }
         : {}),
       ...(callbackUrl
@@ -575,6 +618,35 @@ export function App({
           }
         : {}),
     }
+  }
+
+  function providerTaskIdForEntry(entry?: ApiCoverageEntry): string | undefined {
+    if (!entry) {
+      return workflow.generationBatch?.providerJobId
+    }
+    return latestProviderTaskIdForActions(providerTaskActionsFor(entry.adapterAction)) ?? workflow.generationBatch?.providerJobId
+  }
+
+  function latestProviderTaskIdForActions(actions: string[]): string | undefined {
+    const actionSet = new Set(actions)
+    return workflow.jobQueue
+      .slice()
+      .reverse()
+      .find((job) => job.providerTaskId && actionSet.has(job.action))?.providerTaskId
+  }
+
+  function selectedTrackAudioUrl(): string | undefined {
+    const selectedTrackId = workflow.selectedTrack?.id
+    if (!selectedTrackId) {
+      return undefined
+    }
+    return workflow.exports.downloads.find(
+      (download) =>
+        download.kind === 'audio' &&
+        download.status === 'ready' &&
+        download.sourceTrackId === selectedTrackId &&
+        isProviderFetchableUrl(download.url),
+    )?.url
   }
 
   async function handlePollSelectedGenerationJob() {
@@ -742,7 +814,7 @@ export function App({
   async function handleRunLipsyncQa() {
     try {
       const nextWorkflow = await musicVideoRuntime.evaluateLipsync({ projectId: activeProjectId, workflow })
-      setWorkflow(nextWorkflow)
+      setWorkflow((current) => mergeMusicVideoRuntimeWorkflow(current, nextWorkflow))
       setVideoExportError(null)
       setSelectedId('video')
     } catch (error) {

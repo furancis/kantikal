@@ -1015,6 +1015,24 @@ export function evaluateLipsync(
   }
 }
 
+export function mergeMusicVideoRuntimeWorkflow(
+  current: SunoWorkflow,
+  runtimeWorkflow: SunoWorkflow,
+): SunoWorkflow {
+  if (!current.musicVideoLane || !runtimeWorkflow.musicVideoLane) {
+    return current
+  }
+  if (current.musicVideoLane.sourceTrackId !== runtimeWorkflow.musicVideoLane.sourceTrackId) {
+    return current
+  }
+
+  return {
+    ...current,
+    musicVideoLane: runtimeWorkflow.musicVideoLane,
+    provenance: mergeIds([...current.provenance, ...runtimeWorkflow.provenance]),
+  }
+}
+
 export function failedLipsyncChecks(lipsync: LipsyncChecks): LipsyncCheckName[] {
   return lipsyncCheckNames.filter((checkName) => !lipsync[checkName])
 }

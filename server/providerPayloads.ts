@@ -79,8 +79,16 @@ export function buildProviderActionPayload(input: ProviderPayloadBuildInput): Pr
         ['uploadUrl', 'defaultParamFlag', 'callBackUrl', 'model'],
         definition.label,
       )
-    case 'coverTrack':
     case 'uploadAndCover':
+      return requireFields(
+        {
+          uploadUrl: uploadUrl(source),
+          ...baseMusic(),
+        },
+        ['uploadUrl', 'customMode', 'instrumental', 'callBackUrl', 'model'],
+        definition.label,
+      )
+    case 'coverTrack':
       return requireFields(
         {
           uploadUrl: uploadUrl(source),
@@ -171,7 +179,7 @@ export function buildProviderActionPayload(input: ProviderPayloadBuildInput): Pr
       return requireFields(
         {
           taskId: taskId(source),
-          calBackUrl: stringValue(source.calBackUrl) ?? callbackUrl,
+          calBackUrl: stringValue(source.calBackUrl) ?? stringValue(source.callBackUrl) ?? callbackUrl,
         },
         ['taskId', 'calBackUrl'],
         definition.label,
@@ -317,7 +325,7 @@ function audioId(source: Record<string, unknown>): string | undefined {
 }
 
 function uploadUrl(source: Record<string, unknown>): string | undefined {
-  return stringValue(source.uploadUrl) ?? stringValue(source.fileUrl)
+  return stringValue(source.uploadUrl) ?? stringValue(source.fileUrl) ?? stringValue(source.audioUrl)
 }
 
 function requiredText(value: unknown, fallback: string): string {

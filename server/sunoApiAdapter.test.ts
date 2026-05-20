@@ -144,6 +144,81 @@ describe('server Suno API adapter', () => {
     })
   })
 
+  it('uses a selected track audio URL as the upload-cover source for cover actions', async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = []
+    const adapter = createSunoApiServerAdapter({
+      runtime: 'server',
+      apiKey: 'server-secret',
+      baseUrl: 'https://api.sunoapi.org',
+      callbackUrl: 'http://local.test/api/provider/callback',
+      fetchImpl: async (url, init) => {
+        calls.push({ url: String(url), init: init ?? {} })
+        return new Response(JSON.stringify({ code: 200, msg: 'success', data: { taskId: 'task_cover' } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      },
+    })
+
+    const result = await adapter.executeProviderAction({
+      action: 'coverTrack',
+      capability: 'Cover',
+      brief: 'Cover selected hook',
+      lyrics: 'Verse chorus',
+      style: 'cinematic pop',
+      payload: { audioUrl: 'https://cdn.example/song-a.mp3' },
+    })
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toBe('https://api.sunoapi.org/api/v1/generate/upload-cover')
+    expect(JSON.parse(String(calls[0].init.body))).toMatchObject({
+      uploadUrl: 'https://cdn.example/song-a.mp3',
+      callBackUrl: 'http://local.test/api/provider/callback',
+    })
+    expect(result).toMatchObject({
+      action: 'coverTrack',
+      outcome: 'succeeded',
+      providerTaskId: 'task_cover',
+    })
+  })
+
+  it('sends the documented voice-regenerate callback spelling while accepting normal callback aliases', async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = []
+    const adapter = createSunoApiServerAdapter({
+      runtime: 'server',
+      apiKey: 'server-secret',
+      baseUrl: 'https://api.sunoapi.org',
+      fetchImpl: async (url, init) => {
+        calls.push({ url: String(url), init: init ?? {} })
+        return new Response(JSON.stringify({ code: 200, msg: 'success', data: { taskId: 'task_voice_next' } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      },
+    })
+
+    const result = await adapter.executeProviderAction({
+      action: 'regenerateVoiceValidationPhrase',
+      capability: 'Voice validation phrase regeneration',
+      payload: {
+        taskId: 'task_voice_current',
+        callBackUrl: 'https://example.com/voice-regenerate',
+      },
+    })
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toBe('https://api.sunoapi.org/api/v1/voice/regenerate')
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({
+      taskId: 'task_voice_current',
+      calBackUrl: 'https://example.com/voice-regenerate',
+    })
+    expect(result).toMatchObject({
+      action: 'regenerateVoiceValidationPhrase',
+      outcome: 'succeeded',
+      providerTaskId: 'task_voice_next',
+    })
+  })
+
   it('blocks endpoint-backed actions before fetch when required provider fields are missing', async () => {
     let fetchCalls = 0
     const adapter = createSunoApiServerAdapter({

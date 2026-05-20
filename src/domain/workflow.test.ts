@@ -8,6 +8,7 @@ import {
   evaluateLipsync,
   failedLipsyncChecks,
   lockSongLabRegion,
+  mergeMusicVideoRuntimeWorkflow,
   openSongLab,
   openMusicVideoLane,
   planArchiveFirstCleanup,
@@ -168,6 +169,52 @@ describe('Suno workflow state machine', () => {
         'lipsync-qa',
       ]),
     })
+  })
+
+  it('rebases async lipsync runtime results onto current workflow state without clobbering jobs', () => {
+    const workflow = openMusicVideoLane(
+      selectTrack(
+        submitGenerationBatch(
+          createWorkflow({
+            brief: 'Async lipsync hook',
+            lyrics: 'chorus',
+            style: 'pop',
+            voice: 'persona',
+          }),
+          {
+            providerJobId: 'job_003',
+            tracks: [{ id: 'song_async', title: 'Async Song', durationSeconds: 154 }],
+          },
+        ),
+        'song_async',
+      ),
+    )
+    const runtimeResult = evaluateLipsync(
+      workflow,
+      passingLipsyncChecks,
+      [],
+      evaluatorEvidence(workflow.musicVideoLane!, passingLipsyncChecks),
+    )
+    const currentWithJob = recordProviderJobResult(workflow, {
+      action: 'generateLyrics',
+      capability: 'Lyrics generation',
+      outcome: 'succeeded',
+      message: 'Lyrics generation completed while lipsync was running.',
+      authBoundary: 'server',
+      endpoint: '/api/v1/lyrics',
+      providerTaskId: 'task_lyrics_async',
+      receiptId: 'receipt-lyrics-async',
+    })
+
+    const merged = mergeMusicVideoRuntimeWorkflow(currentWithJob, runtimeResult)
+
+    expect(merged.musicVideoLane?.exportStatus).toBe('ready')
+    expect(merged.jobQueue).toHaveLength(1)
+    expect(merged.jobQueue[0]).toMatchObject({
+      action: 'generateLyrics',
+      providerTaskId: 'task_lyrics_async',
+    })
+    expect(merged.provenance).toEqual(expect.arrayContaining(['provider-job-result', 'lipsync-qa']))
   })
 
   it('rejects forged ready video state without a complete lipsync proof', () => {

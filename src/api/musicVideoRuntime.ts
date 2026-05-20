@@ -6,6 +6,7 @@ import {
   type LipsyncFailureRange,
   type MusicVideoLane,
   type SunoWorkflow,
+  isPerfectLipsyncApproved,
 } from '../domain/workflow'
 
 export type MusicVideoRuntimeInput = {
@@ -57,11 +58,17 @@ export function createFetchMusicVideoRuntimeClient(
       }
 
       const payload = await readRuntimePayload(response)
+      if (!payload) {
+        if (response.ok) {
+          return fallback.evaluateLipsync(request)
+        }
+        throw new Error(`Music video runtime failed with HTTP ${response.status}`)
+      }
       if (!response.ok) {
         throw new Error(stringFrom(payload.error) ?? `Music video runtime failed with HTTP ${response.status}`)
       }
       if (!isRecord(payload.workflow)) {
-        throw new Error('Music video runtime returned no workflow')
+        return fallback.evaluateLipsync(request)
       }
       return payload.workflow as SunoWorkflow
     },
@@ -73,6 +80,9 @@ export function createLocalMusicVideoRuntimeClient(): MusicVideoRuntimeClient {
     async evaluateLipsync({ workflow }) {
       const lane = workflow.musicVideoLane
       if (!lane) {
+        return workflow
+      }
+      if (isPerfectLipsyncApproved(lane)) {
         return workflow
       }
 
@@ -151,7 +161,7 @@ function musicVideoRuntimeRoute(baseUrl: string | undefined, projectId: string, 
   return `${(baseUrl ?? '').replace(/\/$/, '')}/api/music-video/${encodeURIComponent(projectId)}/${path}`
 }
 
-async function readRuntimePayload(response: Response): Promise<Record<string, unknown>> {
+async function readRuntimePayload(response: Response): Promise<Record<string, unknown> | null> {
   const text = await response.text()
   if (!text) {
     return {}
@@ -160,7 +170,7 @@ async function readRuntimePayload(response: Response): Promise<Record<string, un
     const parsed = JSON.parse(text) as unknown
     return isRecord(parsed) ? parsed : {}
   } catch {
-    throw new Error('Music video runtime returned invalid JSON')
+    return null
   }
 }
 
