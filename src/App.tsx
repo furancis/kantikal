@@ -22,10 +22,15 @@ import {
   Waves,
 } from 'lucide-react'
 import type { ChangeEvent, ComponentType, FormEvent } from 'react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { actionStateForEntry } from './api/actionCatalog'
 import type { ApiCoverageEntry } from './api/coverage'
 import { apiCoverageEntries, apiCoverageStatusCounts } from './api/coverage'
+import {
+  createLocalProviderExportRuntimeClient,
+  type ProviderExportRuntimeClient,
+} from './api/exportRuntime'
+import { mergeProviderExportSnapshot, type ProviderExportSnapshot } from './api/exportState'
 import { createMockSunoProvider, executeProviderAction } from './api/provider'
 import type { ProviderActionResult, SunoProvider } from './api/provider'
 import {
@@ -39,9 +44,7 @@ import {
   openMusicVideoLane,
   planComfyRenderGraph,
   planArchiveFirstCleanup,
-  recordProviderCallback,
   recordProjectAssetImport,
-  recordProviderTaskUpdate,
   queueSongLabEdit,
   queueLipsyncRepair,
   queueMusicVideoRender,
@@ -57,7 +60,6 @@ import {
   type LipsyncCheckName,
   type LipsyncChecks,
   type ProjectAssetKind,
-  type ProviderTaskOutput,
   type ReleasePack,
   type SunoWorkflow,
 } from './domain/workflow'
@@ -183,6 +185,8 @@ const featureList = [
 
 type AppProps = {
   provider?: SunoProvider
+  exportRuntime?: ProviderExportRuntimeClient
+  projectId?: string
 }
 
 type ProjectAssetAction = {
@@ -195,9 +199,17 @@ type ProjectAssetAction = {
   consentNote?: string
 }
 
-export function App({ provider: injectedProvider }: AppProps = {}) {
+const defaultProjectId = 'default-project'
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
+
+export function App({ provider: injectedProvider, exportRuntime: injectedExportRuntime, projectId = defaultProjectId }: AppProps = {}) {
   const mockProvider = useMemo(() => createMockSunoProvider(), [])
+  const localExportRuntime = useMemo(() => createLocalProviderExportRuntimeClient(), [])
   const provider = injectedProvider ?? mockProvider
+  const exportRuntime = injectedExportRuntime ?? localExportRuntime
   const coverageCounts = useMemo(() => apiCoverageStatusCounts(apiCoverageEntries), [])
   const [briefInput, setBriefInput] = useState<BriefInput>(initialBrief)
   const [workflow, setWorkflow] = useState<SunoWorkflow>(() => createWorkflow(initialBrief))
@@ -206,6 +218,7 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [videoExportError, setVideoExportError] = useState<string | null>(null)
+  const [exportRuntimeError, setExportRuntimeError] = useState<string | null>(null)
   const [apiActionResult, setApiActionResult] = useState<ProviderActionResult | null>(null)
 
   const workflowNodes = useMemo(
@@ -213,6 +226,29 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
     [workflow, releasePack],
   )
   const selected = workflowNodes.find((node) => node.id === selectedId) ?? workflowNodes[0]
+
+  useEffect(() => {
+    let cancelled = false
+    void exportRuntime
+      .hydrate(projectId)
+      .then((snapshot) => {
+        if (cancelled) {
+          return
+        }
+        setExportRuntimeError(null)
+        if (snapshot) {
+          setWorkflow((current) => mergeProviderExportSnapshot(current, snapshot))
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setExportRuntimeError(errorMessage(error, 'Provider export hydration failed'))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [exportRuntime, projectId])
   const SelectedIcon = iconByKind[selected.kind]
   const canOpenVideo = Boolean(workflow.selectedTrack) && !workflow.musicVideoLane
   const activeLipsync = workflow.musicVideoLane?.lipsync ?? null
@@ -349,91 +385,28 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
     }
   }
 
-  function handlePollSelectedGenerationJob() {
-    setWorkflow((current) => {
-      const sourceTrack = current.selectedTrack ?? current.generationBatch?.tracks[0]
-      if (!current.generationBatch || !sourceTrack) {
-        return current
-      }
-      const outputs: ProviderTaskOutput[] = [
-        {
-          kind: 'audio',
-          label: `${sourceTrack.title} master audio`,
-          url: `local-export://${sourceTrack.id}/master.mp3`,
-          sourceTrackId: sourceTrack.id,
-        },
-        {
-          kind: 'cover-art',
-          label: `${sourceTrack.title} cover art`,
-          url: `local-export://${sourceTrack.id}/cover.jpeg`,
-          sourceTrackId: sourceTrack.id,
-        },
-        {
-          kind: 'stem',
-          label: `${sourceTrack.title} vocals stem`,
-          url: `local-export://${sourceTrack.id}/vocals.mp3`,
-          sourceTrackId: sourceTrack.id,
-          stemName: 'vocals',
-        },
-      ]
-
-      return recordProviderTaskUpdate(current, {
-        providerTaskId: current.generationBatch.providerJobId,
-        action: 'pollGenerationStatus',
-        capability: 'Get music generation details',
-        providerStatus: 'SUCCESS',
-        message: 'Mock record-info poll produced local downloadable outputs',
-        outputs,
-        receiptId: `poll-${current.generationBatch.providerJobId}`,
-      })
-    })
-    setSelectedId('downloads')
+  async function handlePollSelectedGenerationJob() {
+    await handleProviderExportAction(() => exportRuntime.pollGenerationTask({ projectId, workflow }))
   }
 
-  function handleReceiveFailedCallback() {
-    setWorkflow((current) => {
-      if (!current.generationBatch) {
-        return current
-      }
-      return recordProviderCallback(current, {
-        providerTaskId: current.generationBatch.providerJobId,
-        action: 'handleProviderCallback',
-        capability: 'Webhooks/retries',
-        callbackType: 'complete',
-        code: 451,
-        providerStatus: 'FAILED',
-        message: 'Provider callback reported file download failure',
-        outputs: [],
-        receiptId: `callback-${current.generationBatch.providerJobId}`,
-      })
-    })
-    setSelectedId('downloads')
+  async function handleReceiveFailedCallback() {
+    await handleProviderExportAction(() => exportRuntime.receiveFailedCallback({ projectId, workflow }))
   }
 
-  function handleRecordProviderVideoOutput() {
-    setWorkflow((current) => {
-      const lane = current.musicVideoLane
-      if (!lane) {
-        return current
-      }
-      return recordProviderTaskUpdate(current, {
-        providerTaskId: `video-${lane.sourceTrackId}`,
-        action: 'createProviderMusicVideo',
-        capability: 'Provider music video creation',
-        providerStatus: 'SUCCESS',
-        message: 'Provider video output received',
-        outputs: [
-          {
-            kind: 'video',
-            label: `${lane.sourceTrackId} provider video`,
-            url: `local-export://${lane.sourceTrackId}/video.mp4`,
-            sourceTrackId: lane.sourceTrackId,
-          },
-        ],
-        receiptId: `video-${lane.sourceTrackId}`,
-      })
-    })
-    setSelectedId('downloads')
+  async function handleRecordProviderVideoOutput() {
+    await handleProviderExportAction(() => exportRuntime.recordProviderVideoOutput({ projectId, workflow }))
+  }
+
+  async function handleProviderExportAction(action: () => Promise<ProviderExportSnapshot>) {
+    setExportRuntimeError(null)
+    try {
+      const snapshot = await action()
+      setWorkflow((current) => mergeProviderExportSnapshot(current, snapshot))
+    } catch (error) {
+      setExportRuntimeError(errorMessage(error, 'Provider export action failed'))
+    } finally {
+      setSelectedId('downloads')
+    }
   }
 
   function handleFieldChange(field: keyof BriefInput) {
@@ -630,6 +603,11 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
           </button>
         </div>
       </header>
+      {exportRuntimeError && (
+        <p className="form-error" role="alert">
+          {exportRuntimeError}
+        </p>
+      )}
 
       <section className="workspace" aria-label="Suno workflow workspace">
         <aside className="prompt-rail">

@@ -1,0 +1,138 @@
+import {
+  recordProviderCallback,
+  recordProviderTaskUpdate,
+  type ProviderTaskOutput,
+  type SunoWorkflow,
+} from '../domain/workflow'
+import {
+  exportSnapshotFromWorkflow,
+  mergeProviderExportSnapshot,
+  type ProviderExportSnapshot,
+} from './exportState'
+
+export type ProviderExportRuntimeInput = {
+  projectId: string
+  workflow: SunoWorkflow
+}
+
+export type ProviderExportRuntimeClient = {
+  hydrate(projectId: string): Promise<ProviderExportSnapshot | null>
+  pollGenerationTask(input: ProviderExportRuntimeInput): Promise<ProviderExportSnapshot>
+  receiveFailedCallback(input: ProviderExportRuntimeInput): Promise<ProviderExportSnapshot>
+  recordProviderVideoOutput(input: ProviderExportRuntimeInput): Promise<ProviderExportSnapshot>
+}
+
+export function createLocalProviderExportRuntimeClient(
+  initialSnapshots: ProviderExportSnapshot[] = [],
+): ProviderExportRuntimeClient {
+  const snapshots = new Map(initialSnapshots.map((snapshot) => [snapshot.projectId, snapshot]))
+
+  function save(projectId: string, workflow: SunoWorkflow): ProviderExportSnapshot {
+    const snapshot = exportSnapshotFromWorkflow(projectId, workflow)
+    snapshots.set(projectId, snapshot)
+    return snapshot
+  }
+
+  function workflowWithSnapshot(projectId: string, workflow: SunoWorkflow): SunoWorkflow {
+    return mergeProviderExportSnapshot(workflow, snapshots.get(projectId))
+  }
+
+  return {
+    async hydrate(projectId) {
+      return snapshots.get(projectId) ?? null
+    },
+
+    async pollGenerationTask({ projectId, workflow }) {
+      const current = workflowWithSnapshot(projectId, workflow)
+      const sourceTrack = current.selectedTrack ?? current.generationBatch?.tracks[0]
+      if (!current.generationBatch || !sourceTrack) {
+        return save(projectId, current)
+      }
+
+      const outputs: ProviderTaskOutput[] = [
+        {
+          kind: 'audio',
+          label: `${sourceTrack.title} master audio`,
+          url: `local-export://${sourceTrack.id}/master.mp3`,
+          sourceTrackId: sourceTrack.id,
+        },
+        {
+          kind: 'cover-art',
+          label: `${sourceTrack.title} cover art`,
+          url: `local-export://${sourceTrack.id}/cover.jpeg`,
+          sourceTrackId: sourceTrack.id,
+        },
+        {
+          kind: 'stem',
+          label: `${sourceTrack.title} vocals stem`,
+          url: `local-export://${sourceTrack.id}/vocals.mp3`,
+          sourceTrackId: sourceTrack.id,
+          stemName: 'vocals',
+        },
+      ]
+
+      return save(
+        projectId,
+        recordProviderTaskUpdate(current, {
+          providerTaskId: current.generationBatch.providerJobId,
+          action: 'pollGenerationStatus',
+          capability: 'Get music generation details',
+          providerStatus: 'SUCCESS',
+          message: 'Mock record-info poll produced local downloadable outputs',
+          outputs,
+          receiptId: `poll-${current.generationBatch.providerJobId}`,
+        }),
+      )
+    },
+
+    async receiveFailedCallback({ projectId, workflow }) {
+      const current = workflowWithSnapshot(projectId, workflow)
+      if (!current.generationBatch) {
+        return save(projectId, current)
+      }
+
+      return save(
+        projectId,
+        recordProviderCallback(current, {
+          providerTaskId: current.generationBatch.providerJobId,
+          action: 'handleProviderCallback',
+          capability: 'Webhooks/retries',
+          callbackType: 'complete',
+          code: 451,
+          providerStatus: 'FAILED',
+          message: 'Provider callback reported file download failure',
+          outputs: [],
+          receiptId: `callback-${current.generationBatch.providerJobId}`,
+        }),
+      )
+    },
+
+    async recordProviderVideoOutput({ projectId, workflow }) {
+      const current = workflowWithSnapshot(projectId, workflow)
+      const lane = current.musicVideoLane
+      if (!lane) {
+        return save(projectId, current)
+      }
+
+      return save(
+        projectId,
+        recordProviderTaskUpdate(current, {
+          providerTaskId: `video-${lane.sourceTrackId}`,
+          action: 'createProviderMusicVideo',
+          capability: 'Provider music video creation',
+          providerStatus: 'SUCCESS',
+          message: 'Provider video output received',
+          outputs: [
+            {
+              kind: 'video',
+              label: `${lane.sourceTrackId} provider video`,
+              url: `local-export://${lane.sourceTrackId}/video.mp4`,
+              sourceTrackId: lane.sourceTrackId,
+            },
+          ],
+          receiptId: `video-${lane.sourceTrackId}`,
+        }),
+      )
+    },
+  }
+}
