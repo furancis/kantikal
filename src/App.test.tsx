@@ -108,6 +108,10 @@ describe('Suno Visual Studio shell', () => {
 
     expect(screen.getByRole('button', { name: /run generation/i })).toBeDisabled()
     expect(screen.getByRole('button', { name: /generate mock suno batch/i })).toBeDisabled()
+    expect(screen.getByLabelText(/brief/i, { selector: 'textarea' })).toBeDisabled()
+    expect(screen.getByLabelText(/lyrics/i, { selector: 'textarea' })).toBeDisabled()
+    expect(screen.getByLabelText(/style/i, { selector: 'input' })).toBeDisabled()
+    expect(screen.getByLabelText(/voice/i, { selector: 'input' })).toBeDisabled()
 
     resolveBatch({
       providerJobId: 'slow-provider',

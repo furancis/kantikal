@@ -222,19 +222,19 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
           <form className="prompt-form" onSubmit={(event) => void handleGenerate(event)}>
             <label>
               <span>Brief</span>
-              <textarea value={briefInput.brief} onChange={handleFieldChange('brief')} />
+              <textarea value={briefInput.brief} onChange={handleFieldChange('brief')} disabled={isGenerating} />
             </label>
             <label>
               <span>Lyrics</span>
-              <textarea value={briefInput.lyrics} onChange={handleFieldChange('lyrics')} />
+              <textarea value={briefInput.lyrics} onChange={handleFieldChange('lyrics')} disabled={isGenerating} />
             </label>
             <label>
               <span>Style</span>
-              <input value={briefInput.style} onChange={handleFieldChange('style')} />
+              <input value={briefInput.style} onChange={handleFieldChange('style')} disabled={isGenerating} />
             </label>
             <label>
               <span>Voice</span>
-              <input value={briefInput.voice} onChange={handleFieldChange('voice')} />
+              <input value={briefInput.voice} onChange={handleFieldChange('voice')} disabled={isGenerating} />
             </label>
             <button type="submit" aria-label="Generate mock Suno batch" disabled={isGenerating}>
               <Sparkles size={16} />
