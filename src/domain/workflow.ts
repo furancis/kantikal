@@ -387,6 +387,79 @@ export type CleanupPlan = {
   receiptId: string
 }
 
+export type TrackGenealogyAncestor = {
+  id: string
+  label: string
+  kind: 'prompt' | 'lyrics' | 'style' | 'voice' | 'asset' | 'job'
+  evidence: string[]
+}
+
+export type TrackGenealogyDescendant = {
+  id: string
+  label: string
+  kind: 'generated-version' | 'song-lab-edit' | 'stem' | 'music-video-variant' | 'export' | 'archived-branch'
+  sourceTrackIds: string[]
+  status: 'active' | 'selected' | 'queued' | 'planned' | 'ready' | 'archived'
+}
+
+export type TrackMutationDiff = {
+  trackId: string
+  label: string
+  changes: string[]
+  inherited: string[]
+}
+
+export type InheritedTrait = {
+  trait: string
+  value: string
+  evidence: string[]
+}
+
+export type BranchFitScore = {
+  trackId: string
+  score: number
+  why: string[]
+}
+
+export type DeadBranch = {
+  trackId: string
+  reason: string
+}
+
+export type BreedingSuggestion = {
+  id: string
+  sourceTrackIds: string[]
+  prompt: string
+  reason: string
+}
+
+export type TrackGenealogyGraphNode = {
+  id: string
+  label: string
+  role: 'ancestor' | 'source' | 'descendant' | 'dead-branch'
+}
+
+export type TrackGenealogyGraphEdge = {
+  from: string
+  to: string
+  relationship: string
+}
+
+export type TrackGenealogy = {
+  sourceTrackId: string | null
+  ancestors: TrackGenealogyAncestor[]
+  descendants: TrackGenealogyDescendant[]
+  mutations: TrackMutationDiff[]
+  inheritedTraits: InheritedTrait[]
+  fitLineage: BranchFitScore[]
+  deadBranches: DeadBranch[]
+  breedingSuggestions: BreedingSuggestion[]
+  graph: {
+    nodes: TrackGenealogyGraphNode[]
+    edges: TrackGenealogyGraphEdge[]
+  }
+}
+
 export type SunoWorkflow = BriefInput & {
   stage: WorkflowStage
   generationBatch: GenerationBatch | null
@@ -1160,6 +1233,50 @@ export function restoreArchivedTracks(workflow: SunoWorkflow): SunoWorkflow {
   }
 }
 
+export function analyzeTrackGenealogy(workflow: SunoWorkflow): TrackGenealogy {
+  const selectedTrack = workflow.selectedTrack
+  const tracks = workflow.generationBatch?.tracks ?? []
+  const sourceTrackId = selectedTrack?.id ?? null
+  const ancestors = trackGenealogyAncestors(workflow)
+  const descendants = trackGenealogyDescendants(workflow)
+  const inheritedTraits = trackGenealogyInheritedTraits(workflow)
+  const inheritedTraitNames = inheritedTraits.map((trait) => trait.trait)
+  const mutations = tracks.map((track) => trackMutationDiff(workflow, track, selectedTrack, inheritedTraitNames))
+  const fitLineage = tracks.map((track) => branchFitScore(workflow, track)).sort((left, right) => right.score - left.score)
+  const deadBranches = fitLineage
+    .map((fit) => deadBranchForTrack(workflow, fit.trackId))
+    .filter((branch): branch is DeadBranch => Boolean(branch))
+  const breedingSuggestions = trackGenealogyBreedingSuggestions(workflow, fitLineage)
+
+  return {
+    sourceTrackId,
+    ancestors,
+    descendants,
+    mutations,
+    inheritedTraits,
+    fitLineage,
+    deadBranches,
+    breedingSuggestions,
+    graph: trackGenealogyGraph(sourceTrackId, ancestors, descendants, deadBranches),
+  }
+}
+
+export function createLineageGenerationBrief(
+  workflow: SunoWorkflow,
+  suggestion = analyzeTrackGenealogy(workflow).breedingSuggestions[0],
+): BriefInput {
+  if (!suggestion) {
+    return workflow
+  }
+
+  return {
+    brief: `${workflow.brief}\nLineage: ${suggestion.prompt}`,
+    lyrics: workflow.lyrics,
+    style: `${workflow.style}; lineage-guided from ${suggestion.sourceTrackIds.join(' + ')}`,
+    voice: workflow.voice,
+  }
+}
+
 function toReleasePackItems(workflow: SunoWorkflow, includeVideo: boolean): ReleasePackItem[] {
   const selectedTrack = workflow.selectedTrack
   if (!selectedTrack) {
@@ -1268,6 +1385,281 @@ function createExportManagerState(): ExportManagerState {
     downloads: [],
     callbacks: [],
   }
+}
+
+function trackGenealogyAncestors(workflow: SunoWorkflow): TrackGenealogyAncestor[] {
+  return [
+    {
+      id: 'brief',
+      label: 'Brief DNA',
+      kind: 'prompt',
+      evidence: [workflow.brief],
+    },
+    {
+      id: 'lyrics',
+      label: 'Lyric DNA',
+      kind: 'lyrics',
+      evidence: [workflow.lyrics],
+    },
+    {
+      id: 'style',
+      label: 'Style DNA',
+      kind: 'style',
+      evidence: [workflow.style],
+    },
+    {
+      id: 'voice',
+      label: 'Voice DNA',
+      kind: 'voice',
+      evidence: [workflow.voice],
+    },
+    ...(workflow.generationBatch
+      ? [
+          {
+            id: workflow.generationBatch.providerJobId,
+            label: 'Generation job',
+            kind: 'job' as const,
+            evidence: [`${workflow.generationBatch.tracks.length} generated version(s)`],
+          },
+        ]
+      : []),
+    ...workflow.projectAssets.items.map((asset) => ({
+      id: asset.id,
+      label: asset.label,
+      kind: 'asset' as const,
+      evidence: [asset.kind, asset.status, ...asset.tags],
+    })),
+  ]
+}
+
+function trackGenealogyDescendants(workflow: SunoWorkflow): TrackGenealogyDescendant[] {
+  const generated = (workflow.generationBatch?.tracks ?? []).map((track) => ({
+    id: track.id,
+    label: track.title,
+    kind: 'generated-version' as const,
+    sourceTrackIds: ['brief', workflow.generationBatch?.providerJobId ?? 'generation-job'],
+    status: track.id === workflow.selectedTrack?.id ? 'selected' as const : 'active' as const,
+  }))
+  const songLabEdits = (workflow.songLab?.editActions ?? []).map((action) => ({
+    id: action.id,
+    label: action.label,
+    kind: 'song-lab-edit' as const,
+    sourceTrackIds: [workflow.songLab?.sourceTrackId ?? 'selected-track', action.sectionId],
+    status: action.status === 'queued' ? 'queued' as const : 'planned' as const,
+  }))
+  const stems = (workflow.songLab?.stems ?? []).map((stem) => ({
+    id: `stem-${stem.id}`,
+    label: stem.label,
+    kind: 'stem' as const,
+    sourceTrackIds: [stem.sourceTrackId],
+    status: stem.status === 'available' ? 'ready' as const : stem.status === 'queued' ? 'queued' as const : 'planned' as const,
+  }))
+  const videoVariants = (workflow.musicVideoLane?.scenes ?? []).map((scene) => ({
+    id: scene.id,
+    label: scene.title,
+    kind: 'music-video-variant' as const,
+    sourceTrackIds: [scene.sourceTrackId, scene.sectionId],
+    status: scene.status === 'rendered' ? 'ready' as const : scene.status === 'queued' ? 'queued' as const : 'planned' as const,
+  }))
+  const exports = workflow.exports.downloads.map((download) => ({
+    id: download.id,
+    label: download.label,
+    kind: 'export' as const,
+    sourceTrackIds: download.sourceTrackId ? [download.sourceTrackId] : [],
+    status: download.status === 'ready' ? 'ready' as const : 'planned' as const,
+  }))
+  const archived = workflow.archiveEntries.map((entry) => ({
+    id: `archived-${entry.track.id}`,
+    label: entry.track.title,
+    kind: 'archived-branch' as const,
+    sourceTrackIds: [entry.track.id, entry.receiptId],
+    status: 'archived' as const,
+  }))
+
+  return [...generated, ...songLabEdits, ...stems, ...videoVariants, ...exports, ...archived]
+}
+
+function trackGenealogyInheritedTraits(workflow: SunoWorkflow): InheritedTrait[] {
+  return [
+    {
+      trait: 'chorus shape',
+      value: workflow.lyrics.match(/chorus|hook/i) ? 'hook/chorus-led structure' : 'lyric structure from prompt',
+      evidence: ['lyrics'],
+    },
+    {
+      trait: 'rhythm palette',
+      value: workflow.style,
+      evidence: ['style'],
+    },
+    {
+      trait: 'vocal identity',
+      value: workflow.voice,
+      evidence: ['voice'],
+    },
+    {
+      trait: 'mood',
+      value: workflow.brief,
+      evidence: ['brief'],
+    },
+    {
+      trait: 'language mix',
+      value: workflow.brief.match(/arabic|bilingual|gulf|khaliji/i)
+        ? 'Arabic/bilingual project identity'
+        : 'language direction from brief',
+      evidence: ['brief', 'lyrics'],
+    },
+  ]
+}
+
+function trackMutationDiff(
+  workflow: SunoWorkflow,
+  track: GeneratedTrack,
+  selectedTrack: GeneratedTrack | null,
+  inherited: string[],
+): TrackMutationDiff {
+  const changes: string[] = []
+  const rating = workflow.taste.ratings[track.id]
+  const comparison = workflow.taste.comparisons.find(
+    (candidate) => candidate.leftTrackId === track.id || candidate.rightTrackId === track.id,
+  )
+  const archived = workflow.archiveEntries.find((entry) => entry.track.id === track.id)
+
+  if (selectedTrack && track.id !== selectedTrack.id) {
+    const durationDelta = track.durationSeconds - selectedTrack.durationSeconds
+    if (durationDelta !== 0) {
+      changes.push(`duration ${durationDelta > 0 ? '+' : ''}${durationDelta}s vs selected source`)
+    }
+  }
+  if (track.id === selectedTrack?.id) {
+    changes.push('selected source of truth')
+  }
+  if (rating) {
+    changes.push(`taste ${rating.score}/5: ${rating.notes}`)
+  }
+  if (comparison) {
+    changes.push(
+      comparison.winnerTrackId === track.id
+        ? `won comparison: ${comparison.notes}`
+        : `lost comparison: ${comparison.notes}`,
+    )
+  }
+  if (archived) {
+    changes.push(`archived: ${archived.reason}`)
+  }
+  if (changes.length === 0) {
+    changes.push('metadata-only variant; no tracked mutation note yet')
+  }
+
+  return {
+    trackId: track.id,
+    label: track.title,
+    changes,
+    inherited: inherited.slice(0, 4),
+  }
+}
+
+function branchFitScore(workflow: SunoWorkflow, track: GeneratedTrack): BranchFitScore {
+  const rating = workflow.taste.ratings[track.id]
+  const wonComparisons = workflow.taste.comparisons.filter((comparison) => comparison.winnerTrackId === track.id)
+  const isSelected = workflow.selectedTrack?.id === track.id
+  const archived = workflow.archiveEntries.find((entry) => entry.track.id === track.id)
+  const score = rating?.score ?? (isSelected ? 4 : archived ? 1 : 3)
+  const why = [
+    ...(isSelected ? ['selected source track'] : []),
+    ...(rating ? [rating.notes] : ['no taste rating yet']),
+    ...wonComparisons.map((comparison) => comparison.notes),
+    ...(archived ? [`archived: ${archived.reason}`] : []),
+  ]
+
+  return {
+    trackId: track.id,
+    score,
+    why,
+  }
+}
+
+function deadBranchForTrack(workflow: SunoWorkflow, trackId: string): DeadBranch | null {
+  const archiveEntry = workflow.archiveEntries.find((entry) => entry.track.id === trackId)
+  if (archiveEntry) {
+    return {
+      trackId,
+      reason: archiveEntry.reason,
+    }
+  }
+  const rating = workflow.taste.ratings[trackId]
+  if (rating && rating.score <= 2) {
+    return {
+      trackId,
+      reason: rating.notes,
+    }
+  }
+  return null
+}
+
+function trackGenealogyBreedingSuggestions(
+  workflow: SunoWorkflow,
+  fitLineage: BranchFitScore[],
+): BreedingSuggestion[] {
+  const primary = fitLineage[0]
+  const secondary = fitLineage.find((candidate) => candidate.trackId !== primary?.trackId)
+  if (!primary || !secondary) {
+    return []
+  }
+
+  const primaryRating = workflow.taste.ratings[primary.trackId]
+  const secondaryRating = workflow.taste.ratings[secondary.trackId]
+  const primaryTrait = primaryRating?.tags.includes('hook') ? 'hook' : 'chorus shape'
+  const secondaryTrait = secondaryRating?.tags.includes('mix') ? 'vocal/mix direction' : 'arrangement direction'
+
+  return [
+    {
+      id: `breed-${primary.trackId}-${secondary.trackId}`,
+      sourceTrackIds: [primary.trackId, secondary.trackId],
+      prompt: `combine ${primary.trackId} with ${secondary.trackId}: keep ${primaryTrait}; borrow ${secondaryTrait}`,
+      reason: `${primary.trackId} is the best-fit branch; ${secondary.trackId} contributes reusable mutation traits.`,
+    },
+  ]
+}
+
+function trackGenealogyGraph(
+  sourceTrackId: string | null,
+  ancestors: TrackGenealogyAncestor[],
+  descendants: TrackGenealogyDescendant[],
+  deadBranches: DeadBranch[],
+): TrackGenealogy['graph'] {
+  const deadTrackIds = new Set(deadBranches.map((branch) => branch.trackId))
+  const nodes: TrackGenealogyGraphNode[] = [
+    ...ancestors.map((ancestor) => ({
+      id: ancestor.id,
+      label: ancestor.label,
+      role: 'ancestor' as const,
+    })),
+    ...descendants.map((descendant) => ({
+      id: descendant.id,
+      label: descendant.label,
+      role:
+        deadTrackIds.has(descendant.id) || descendant.sourceTrackIds.some((trackId) => deadTrackIds.has(trackId))
+          ? 'dead-branch' as const
+          : descendant.id === sourceTrackId ? 'source' as const
+            : 'descendant' as const,
+    })),
+  ]
+  const edges: TrackGenealogyGraphEdge[] = [
+    ...ancestors.map((ancestor) => ({
+      from: ancestor.id,
+      to: sourceTrackId ?? descendants[0]?.id ?? ancestor.id,
+      relationship: 'informs',
+    })),
+    ...descendants
+      .filter((descendant) => descendant.id !== sourceTrackId)
+      .map((descendant) => ({
+        from: sourceTrackId ?? 'brief',
+        to: descendant.id,
+        relationship: descendant.kind,
+      })),
+  ]
+
+  return { nodes, edges }
 }
 
 function createProjectAssetLibrary(input: BriefInput): ProjectAssetLibrary {

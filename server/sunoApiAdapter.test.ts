@@ -84,6 +84,33 @@ describe('server Suno API adapter', () => {
     expect(JSON.stringify(result)).not.toContain('server-secret')
   })
 
+  it('blocks endpoint-backed actions when a provider body rejects auth under HTTP 200', async () => {
+    const adapter = createSunoApiServerAdapter({
+      runtime: 'server',
+      apiKey: 'server-secret',
+      baseUrl: 'https://api.sunoapi.org',
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ code: 401, msg: 'Unauthorized' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    })
+
+    const result = await adapter.executeProviderAction({
+      action: 'generateLyrics',
+      capability: 'Lyrics generation',
+      payload: { prompt: 'hook', callBackUrl: 'https://example.com/callback' },
+    })
+
+    expect(result).toMatchObject({
+      action: 'generateLyrics',
+      outcome: 'blocked',
+      endpoint: '/api/v1/lyrics',
+      message: 'Lyrics generation provider request failed with HTTP 200 and provider code 401.',
+    })
+    expect(JSON.stringify(result)).not.toContain('server-secret')
+  })
+
   it('builds required callback payloads from server defaults before dispatch', async () => {
     const calls: Array<{ url: string; init: RequestInit }> = []
     const adapter = createSunoApiServerAdapter({

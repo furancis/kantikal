@@ -132,11 +132,15 @@ export function createSunoApiServerAdapter(input: SunoApiServerAdapterInput): Su
         body: definition.method === 'POST' ? JSON.stringify(providerPayload.payload) : undefined,
       })
       const providerBody = await readProviderBody(response)
+      const providerCode = providerStatusCode(providerBody)
 
-      if (!response.ok) {
+      if (!response.ok || (providerCode !== undefined && providerCode !== 200)) {
         return resultFor(request, {
           outcome: 'blocked',
-          message: `${request.capability} provider request failed with HTTP ${response.status}.`,
+          message:
+            providerCode !== undefined
+              ? `${request.capability} provider request failed with HTTP ${response.status} and provider code ${providerCode}.`
+              : `${request.capability} provider request failed with HTTP ${response.status}.`,
           authBoundary: definition.authBoundary,
           endpoint: definition.path,
         })
@@ -186,14 +190,18 @@ export function createSunoApiServerAdapter(input: SunoApiServerAdapterInput): Su
         },
       })
       const providerBody = await readProviderBody(response)
+      const providerCode = providerStatusCode(providerBody)
 
-      if (!response.ok) {
+      if (!response.ok || (providerCode !== undefined && providerCode !== 200)) {
         return {
           providerTaskId: request.providerTaskId,
           action: request.action,
           capability: request.capability,
           providerStatus: 'FAILED',
-          message: `${request.capability} provider poll failed with HTTP ${response.status}.`,
+          message:
+            providerCode !== undefined
+              ? `${request.capability} provider poll failed with HTTP ${response.status} and provider code ${providerCode}.`
+              : `${request.capability} provider poll failed with HTTP ${response.status}.`,
           outputs: [],
           receiptId: request.receiptId,
         }
@@ -388,6 +396,11 @@ function stemNameFromUrlField(key: string): string | null {
 
 function statusFromCode(code: number | undefined): string {
   return code === 200 ? 'SUCCESS' : 'FAILED'
+}
+
+function providerStatusCode(body: unknown): number | undefined {
+  const root = asRecord(body)
+  return numberFrom(root.code)
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

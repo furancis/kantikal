@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyArchiveFirstCleanup,
+  analyzeTrackGenealogy,
   compareTracks,
+  createLineageGenerationBrief,
   createWorkflow,
   evaluateLipsync,
   failedLipsyncChecks,
@@ -909,6 +911,85 @@ describe('Suno workflow state machine', () => {
       action: 'cleanup-restored',
       targetTrackIds: ['song_a'],
     })
+  })
+
+  it('builds Track Genealogy from prompts, assets, taste, Song Lab, archive, and release evidence', () => {
+    const generated = submitGenerationBatch(
+      createWorkflow({
+        brief: 'Bilingual Gulf club-pop hook with dark lift',
+        lyrics: 'Verse, pre, chorus, bridge with bilingual chorus',
+        style: 'Gulf percussion, polished electro-pop, cinematic mix',
+        voice: 'Consented warm tenor identity',
+      }),
+      {
+        providerJobId: 'job_genealogy',
+        tracks: [
+          { id: 'song_a', title: 'Dark Lift A', durationSeconds: 146 },
+          { id: 'song_b', title: 'Dark Lift B', durationSeconds: 154 },
+          { id: 'song_c', title: 'Dark Lift C', durationSeconds: 162 },
+        ],
+      },
+    )
+    const selected = selectTrack(
+      compareTracks(
+        rateTrack(
+          rateTrack(rateTrack(generated, 'song_a', { score: 2, notes: 'drifts away from the hook' }), 'song_b', {
+            score: 5,
+            notes: 'best chorus and vocal identity',
+            tags: ['hook', 'vocal'],
+          }),
+          'song_c',
+          { score: 4, notes: 'better mix direction', tags: ['mix'] },
+        ),
+        {
+          leftTrackId: 'song_b',
+          rightTrackId: 'song_c',
+          winnerTrackId: 'song_b',
+          notes: 'B keeps the hook; C has a useful mix direction',
+        },
+      ),
+      'song_b',
+    )
+    const songLab = queueSongLabEdit(openSongLab(selected), {
+      sectionId: 'hook',
+      action: 'replaceSection',
+      label: 'Try denser chorus lift',
+    })
+    const archived = planArchiveFirstCleanup(songLab, ['song_a'], 'dead branch drifted away from brief')
+
+    const genealogy = analyzeTrackGenealogy(archived)
+
+    expect(genealogy.sourceTrackId).toBe('song_b')
+    expect(genealogy.ancestors.map((ancestor) => ancestor.id)).toEqual(
+      expect.arrayContaining(['brief', 'lyrics', 'style', 'voice', 'job_genealogy', 'asset-lyrics-draft']),
+    )
+    expect(genealogy.descendants.map((descendant) => descendant.id)).toEqual(
+      expect.arrayContaining(['song_b', 'song_c', 'songlab-edit-1']),
+    )
+    expect(genealogy.inheritedTraits.map((trait) => trait.trait)).toEqual(
+      expect.arrayContaining(['chorus shape', 'rhythm palette', 'vocal identity', 'language mix']),
+    )
+    expect(genealogy.mutations.find((mutation) => mutation.trackId === 'song_c')).toMatchObject({
+      changes: expect.arrayContaining(['duration +8s vs selected source']),
+      inherited: expect.arrayContaining(['chorus shape', 'vocal identity']),
+    })
+    expect(genealogy.fitLineage[0]).toMatchObject({
+      trackId: 'song_b',
+      score: 5,
+    })
+    expect(genealogy.deadBranches).toEqual([
+      expect.objectContaining({
+        trackId: 'song_a',
+        reason: expect.stringMatching(/drift|dead branch/i),
+      }),
+    ])
+    expect(genealogy.breedingSuggestions[0]).toMatchObject({
+      sourceTrackIds: ['song_b', 'song_c'],
+    })
+
+    const lineageBrief = createLineageGenerationBrief(archived, genealogy.breedingSuggestions[0])
+    expect(lineageBrief.brief).toMatch(/combine song_b with song_c/i)
+    expect(lineageBrief.style).toMatch(/lineage-guided/i)
   })
 
   it('refuses to clean up the selected source track', () => {

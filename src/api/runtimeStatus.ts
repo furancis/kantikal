@@ -1,13 +1,15 @@
-export type RuntimeState = 'online' | 'offline' | 'blocked'
+export type RuntimeState = 'online' | 'configured' | 'offline' | 'blocked'
 
 export type RuntimeStatus = {
   suno: {
     state: RuntimeState
+    providerMode: 'live' | 'local'
     productOrigin: string
     apiBaseUrl: string
     apiV1BaseUrl: string
     uploadBaseUrl: string
     credential: 'present' | 'missing'
+    message: string
     callbackUrl?: string
   }
   comfy: {
@@ -71,11 +73,13 @@ export function createLocalRuntimeStatusClient(): RuntimeStatusClient {
       return {
         suno: {
           state: 'blocked',
+          providerMode: 'local',
           productOrigin: 'https://suno.com',
           apiBaseUrl: 'https://api.sunoapi.org',
           apiV1BaseUrl: 'https://api.sunoapi.org/api/v1',
           uploadBaseUrl: 'https://sunoapiorg.redpandaai.co',
           credential: 'missing',
+          message: 'Local runtime status route is unavailable; live Suno credential proof has not run.',
         },
         comfy: {
           state: 'offline',

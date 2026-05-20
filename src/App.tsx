@@ -50,7 +50,9 @@ import {
 } from './api/runtimeStatus'
 import {
   applyArchiveFirstCleanup,
+  analyzeTrackGenealogy,
   compareTracks,
+  createLineageGenerationBrief,
   createWorkflow,
   failedLipsyncChecks,
   lockSongLabRegion,
@@ -90,6 +92,7 @@ type NodeKind =
   | 'track'
   | 'stem'
   | 'compare'
+  | 'genealogy'
   | 'songlab'
   | 'queue'
   | 'library'
@@ -168,6 +171,7 @@ const iconByKind: Record<NodeKind, ComponentType<{ size?: number }>> = {
   track: FileAudio,
   stem: Waves,
   compare: GitBranch,
+  genealogy: GitBranch,
   songlab: Waves,
   queue: Activity,
   library: Library,
@@ -181,6 +185,7 @@ const featureList = [
   'Prompt, lyrics, style, voice and persona workbenches',
   'Full Suno API parity map with unsupported endpoints explicitly flagged',
   'Batch generation, version lineage, A/B comparison and taste scoring',
+  'Track Genealogy family tree with traits, mutations, dead branches and breeding suggestions',
   'Song Lab timeline with regions, sections, stems and arrangement locks',
   'Music video lane as a subfeature, not the main product',
   'ComfyUI render planning, scene cards and asset routing',
@@ -394,18 +399,28 @@ export function App({
   const cleanupStatus = workflow.cleanupPlan?.status ?? 'idle'
   const promptLocked = isGenerating || Boolean(workflow.musicVideoLane)
   const primaryAction = nextActionForWorkflow(workflow, releasePack, videoExportReady)
+  const trackGenealogy = useMemo(() => analyzeTrackGenealogy(workflow), [workflow])
+  const genealogyDeadBranchTargets = trackGenealogy.deadBranches
+    .map((branch) => branch.trackId)
+    .filter((trackId) =>
+      workflow.generationBatch?.tracks.some((track) => track.id === trackId) && trackId !== workflow.selectedTrack?.id,
+    )
   const selectedTrackLabel = workflow.selectedTrack
     ? `${workflow.selectedTrack.title} (${workflow.selectedTrack.id})`
     : 'No selected source track'
 
   async function handleGenerate(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault()
+    await generateFromBrief(briefInput)
+  }
+
+  async function generateFromBrief(input: BriefInput) {
     setIsGenerating(true)
     setGenerateError(null)
     setVideoExportError(null)
     try {
       const generationBatch = await provider.generateBatch({
-        ...briefInput,
+        ...input,
         count: 2,
       })
       if (generationBatch.tracks.length === 0) {
@@ -414,7 +429,7 @@ export function App({
       setReleasePack(null)
       setWorkflow((current) => {
         const baseWorkflow = {
-          ...createWorkflow(briefInput),
+          ...createWorkflow(input),
           projectAssets: current.projectAssets,
           voicePersonas: current.voicePersonas,
           exports: current.exports,
@@ -429,6 +444,18 @@ export function App({
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  async function handleGenerateFromLineage() {
+    const suggestion = trackGenealogy.breedingSuggestions[0]
+    if (!suggestion || promptLocked) {
+      setSelectedId('track-genealogy')
+      return
+    }
+
+    const nextBrief = createLineageGenerationBrief(workflow, suggestion)
+    setBriefInput(nextBrief)
+    await generateFromBrief(nextBrief)
   }
 
   async function handleRunApiAction(entry: ApiCoverageEntry) {
@@ -788,6 +815,16 @@ export function App({
     })
   }
 
+  function handlePruneDeadBranches() {
+    if (genealogyDeadBranchTargets.length === 0 || cleanupStatus === 'archived' || cleanupStatus === 'applied') {
+      return
+    }
+    setWorkflow((current) =>
+      planArchiveFirstCleanup(current, genealogyDeadBranchTargets, 'Track Genealogy dead branches drifted away'),
+    )
+    setSelectedId('track-genealogy')
+  }
+
   function handleApplyCleanup() {
     setWorkflow((current) => applyArchiveFirstCleanup(current))
   }
@@ -866,8 +903,13 @@ export function App({
           <p className="eyebrow">Runtime</p>
           <div className={`runtime-row ${runtimeStatus?.suno.state ?? 'blocked'}`}>
             <strong>Suno API</strong>
-            <span>{runtimeStatus?.suno.credential ?? 'missing'} credential</span>
-            <small>{runtimeStatus?.suno.apiV1BaseUrl ?? 'https://api.sunoapi.org/api/v1'}</small>
+            <span>
+              {runtimeStatus?.suno.credential ?? 'missing'} credential; {runtimeStatus?.suno.providerMode ?? 'local'} mode
+            </span>
+            <small>
+              {runtimeStatus?.suno.message ?? 'runtime status pending'};{' '}
+              {runtimeStatus?.suno.apiV1BaseUrl ?? 'https://api.sunoapi.org/api/v1'}
+            </small>
           </div>
           <div className={`runtime-row ${runtimeStatus?.comfy.state ?? 'offline'}`}>
             <strong>ComfyUI</strong>
@@ -1042,6 +1084,10 @@ export function App({
                 <Library size={16} />
                 Save selected to local library
               </button>
+              <button type="button" onClick={() => setSelectedId('track-genealogy')}>
+                <GitBranch size={16} />
+                Open Track Genealogy
+              </button>
             </div>
           )}
           {selected.kind === 'voice' && (
@@ -1203,6 +1249,135 @@ export function App({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+          {selected.kind === 'genealogy' && (
+            <div className="workflow-section">
+              <h3>Family Tree Graph</h3>
+              <p>
+                Source track: {trackGenealogy.sourceTrackId ?? 'none selected'}; {trackGenealogy.graph.nodes.length}{' '}
+                nodes; {trackGenealogy.graph.edges.length} evidence edges.
+              </p>
+              <div className="genealogy-list" aria-label="Track Genealogy family tree graph">
+                {trackGenealogy.graph.nodes.slice(0, 10).map((node) => (
+                  <div className={node.role} key={node.id}>
+                    <strong>{node.label}</strong>
+                    <small>
+                      {node.role}; {node.id}
+                    </small>
+                  </div>
+                ))}
+              </div>
+
+              <h3>Trait Inspector</h3>
+              <div className="genealogy-list" aria-label="Track Genealogy trait inspector">
+                {trackGenealogy.inheritedTraits.map((trait) => (
+                  <div key={trait.trait}>
+                    <strong>{trait.trait}</strong>
+                    <small>
+                      {trait.value}; evidence {trait.evidence.join(', ')}
+                    </small>
+                  </div>
+                ))}
+              </div>
+
+              <h3>Version Mutation Diff</h3>
+              <div className="genealogy-list" aria-label="Track Genealogy mutation diff">
+                {trackGenealogy.mutations.map((mutation) => (
+                  <div key={mutation.trackId}>
+                    <strong>{mutation.label}</strong>
+                    <small>
+                      Changed: {mutation.changes.join(' | ')}. Inherited: {mutation.inherited.join(', ')}
+                    </small>
+                  </div>
+                ))}
+              </div>
+
+              <h3>Branch Fit Score</h3>
+              <div className="genealogy-list" aria-label="Track Genealogy branch fit score">
+                {trackGenealogy.fitLineage.map((fit) => (
+                  <div key={fit.trackId}>
+                    <strong>
+                      {fit.trackId} fit {fit.score}/5
+                    </strong>
+                    <small>{fit.why.join(' | ')}</small>
+                  </div>
+                ))}
+              </div>
+
+              <h3>Reference DNA Import</h3>
+              <div className="gate-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleImportProjectAsset({
+                      kind: 'reference-audio',
+                      label: 'Track Genealogy reference DNA',
+                      action: 'uploadReferenceAudio',
+                      capability: 'Upload/reference audio',
+                      sourceIds: [trackGenealogy.sourceTrackId ?? 'brief'],
+                      tags: ['reference', 'dna', 'lineage'],
+                    })
+                  }
+                >
+                  <FileAudio size={16} />
+                  Import reference DNA
+                </button>
+              </div>
+
+              <h3>Archive/Prune Branches</h3>
+              <div className="genealogy-list" aria-label="Track Genealogy dead branches">
+                {trackGenealogy.deadBranches.length === 0 ? (
+                  <div>
+                    <strong>No dead branches marked</strong>
+                    <small>Low-fit ratings or archive receipts will appear here.</small>
+                  </div>
+                ) : (
+                  trackGenealogy.deadBranches.map((branch) => (
+                    <div className="dead-branch" key={branch.trackId}>
+                      <strong>{branch.trackId}</strong>
+                      <small>{branch.reason}</small>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="gate-actions">
+                <button
+                  type="button"
+                  disabled={genealogyDeadBranchTargets.length === 0 || cleanupStatus === 'archived' || cleanupStatus === 'applied'}
+                  onClick={handlePruneDeadBranches}
+                >
+                  <Archive size={16} />
+                  Prune dead branches
+                </button>
+              </div>
+
+              <h3>Generate From This Lineage</h3>
+              <div className="genealogy-list" aria-label="Track Genealogy breeding suggestions">
+                {trackGenealogy.breedingSuggestions.length === 0 ? (
+                  <div>
+                    <strong>No breeding suggestion yet</strong>
+                    <small>Generate or import another branch to combine traits.</small>
+                  </div>
+                ) : (
+                  trackGenealogy.breedingSuggestions.map((suggestion) => (
+                    <div key={suggestion.id}>
+                      <strong>{suggestion.sourceTrackIds.join(' + ')}</strong>
+                      <small>
+                        {suggestion.prompt}; {suggestion.reason}
+                      </small>
+                    </div>
+                  ))
+                )}
+              </div>
+              <button
+                type="button"
+                disabled={promptLocked || trackGenealogy.breedingSuggestions.length === 0}
+                onClick={() => void handleGenerateFromLineage()}
+              >
+                <Sparkles size={16} />
+                Generate from this lineage
+              </button>
             </div>
           )}
           {selected.kind === 'songlab' && (
@@ -1870,6 +2045,16 @@ function buildWorkflowNodes(
         x: 69,
         y: 53,
         meta: ['sections', 'stems', 'replace section', 'arrangement locks'],
+      },
+      {
+        id: 'track-genealogy',
+        kind: 'genealogy',
+        title: 'Track Genealogy',
+        summary: 'Family tree of prompts, references, generated versions, mutations, fit, and pruned branches.',
+        status: workflow.taste.comparisons.length > 0 || workflow.archiveEntries.length > 0 ? 'ready' : 'needs-review',
+        x: 84,
+        y: 18,
+        meta: ['family tree', 'mutation diff', 'branch fit', 'breeding suggestions'],
       },
       {
         id: 'video',

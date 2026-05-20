@@ -212,6 +212,11 @@ textarea {
   background: rgba(107, 218, 132, 0.1);
 }
 
+.runtime-row.configured {
+  border-color: rgba(240, 181, 76, 0.42);
+  background: rgba(240, 181, 76, 0.1);
+}
+
 .runtime-row.blocked {
   border-color: rgba(240, 181, 76, 0.42);
   background: rgba(240, 181, 76, 0.1);
@@ -590,7 +595,8 @@ textarea {
 .scene-list,
 .render-list,
 .worker-list,
-.failure-list {
+.failure-list,
+.genealogy-list {
   display: grid;
   gap: 8px;
 }
@@ -617,7 +623,8 @@ textarea {
 .scene-list div,
 .render-list div,
 .worker-list div,
-.failure-list div {
+.failure-list div,
+.genealogy-list div {
   display: grid;
   gap: 3px;
   padding: 9px 10px;
@@ -639,7 +646,8 @@ textarea {
 .scene-list small,
 .render-list small,
 .worker-list small,
-.failure-list small {
+.failure-list small,
+.genealogy-list small {
   color: #b7b1a6;
 }
 
@@ -691,9 +699,25 @@ textarea {
 
 .scene-list div.needs-repair,
 .worker-list div.blocked,
-.failure-list div {
+.failure-list div,
+.genealogy-list div.dead-branch {
   border-color: rgba(229, 83, 83, 0.4);
   background: rgba(229, 83, 83, 0.1);
+}
+
+.genealogy-list div.ancestor {
+  border-color: rgba(58, 205, 196, 0.34);
+  background: rgba(58, 205, 196, 0.08);
+}
+
+.genealogy-list div.source {
+  border-color: rgba(240, 181, 76, 0.56);
+  background: rgba(240, 181, 76, 0.12);
+}
+
+.genealogy-list div.descendant {
+  border-color: rgba(107, 218, 132, 0.34);
+  background: rgba(107, 218, 132, 0.08);
 }
 
 .worker-list div.queued,

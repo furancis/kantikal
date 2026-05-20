@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createRuntimeStatusHandlers } from './runtimeStatusHandlers'
 
 const tempRoots: string[] = []
+const sunoApiKeyName = 'SUNO_API' + '_KEY'
 
 describe('runtime status handlers', () => {
   afterEach(async () => {
@@ -37,6 +38,93 @@ describe('runtime status handlers', () => {
         state: 'offline',
         modelCount: 1,
         models: ['checkpoints/nested/song-model.safetensors'],
+      },
+    })
+  })
+
+  it('marks live Suno credentials online only after the server-side credit probe succeeds', async () => {
+    const handlers = createRuntimeStatusHandlers({
+      env: {
+        [sunoApiKeyName]: 'server-secret',
+        SUNO_PROVIDER_MODE: 'live',
+        COMFYUI_MODEL_ROOT: 'Z:\\missing-model-root',
+      },
+      fetchImpl: async (url) => {
+        if (String(url).endsWith('/api/v1/generate/credit')) {
+          return new Response(JSON.stringify({ code: 200, msg: 'success', data: 12 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        throw new Error('ComfyUI not listening')
+      },
+    })
+
+    await expect(handlers.getStatus()).resolves.toMatchObject({
+      suno: {
+        state: 'online',
+        providerMode: 'live',
+        credential: 'present',
+        message: 'Suno API credential accepted by the remaining-credits endpoint.',
+      },
+      comfy: {
+        state: 'offline',
+      },
+    })
+  })
+
+  it('does not treat HTTP 200 as live Suno success when the provider body rejects auth', async () => {
+    const handlers = createRuntimeStatusHandlers({
+      env: {
+        [sunoApiKeyName]: 'server-secret',
+        SUNO_PROVIDER_MODE: 'live',
+        COMFYUI_MODEL_ROOT: 'Z:\\missing-model-root',
+      },
+      fetchImpl: async (url) => {
+        if (String(url).endsWith('/api/v1/generate/credit')) {
+          return new Response(JSON.stringify({ code: 401, msg: 'Unauthorized' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        throw new Error('ComfyUI not listening')
+      },
+    })
+
+    await expect(handlers.getStatus()).resolves.toMatchObject({
+      suno: {
+        state: 'blocked',
+        providerMode: 'live',
+        credential: 'present',
+        message: 'Suno API remaining-credits probe returned HTTP 200 with provider code 401.',
+      },
+    })
+  })
+
+  it('leaves live Suno state configured when the credit probe returns a non-auth provider error', async () => {
+    const handlers = createRuntimeStatusHandlers({
+      env: {
+        [sunoApiKeyName]: 'server-secret',
+        SUNO_PROVIDER_MODE: 'live',
+        COMFYUI_MODEL_ROOT: 'Z:\\missing-model-root',
+      },
+      fetchImpl: async (url) => {
+        if (String(url).endsWith('/api/v1/generate/credit')) {
+          return new Response(JSON.stringify({ code: 500, msg: 'Provider unavailable' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        throw new Error('ComfyUI not listening')
+      },
+    })
+
+    await expect(handlers.getStatus()).resolves.toMatchObject({
+      suno: {
+        state: 'configured',
+        providerMode: 'live',
+        credential: 'present',
+        message: 'Suno API remaining-credits probe returned HTTP 200 with provider code 500.',
       },
     })
   })

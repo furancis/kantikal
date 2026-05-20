@@ -11,11 +11,13 @@ describe('runtime status client', () => {
             status: {
               suno: {
                 state: 'online',
+                providerMode: 'live',
                 productOrigin: 'https://suno.com',
                 apiBaseUrl: 'https://api.sunoapi.org',
                 apiV1BaseUrl: 'https://api.sunoapi.org/api/v1',
                 uploadBaseUrl: 'https://sunoapiorg.redpandaai.co',
                 credential: 'present',
+                message: 'Suno API credential accepted by the remaining-credits endpoint.',
               },
               comfy: {
                 state: 'online',

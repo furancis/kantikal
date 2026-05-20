@@ -26,6 +26,7 @@ guardrails:
   - full_api_coverage
   - archive_first_cleanup
   - server_side_secrets
+  - single_user_local_no_oauth
   - tdd_required
   - greptile_every_pr
 agents:
@@ -1397,6 +1398,7 @@ tasks:
       - "Local ComfyUI install at D:\\Dev\\ComfyUI"
     constraints:
       - "Do not print or persist Suno credentials."
+      - "This is a single-user local app; do not add OAuth, accounts, or multi-user product surfaces."
       - "Do not claim live Suno success without an actual server-side credential-backed response."
       - "Do not claim ComfyUI worker success unless http://127.0.0.1:8188 is listening and a minimal workflow/job path is exercised."
       - "Music Video Lane remains subordinate to the selected song/version."
@@ -1422,3 +1424,91 @@ tasks:
       - npm run scan:credentials
       - npm run scan:wording
       - git diff --check
+    receipt:
+      result: partially_verified_suno_key_blocked
+      full_outcome_complete: false
+      files:
+        - server/runtimeStatusHandlers.ts
+        - server/runtimeStatusHandlers.test.ts
+        - server/sunoApiAdapter.ts
+        - server/sunoApiAdapter.test.ts
+        - src/api/runtimeStatus.ts
+        - src/api/runtimeStatus.test.ts
+        - vite.config.ts
+        - e2e/studio.spec.ts
+        - docs/goals/suno-visual-studio/state.yaml
+      runtime_evidence:
+        - "User-scope non-secret runtime variables set: SUNO_API_BASE_URL, SUNO_UPLOAD_BASE_URL, COMFYUI_BASE_URL, COMFYUI_MODEL_ROOT."
+        - "No valid SUNO_API_KEY was found in process, user, machine, repo env files, targeted Codex session logs, runtime secret maps, or control-plane secret registries."
+        - "A prior-session SUNO_API_KEY-looking log entry was tested safely against GET /api/v1/generate/credit; the provider body returned code 401, so it was removed from user env and not treated as a valid credential."
+        - "ComfyUI answered http://127.0.0.1:8188/system_stats with version 0.21.0 on cuda:0 NVIDIA GeForce RTX 5090."
+        - "ComfyUI /object_info returned 718 node definitions."
+        - "ComfyUI /prompt accepted and completed a tiny EmptyImage -> PreviewImage workflow via /history."
+        - "Local app runtime route http://127.0.0.1:4174/api/runtime/status reports Suno blocked/local/missing and ComfyUI online with 23 model files."
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: git diff --check
+          status: pass
+        - cmd: browser screenshot smoke at .omx/logs/t200-track-genealogy.png
+          status: pass
+      summary: "Live Suno wiring is structurally correct and scanner-safe, but no accepted API key is currently available. ComfyUI is no longer an abstract blocker: the installed local server is running, reports model inventory, and completed a minimal queued workflow. Full outcome remains incomplete until a valid SUNO_API_KEY is supplied or recovered and a live provider action succeeds."
+  - id: T200
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Implement Track Genealogy as a selected-track subfeature of the full Suno generation workflow."
+    inputs:
+      - "User Track Genealogy feature brief"
+      - src/domain/workflow.ts
+      - src/App.tsx
+      - e2e/studio.spec.ts
+    constraints:
+      - "Main app remains Suno music generation."
+      - "Track Genealogy is subordinate to selected project/track."
+      - "Manual/imported genealogy and metadata graph are allowed; do not claim audio-derived causality without tracked evidence."
+      - "Connect to Library, Song Lab, Taste System, Archive, and Release Pack evidence where present."
+    expected_output:
+      - "Family Tree Graph"
+      - "Trait Inspector"
+      - "Version Mutation Diff"
+      - "Branch Fit Score"
+      - "Reference DNA Import"
+      - "Archive/Prune Branches"
+      - "Generate From This Lineage"
+    receipt:
+      result: implemented_verified
+      full_outcome_complete: false
+      files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+      summary: "Added Track Genealogy under the selected track: it builds ancestors from brief/lyrics/style/voice/assets/jobs, descendants from generated versions, Song Lab edits, stems, MV variants, exports, and archived branches; computes mutation diffs, inherited traits, branch fit, dead branches, breeding suggestions, Reference DNA import, archive-first pruning, and lineage-guided generation."

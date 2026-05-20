@@ -206,6 +206,42 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByText(/video included/i)).toBeInTheDocument()
   }, 15000)
 
+  it('shows Track Genealogy as a selected-track subfeature with traits, mutation diff, fit, and breeding', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /generated track mock-track-2/i }))
+
+    await user.click(screen.getByRole('button', { name: /version comparison/i }))
+    await user.click(screen.getByRole('button', { name: /rate mock-track-2 as taste match/i }))
+    await user.click(screen.getByRole('button', { name: /compare mock-track-1 vs mock-track-2/i }))
+    await user.click(screen.getByRole('button', { name: /track genealogy: family tree/i }))
+
+    expect(screen.getByRole('heading', { name: /Track Genealogy/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Family Tree Graph/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/Track Genealogy family tree graph/i)).toHaveTextContent(/Brief DNA/i)
+    expect(screen.getByLabelText(/Track Genealogy family tree graph/i)).toHaveTextContent(/mock-track-2/i)
+    expect(screen.getByRole('heading', { name: /Trait Inspector/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/Track Genealogy trait inspector/i)).toHaveTextContent(/vocal identity/i)
+    expect(screen.getByRole('heading', { name: /Version Mutation Diff/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/Track Genealogy mutation diff/i)).toHaveTextContent(/duration -4s vs selected source/i)
+    expect(screen.getByRole('heading', { name: /Branch Fit Score/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/Track Genealogy branch fit score/i)).toHaveTextContent(/mock-track-2 fit 5\/5/i)
+    expect(screen.getByRole('heading', { name: /Reference DNA Import/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Archive\/Prune Branches/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Generate From This Lineage/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/Track Genealogy breeding suggestions/i)).toHaveTextContent(
+      /combine mock-track-2 with mock-track-1/i,
+    )
+
+    await user.click(screen.getByRole('button', { name: /generate from this lineage/i }))
+
+    expect(await screen.findByRole('button', { name: /v1: Generated track mock-track-1, 150s/i })).toBeInTheDocument()
+  })
+
   it('surfaces provider failures instead of dropping rejected generation promises', async () => {
     const user = userEvent.setup()
     const failingProvider: SunoProvider = {
