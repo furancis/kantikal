@@ -22,6 +22,7 @@ const textFileExtensions = new Set([
   '.ts',
   '.tsx',
   '.txt',
+  '.toml',
   '.yml',
   '.yaml',
 ])

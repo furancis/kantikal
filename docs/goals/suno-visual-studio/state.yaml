@@ -574,6 +574,9 @@ tasks:
         - src/App.test.tsx
         - src/styles.css
         - e2e/studio.spec.ts
+        - docs/goals/suno-visual-studio/state.yaml
+        - .github/scripts/scan-wording.mjs
+        - src/api/scanWordingScript.test.ts
       commands:
         - cmd: npm run lint
           status: pass
@@ -597,7 +600,7 @@ tasks:
           status: pass
         - cmd: git diff --check
           status: pass
-      summary: "Added subordinate Music Video Lane planning surfaces and state: timestamped scene cards from song sections, ComfyUI render graph planning with model/seed/reference/asset routing nodes, external render/stitch/QA worker health and job queues, and exact lipsync failure ranges that mark affected scenes for repair and keep video export blocked until range-level QA clears."
+      summary: "Added subordinate Music Video Lane planning surfaces and state: timestamped scene cards from song sections, ComfyUI render graph planning with model/seed/reference/asset routing nodes, external render/stitch/QA worker health and job queues, and exact lipsync failure ranges that mark affected scenes for repair and keep video export blocked until range-level QA clears. Greptile P1 follow-up aligned wording-scan TOML coverage with the credential scanner and added a regression test."
   - id: T100
     type: worker
     assignee: Worker
