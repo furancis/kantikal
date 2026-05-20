@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T110
+active_task: T120
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -679,7 +679,7 @@ tasks:
   - id: T110
     type: worker
     assignee: Worker
-    status: active
+    status: done
     objective: "Implement provider job polling, callback intake, and download/export lanes so generated songs, stems, covers, and videos can move from provider jobs into durable local project assets."
     inputs:
       - docs/prd.md
@@ -718,3 +718,82 @@ tasks:
     stop_if:
       - "A provider download/export endpoint is assumed without current docs or an explicit planned/unsupported state."
       - "Any export path can bypass selected-song ownership or lipsync approval."
+    receipt:
+      result: done
+      changed_files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - server/sunoApiAdapter.ts
+        - server/sunoApiAdapter.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+        - .github/scripts/scan-credentials.mjs
+        - src/api/scanCredentialsScript.test.ts
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: credential literal rg scan
+          status: pass
+        - cmd: static chat surface wording rg scan
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Added provider task polling and callback intake state that turns completed Suno generation records into durable local project assets and export downloads for generated audio, cover art, and stems. Added provider callback failure receipts, server-side normalization for record-info and callback payloads, a visual Provider export manager lane, and video-output blocking that keeps Music Video Lane export subordinate to selected-song ownership and perfect lipsync approval. Tightened credential scanning so ordinary task/webhook identifiers are not false positives while long-form secret patterns remain blocked."
+  - id: T120
+    type: worker
+    assignee: Worker
+    status: active
+    objective: "Implement server runtime routes and local persistence for provider jobs, callbacks, and export downloads so the visual app can leave in-memory-only export state."
+    inputs:
+      - docs/prd.md
+      - docs/api-coverage.md
+      - server/sunoApiAdapter.ts
+      - src/domain/workflow.ts
+      - src/App.tsx
+      - src/api/provider.ts
+    constraints:
+      - "Server routes own provider credentials and callback intake."
+      - "Local persistence must store project/export metadata without provider secrets."
+      - "Downloads must preserve provenance and selected-song ownership."
+      - "Music video exports remain blocked unless the perfect lipsync gate is ready."
+    expected_output:
+      - "Route/handler layer for provider poll, callback, and export/download records."
+      - "Local project export store with durable metadata and no secret material."
+      - "UI/server integration path that can hydrate export status from server-owned state."
+      - "Tests proving callbacks and poll results persist across workflow reload boundaries."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    stop_if:
+      - "Persistence would expose provider credential material."
+      - "Route implementation requires changing external production account state."

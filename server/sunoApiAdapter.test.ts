@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { createSunoApiServerAdapter } from './sunoApiAdapter'
+import {
+  createSunoApiServerAdapter,
+  normalizeProviderCallback,
+  normalizeProviderRecordInfo,
+} from './sunoApiAdapter'
 
 describe('server Suno API adapter', () => {
   it('refuses to construct with client runtime so secrets cannot move into the browser lane', () => {
@@ -145,6 +149,104 @@ describe('server Suno API adapter', () => {
       outcome: 'planned',
       authBoundary: 'server',
       endpoint: '/api/v1/generate',
+    })
+  })
+
+  it('normalizes music record-info results into workflow task-update outputs', () => {
+    const update = normalizeProviderRecordInfo(
+      {
+        code: 200,
+        msg: 'success',
+        data: {
+          taskId: 'task_123',
+          status: 'SUCCESS',
+          response: {
+            sunoData: [
+              {
+                id: 'song_a',
+                title: 'Night Lift A',
+                audioUrl: 'https://cdn.example/song-a.mp3',
+                imageUrl: 'https://cdn.example/song-a.jpeg',
+              },
+            ],
+          },
+        },
+      },
+      {
+        action: 'pollGenerationStatus',
+        capability: 'Get music generation details',
+        receiptId: 'poll-task-123',
+      },
+    )
+
+    expect(update).toEqual({
+      providerTaskId: 'task_123',
+      action: 'pollGenerationStatus',
+      capability: 'Get music generation details',
+      providerStatus: 'SUCCESS',
+      message: 'success',
+      receiptId: 'poll-task-123',
+      outputs: [
+        {
+          kind: 'audio',
+          label: 'Night Lift A audio',
+          url: 'https://cdn.example/song-a.mp3',
+          sourceTrackId: 'song_a',
+        },
+        {
+          kind: 'cover-art',
+          label: 'Night Lift A cover art',
+          url: 'https://cdn.example/song-a.jpeg',
+          sourceTrackId: 'song_a',
+        },
+      ],
+    })
+  })
+
+  it('normalizes provider callbacks into acknowledged workflow callback receipts', () => {
+    const callback = normalizeProviderCallback(
+      {
+        code: 200,
+        msg: 'All generated successfully.',
+        data: {
+          callbackType: 'complete',
+          task_id: 'task_456',
+          data: [
+            {
+              id: 'song_b',
+              title: 'Night Lift B',
+              audio_url: 'https://cdn.example/song-b.mp3',
+              image_url: 'https://cdn.example/song-b.jpeg',
+            },
+          ],
+        },
+      },
+      {
+        action: 'handleProviderCallback',
+        capability: 'Webhooks/retries',
+        receiptId: 'callback-task-456',
+      },
+    )
+
+    expect(callback).toMatchObject({
+      providerTaskId: 'task_456',
+      callbackType: 'complete',
+      code: 200,
+      message: 'All generated successfully.',
+      outputs: [
+        {
+          kind: 'audio',
+          label: 'Night Lift B audio',
+          url: 'https://cdn.example/song-b.mp3',
+          sourceTrackId: 'song_b',
+        },
+        {
+          kind: 'cover-art',
+          label: 'Night Lift B cover art',
+          url: 'https://cdn.example/song-b.jpeg',
+          sourceTrackId: 'song_b',
+        },
+      ],
     })
   })
 })

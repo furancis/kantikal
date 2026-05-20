@@ -42,6 +42,21 @@ describe('credential scan script', () => {
       await rm(workspace, { recursive: true, force: true })
     }
   })
+
+  it('allows ordinary task and webhook wording that contains sk hyphen fragments', async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), 'suno-credential-scan-'))
+
+    try {
+      await writeFile(path.join(workspace, 'notes.ts'), "const receipt = 'task-update webhook-task-123'\n")
+
+      const result = await runScanner(workspace)
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stderr).toBe('')
+    } finally {
+      await rm(workspace, { recursive: true, force: true })
+    }
+  })
 })
 
 function runScanner(cwd: string): Promise<{ exitCode: number | null; stderr: string }> {

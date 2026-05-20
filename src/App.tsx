@@ -39,7 +39,9 @@ import {
   openMusicVideoLane,
   planComfyRenderGraph,
   planArchiveFirstCleanup,
+  recordProviderCallback,
   recordProjectAssetImport,
+  recordProviderTaskUpdate,
   queueSongLabEdit,
   queueLipsyncRepair,
   queueMusicVideoRender,
@@ -55,6 +57,7 @@ import {
   type LipsyncCheckName,
   type LipsyncChecks,
   type ProjectAssetKind,
+  type ProviderTaskOutput,
   type ReleasePack,
   type SunoWorkflow,
 } from './domain/workflow'
@@ -74,6 +77,7 @@ type NodeKind =
   | 'songlab'
   | 'queue'
   | 'library'
+  | 'downloads'
   | 'video'
   | 'export'
 
@@ -159,6 +163,7 @@ const iconByKind: Record<NodeKind, ComponentType<{ size?: number }>> = {
   songlab: Waves,
   queue: Activity,
   library: Library,
+  downloads: Download,
   video: Video,
   export: Download,
 }
@@ -229,6 +234,7 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
         ...createWorkflow(briefInput),
         projectAssets: workflow.projectAssets,
         voicePersonas: workflow.voicePersonas,
+        exports: workflow.exports,
         jobQueue: workflow.jobQueue,
         provenance: workflow.provenance,
       }
@@ -337,6 +343,93 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
       )
       setSelectedId(input.kind === 'persona-reference' ? 'voice' : 'project-assets')
     }
+  }
+
+  function handlePollSelectedGenerationJob() {
+    setWorkflow((current) => {
+      const sourceTrack = current.selectedTrack ?? current.generationBatch?.tracks[0]
+      if (!current.generationBatch || !sourceTrack) {
+        return current
+      }
+      const outputs: ProviderTaskOutput[] = [
+        {
+          kind: 'audio',
+          label: `${sourceTrack.title} master audio`,
+          url: `local-export://${sourceTrack.id}/master.mp3`,
+          sourceTrackId: sourceTrack.id,
+        },
+        {
+          kind: 'cover-art',
+          label: `${sourceTrack.title} cover art`,
+          url: `local-export://${sourceTrack.id}/cover.jpeg`,
+          sourceTrackId: sourceTrack.id,
+        },
+        {
+          kind: 'stem',
+          label: `${sourceTrack.title} vocals stem`,
+          url: `local-export://${sourceTrack.id}/vocals.mp3`,
+          sourceTrackId: sourceTrack.id,
+          stemName: 'vocals',
+        },
+      ]
+
+      return recordProviderTaskUpdate(current, {
+        providerTaskId: current.generationBatch.providerJobId,
+        action: 'pollGenerationStatus',
+        capability: 'Get music generation details',
+        providerStatus: 'SUCCESS',
+        message: 'Mock record-info poll produced local downloadable outputs',
+        outputs,
+        receiptId: `poll-${current.generationBatch.providerJobId}`,
+      })
+    })
+    setSelectedId('downloads')
+  }
+
+  function handleReceiveFailedCallback() {
+    setWorkflow((current) => {
+      if (!current.generationBatch) {
+        return current
+      }
+      return recordProviderCallback(current, {
+        providerTaskId: current.generationBatch.providerJobId,
+        action: 'handleProviderCallback',
+        capability: 'Webhooks/retries',
+        callbackType: 'complete',
+        code: 451,
+        providerStatus: 'FAILED',
+        message: 'Provider callback reported file download failure',
+        outputs: [],
+        receiptId: `callback-${current.generationBatch.providerJobId}`,
+      })
+    })
+    setSelectedId('downloads')
+  }
+
+  function handleRecordProviderVideoOutput() {
+    setWorkflow((current) => {
+      const lane = current.musicVideoLane
+      if (!lane) {
+        return current
+      }
+      return recordProviderTaskUpdate(current, {
+        providerTaskId: `video-${lane.sourceTrackId}`,
+        action: 'createProviderMusicVideo',
+        capability: 'Provider music video creation',
+        providerStatus: 'SUCCESS',
+        message: 'Provider video output received',
+        outputs: [
+          {
+            kind: 'video',
+            label: `${lane.sourceTrackId} provider video`,
+            url: `local-export://${lane.sourceTrackId}/video.mp4`,
+            sourceTrackId: lane.sourceTrackId,
+          },
+        ],
+        receiptId: `video-${lane.sourceTrackId}`,
+      })
+    })
+    setSelectedId('downloads')
   }
 
   function handleFieldChange(field: keyof BriefInput) {
@@ -913,6 +1006,73 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
               </div>
             </div>
           )}
+          {selected.kind === 'downloads' && (
+            <div className="workflow-section">
+              <h3>Provider export manager</h3>
+              <p>Polls and callbacks turn provider task IDs into local download assets when outputs are ready.</p>
+              <div className="gate-actions">
+                <button type="button" disabled={!workflow.generationBatch} onClick={handlePollSelectedGenerationJob}>
+                  <Activity size={16} />
+                  Poll selected generation job
+                </button>
+                <button type="button" disabled={!workflow.generationBatch} onClick={handleReceiveFailedCallback}>
+                  <GitBranch size={16} />
+                  Receive failed callback
+                </button>
+                <button type="button" disabled={!workflow.musicVideoLane} onClick={handleRecordProviderVideoOutput}>
+                  <Video size={16} />
+                  Record provider video output
+                </button>
+              </div>
+              <div className="export-list" aria-label="Provider export tasks">
+                {workflow.exports.tasks.length === 0 ? (
+                  <div>
+                    <strong>No provider export tasks yet</strong>
+                    <small>Poll a generation task or receive a callback to materialize outputs.</small>
+                  </div>
+                ) : (
+                  workflow.exports.tasks.map((task) => (
+                    <div className={task.status} key={task.id}>
+                      <strong>
+                        {task.capability} {task.status}
+                      </strong>
+                      <small>
+                        {task.providerTaskId}; {task.message}
+                      </small>
+                    </div>
+                  ))
+                )}
+              </div>
+              {workflow.exports.downloads.length > 0 && (
+                <div className="export-list" aria-label="Export downloads">
+                  {workflow.exports.downloads.map((download) => (
+                    <div className={download.status} key={download.id}>
+                      <strong>
+                        {download.kind} {download.status}
+                      </strong>
+                      <small>
+                        {download.assetId}; {download.label}; {download.message}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {workflow.exports.callbacks.length > 0 && (
+                <div className="export-list" aria-label="Provider callbacks">
+                  {workflow.exports.callbacks.map((callback) => (
+                    <div className={callback.status} key={callback.id}>
+                      <strong>
+                        {callback.callbackType} callback {callback.status}
+                      </strong>
+                      <small>
+                        {callback.providerTaskId}; code {callback.code}; {callback.message}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {selected.kind === 'library' && (
             <div className="workflow-section">
               <p>Provider library API unsupported. Local project saves remain available without pretending to sync upstream.</p>
@@ -1316,6 +1476,24 @@ function buildWorkflowNodes(workflow: SunoWorkflow, releasePack: ReleasePack | n
       x: 12,
       y: 62,
       meta: ['local project state', `provider library ${workflow.localLibrary.providerLibraryStatus}`, 'taste memory'],
+    },
+    {
+      id: 'downloads',
+      kind: 'downloads',
+      title: 'Downloads / exports',
+      summary: `${workflow.exports.tasks.length} provider tasks and ${workflow.exports.downloads.length} download assets`,
+      status: workflow.exports.tasks.some((task) => task.status === 'failed' || task.status === 'blocked')
+        ? 'needs-review'
+        : workflow.exports.downloads.some((download) => download.status === 'ready')
+          ? 'ready'
+          : 'draft',
+      x: 30,
+      y: 62,
+      meta: [
+        'polls',
+        'callbacks',
+        `${workflow.exports.callbacks.length} callback receipts`,
+      ],
     },
   ]
 

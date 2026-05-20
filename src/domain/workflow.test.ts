@@ -10,7 +10,9 @@ import {
   openMusicVideoLane,
   planArchiveFirstCleanup,
   planComfyRenderGraph,
+  recordProviderCallback,
   recordProjectAssetImport,
+  recordProviderTaskUpdate,
   queueSongLabEdit,
   queueLipsyncRepair,
   queueMusicVideoRender,
@@ -504,6 +506,215 @@ describe('Suno workflow state machine', () => {
     expect(renderPlan.musicVideoLane?.renderPlan?.referenceAssetIds).toEqual(songLab.songLab?.assetRefs)
     expect(renderPlan.musicVideoLane?.renderPlan?.nodes.find((node) => node.id === 'references')?.value).toContain(
       'asset-cover-art-4',
+    )
+  })
+
+  it('turns completed provider poll output into durable download assets', () => {
+    const workflow = selectTrack(
+      submitGenerationBatch(
+        createWorkflow({
+          brief: 'Provider completion hook',
+          lyrics: 'Verse chorus',
+          style: 'cinematic pop',
+          voice: 'consented lead',
+        }),
+        {
+          providerJobId: 'task_123',
+          tracks: [{ id: 'song_a', title: 'Night Lift A', durationSeconds: 154 }],
+        },
+      ),
+      'song_a',
+    )
+
+    const updated = recordProviderTaskUpdate(workflow, {
+      providerTaskId: 'task_123',
+      action: 'pollGenerationStatus',
+      capability: 'Get music generation details',
+      providerStatus: 'SUCCESS',
+      message: 'All tracks generated successfully',
+      outputs: [
+        {
+          kind: 'audio',
+          label: 'Night Lift A master audio',
+          url: 'https://cdn.example/song-a.mp3',
+          sourceTrackId: 'song_a',
+        },
+        {
+          kind: 'cover-art',
+          label: 'Night Lift A cover art',
+          url: 'https://cdn.example/song-a.jpeg',
+          sourceTrackId: 'song_a',
+        },
+        {
+          kind: 'stem',
+          label: 'Night Lift A vocals stem',
+          url: 'https://cdn.example/song-a-vocals.mp3',
+          sourceTrackId: 'song_a',
+          stemName: 'vocals',
+        },
+      ],
+      receiptId: 'poll-task-123',
+    })
+
+    expect(updated.exports.tasks).toEqual([
+      expect.objectContaining({
+        providerTaskId: 'task_123',
+        status: 'ready',
+        outputAssetIds: [
+          'asset-generated-audio-task-123-1',
+          'asset-cover-art-task-123-2',
+          'asset-stem-task-123-3',
+        ],
+      }),
+    ])
+    expect(updated.exports.downloads.map((download) => `${download.kind}:${download.status}`)).toEqual([
+      'audio:ready',
+      'cover-art:ready',
+      'stem:ready',
+    ])
+    expect(updated.projectAssets.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'asset-generated-audio-task-123-1',
+          kind: 'generated-audio',
+          status: 'available',
+          sourceIds: ['song_a', 'task_123'],
+        }),
+        expect.objectContaining({
+          id: 'asset-stem-task-123-3',
+          kind: 'stem',
+          tags: ['download', 'stem', 'vocals'],
+        }),
+      ]),
+    )
+    expect(updated.provenance).toEqual(expect.arrayContaining(['provider-task-update', 'provider-download-assets']))
+  })
+
+  it('records provider callback failures without creating downloads', () => {
+    const workflow = submitGenerationBatch(
+      createWorkflow({
+        brief: 'Callback failure hook',
+        lyrics: 'Verse chorus',
+        style: 'cinematic pop',
+        voice: 'consented lead',
+      }),
+      {
+        providerJobId: 'task_failed',
+        tracks: [{ id: 'song_a', title: 'Night Lift A', durationSeconds: 154 }],
+      },
+    )
+
+    const failed = recordProviderCallback(workflow, {
+      providerTaskId: 'task_failed',
+      action: 'handleProviderCallback',
+      capability: 'Webhooks/retries',
+      callbackType: 'complete',
+      code: 451,
+      providerStatus: 'FAILED',
+      message: 'File download failed',
+      outputs: [],
+      receiptId: 'callback-task-failed',
+    })
+
+    expect(failed.exports.callbacks).toEqual([
+      expect.objectContaining({
+        providerTaskId: 'task_failed',
+        code: 451,
+        status: 'failed',
+      }),
+    ])
+    expect(failed.exports.tasks).toEqual([
+      expect.objectContaining({
+        providerTaskId: 'task_failed',
+        status: 'failed',
+        message: 'File download failed',
+      }),
+    ])
+    expect(failed.exports.downloads).toEqual([])
+    expect(failed.jobQueue.at(-1)).toMatchObject({
+      action: 'handleProviderCallback',
+      status: 'blocked',
+      providerTaskId: 'task_failed',
+    })
+  })
+
+  it('keeps provider video downloads blocked until the perfect lipsync gate is ready', () => {
+    const workflow = openMusicVideoLane(
+      selectTrack(
+        submitGenerationBatch(
+          createWorkflow({
+            brief: 'Video callback hook',
+            lyrics: 'Verse chorus',
+            style: 'cinematic pop',
+            voice: 'consented lead',
+          }),
+          {
+            providerJobId: 'task_video',
+            tracks: [{ id: 'song_a', title: 'Night Lift A', durationSeconds: 154 }],
+          },
+        ),
+        'song_a',
+      ),
+    )
+    const videoOutput = {
+      providerTaskId: 'task_video',
+      action: 'createProviderMusicVideo',
+      capability: 'Provider music video creation',
+      providerStatus: 'SUCCESS',
+      message: 'Video ready',
+      outputs: [
+        {
+          kind: 'video' as const,
+          label: 'Night Lift A provider video',
+          url: 'https://cdn.example/song-a.mp4',
+          sourceTrackId: 'song_a',
+        },
+      ],
+      receiptId: 'video-task',
+    }
+
+    const blocked = recordProviderTaskUpdate(workflow, videoOutput)
+    expect(blocked.exports.downloads).toEqual([
+      expect.objectContaining({
+        kind: 'video',
+        status: 'blocked',
+        message: expect.stringMatching(/lipsync/i),
+      }),
+    ])
+    expect(blocked.projectAssets.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'asset-video-output-task-video-1',
+          kind: 'video-output',
+          status: 'blocked',
+        }),
+      ]),
+    )
+
+    const passed = evaluateLipsync(workflow, {
+      phoneme: true,
+      frame: true,
+      mouthShape: true,
+      segmentDrift: true,
+      postStitch: true,
+    })
+    const ready = recordProviderTaskUpdate(passed, videoOutput)
+
+    expect(ready.exports.downloads).toEqual([
+      expect.objectContaining({
+        kind: 'video',
+        status: 'ready',
+        assetId: 'asset-video-output-task-video-1',
+      }),
+    ])
+    expect(ready.projectAssets.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'asset-video-output-task-video-1',
+          kind: 'video-output',
+          status: 'available',
+        }),
+      ]),
     )
   })
 

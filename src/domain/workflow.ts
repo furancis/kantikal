@@ -123,8 +123,11 @@ export type ProjectAssetKind =
   | 'cover-art'
   | 'persona-reference'
   | 'video-reference'
+  | 'generated-audio'
+  | 'stem'
+  | 'video-output'
 
-export type ProjectAssetStatus = 'available' | 'planned' | 'blocked' | 'unsupported'
+export type ProjectAssetStatus = 'available' | 'planned' | 'blocked' | 'unsupported' | 'failed'
 
 export type ProjectAsset = {
   id: string
@@ -154,6 +157,76 @@ export type ProjectAssetImport = {
 export type ProjectAssetLibrary = {
   items: ProjectAsset[]
   imports: ProjectAssetImport[]
+}
+
+export type ExportOutputKind = 'audio' | 'cover-art' | 'stem' | 'video'
+
+export type ProviderTaskOutput = {
+  kind: ExportOutputKind
+  label: string
+  url: string
+  sourceTrackId?: string
+  stemName?: string
+}
+
+export type ProviderTaskUpdateInput = {
+  providerTaskId: string
+  action: string
+  capability: string
+  providerStatus: string
+  message: string
+  outputs: ProviderTaskOutput[]
+  receiptId: string
+}
+
+export type ProviderCallbackInput = ProviderTaskUpdateInput & {
+  callbackType: string
+  code: number
+}
+
+export type ExportTaskStatus = 'queued' | 'ready' | 'blocked' | 'failed'
+
+export type ExportTask = {
+  id: string
+  providerTaskId: string
+  action: string
+  capability: string
+  providerStatus: string
+  status: ExportTaskStatus
+  message: string
+  outputAssetIds: string[]
+  receiptId: string
+}
+
+export type ExportDownloadStatus = 'ready' | 'blocked' | 'failed'
+
+export type ExportDownload = {
+  id: string
+  kind: ExportOutputKind
+  status: ExportDownloadStatus
+  assetId: string
+  label: string
+  url: string
+  sourceTrackId?: string
+  providerTaskId: string
+  message: string
+  receiptId: string
+}
+
+export type ProviderCallbackReceipt = {
+  id: string
+  providerTaskId: string
+  callbackType: string
+  code: number
+  status: 'received' | 'failed'
+  message: string
+  receiptId: string
+}
+
+export type ExportManagerState = {
+  tasks: ExportTask[]
+  downloads: ExportDownload[]
+  callbacks: ProviderCallbackReceipt[]
 }
 
 export type VoicePersona = {
@@ -304,6 +377,7 @@ export type SunoWorkflow = BriefInput & {
   localLibrary: LocalLibraryState
   projectAssets: ProjectAssetLibrary
   voicePersonas: VoicePersonaState
+  exports: ExportManagerState
   archiveEntries: ArchiveEntry[]
   cleanupPlan: CleanupPlan | null
   cleanupReceipts: CleanupReceipt[]
@@ -331,6 +405,7 @@ export function createWorkflow(input: BriefInput): SunoWorkflow {
     localLibrary: createLocalLibraryState(),
     projectAssets: createProjectAssetLibrary(input),
     voicePersonas: createVoicePersonaState(input),
+    exports: createExportManagerState(),
     archiveEntries: [],
     cleanupPlan: null,
     cleanupReceipts: [],
@@ -588,6 +663,90 @@ export function recordProjectAssetImport(
     jobQueue: [...workflow.jobQueue, createProviderJob(workflow, result)],
     provenance: appendOnce(workflow.provenance, 'project-asset-import'),
   }
+}
+
+export function recordProviderTaskUpdate(
+  workflow: SunoWorkflow,
+  input: ProviderTaskUpdateInput,
+): SunoWorkflow {
+  const taskStatus = providerStatusToExportTaskStatus(input.providerStatus, input.outputs)
+  const outputRecords = input.outputs.map((output, index) =>
+    toProviderOutputRecord(workflow, input, output, index),
+  )
+  const task: ExportTask = {
+    id: `export-task-${sanitizeId(input.providerTaskId)}`,
+    providerTaskId: input.providerTaskId,
+    action: input.action,
+    capability: input.capability,
+    providerStatus: input.providerStatus,
+    status: taskStatus,
+    message: input.message,
+    outputAssetIds: outputRecords.map((record) => record.asset.id),
+    receiptId: input.receiptId,
+  }
+  const providerJobResult: ProviderJobResultInput = {
+    action: input.action,
+    capability: input.capability,
+    outcome: exportTaskStatusToProviderOutcome(taskStatus),
+    message: input.message,
+    authBoundary: 'server',
+    providerTaskId: input.providerTaskId,
+    receiptId: input.receiptId,
+  }
+
+  return {
+    ...workflow,
+    projectAssets: {
+      ...workflow.projectAssets,
+      items: upsertProjectAssets(workflow.projectAssets.items, outputRecords.map((record) => record.asset)),
+    },
+    exports: {
+      ...workflow.exports,
+      tasks: upsertExportTask(workflow.exports.tasks, task),
+      downloads: upsertExportDownloads(
+        workflow.exports.downloads,
+        taskStatus === 'failed' ? [] : outputRecords.map((record) => record.download),
+      ),
+    },
+    jobQueue: upsertProviderJob(workflow.jobQueue, createProviderJob(workflow, providerJobResult)),
+    provenance: outputRecords.length > 0 && taskStatus !== 'failed'
+      ? appendOnce(appendOnce(workflow.provenance, 'provider-task-update'), 'provider-download-assets')
+      : appendOnce(workflow.provenance, 'provider-task-update'),
+  }
+}
+
+export function recordProviderCallback(
+  workflow: SunoWorkflow,
+  input: ProviderCallbackInput,
+): SunoWorkflow {
+  const callbackStatus = input.code === 200 ? 'received' : 'failed'
+  const callbackReceipt: ProviderCallbackReceipt = {
+    id: `callback-${sanitizeId(input.providerTaskId)}-${sanitizeId(input.callbackType)}`,
+    providerTaskId: input.providerTaskId,
+    callbackType: input.callbackType,
+    code: input.code,
+    status: callbackStatus,
+    message: input.message,
+    receiptId: input.receiptId,
+  }
+  const withCallback = {
+    ...workflow,
+    exports: {
+      ...workflow.exports,
+      callbacks: upsertProviderCallback(workflow.exports.callbacks, callbackReceipt),
+    },
+    provenance: appendOnce(workflow.provenance, 'provider-callback-received'),
+  }
+
+  return recordProviderTaskUpdate(withCallback, {
+    providerTaskId: input.providerTaskId,
+    action: input.action,
+    capability: input.capability,
+    providerStatus: input.code === 200 ? input.providerStatus : 'FAILED',
+    message: input.message,
+    outputs: input.code === 200 ? input.outputs : [],
+    receiptId: input.receiptId,
+  })
 }
 
 export function saveSelectedTrackToLocalLibrary(
@@ -1047,6 +1206,14 @@ function createLocalLibraryState(): LocalLibraryState {
   }
 }
 
+function createExportManagerState(): ExportManagerState {
+  return {
+    tasks: [],
+    downloads: [],
+    callbacks: [],
+  }
+}
+
 function createProjectAssetLibrary(input: BriefInput): ProjectAssetLibrary {
   return {
     items: [
@@ -1338,6 +1505,154 @@ function providerOutcomeToAssetStatus(outcome: ProviderJobResultInput['outcome']
   return outcome
 }
 
+function providerStatusToExportTaskStatus(
+  providerStatus: string,
+  outputs: ProviderTaskOutput[],
+): ExportTaskStatus {
+  const normalized = providerStatus.toUpperCase()
+  if (
+    [
+      'CREATE_TASK_FAILED',
+      'GENERATE_AUDIO_FAILED',
+      'CALLBACK_EXCEPTION',
+      'SENSITIVE_WORD_ERROR',
+      'FAILED',
+      'FAILURE',
+      'ERROR',
+    ].includes(normalized)
+  ) {
+    return 'failed'
+  }
+  if (normalized === 'SUCCESS' && outputs.length > 0) {
+    return 'ready'
+  }
+  if (normalized === 'SUCCESS') {
+    return 'blocked'
+  }
+  return 'queued'
+}
+
+function exportTaskStatusToProviderOutcome(status: ExportTaskStatus): ProviderJobResultInput['outcome'] {
+  if (status === 'ready') {
+    return 'succeeded'
+  }
+  if (status === 'queued') {
+    return 'planned'
+  }
+  return 'blocked'
+}
+
+function toProviderOutputRecord(
+  workflow: SunoWorkflow,
+  input: ProviderTaskUpdateInput,
+  output: ProviderTaskOutput,
+  index: number,
+): { asset: ProjectAsset; download: ExportDownload } {
+  const downloadStatus = providerOutputDownloadStatus(workflow, output)
+  const assetId = providerOutputAssetId(output, input.providerTaskId, index)
+  const sourceIds = mergeIds([
+    ...(output.sourceTrackId ? [output.sourceTrackId] : []),
+    input.providerTaskId,
+  ])
+  const tags = mergeIds(['download', output.kind, ...(output.stemName ? [output.stemName] : [])])
+  const asset: ProjectAsset = {
+    id: assetId,
+    kind: providerOutputAssetKind(output.kind),
+    label: output.label,
+    status: downloadStatus === 'ready' ? 'available' : downloadStatus,
+    source: 'provider',
+    providerAction: input.action,
+    authBoundary: 'server',
+    sourceIds,
+    tags,
+  }
+  const download: ExportDownload = {
+    id: `download-${sanitizeId(input.providerTaskId)}-${index + 1}`,
+    kind: output.kind,
+    status: downloadStatus,
+    assetId,
+    label: output.label,
+    url: output.url,
+    sourceTrackId: output.sourceTrackId,
+    providerTaskId: input.providerTaskId,
+    message: downloadStatus === 'blocked'
+      ? 'Video download blocked until perfect lipsync QA is ready'
+      : input.message,
+    receiptId: input.receiptId,
+  }
+
+  return { asset, download }
+}
+
+function providerOutputDownloadStatus(
+  workflow: SunoWorkflow,
+  output: ProviderTaskOutput,
+): ExportDownloadStatus {
+  if (output.kind === 'video' && !isVideoOutputApproved(workflow, output)) {
+    return 'blocked'
+  }
+  return 'ready'
+}
+
+function isVideoOutputApproved(workflow: SunoWorkflow, output: ProviderTaskOutput): boolean {
+  if (!workflow.musicVideoLane || workflow.musicVideoLane.exportStatus !== 'ready') {
+    return false
+  }
+  if (output.sourceTrackId && output.sourceTrackId !== workflow.musicVideoLane.sourceTrackId) {
+    return false
+  }
+  return true
+}
+
+function providerOutputAssetKind(kind: ExportOutputKind): ProjectAssetKind {
+  if (kind === 'audio') {
+    return 'generated-audio'
+  }
+  if (kind === 'video') {
+    return 'video-output'
+  }
+  return kind
+}
+
+function providerOutputAssetId(output: ProviderTaskOutput, providerTaskId: string, index: number): string {
+  return `asset-${providerOutputAssetKind(output.kind)}-${sanitizeId(providerTaskId)}-${index + 1}`
+}
+
+function upsertProjectAssets(current: ProjectAsset[], next: ProjectAsset[]): ProjectAsset[] {
+  return next.reduce(
+    (assets, asset) =>
+      assets.some((candidate) => candidate.id === asset.id)
+        ? assets.map((candidate) => (candidate.id === asset.id ? asset : candidate))
+        : [...assets, asset],
+    current,
+  )
+}
+
+function upsertExportTask(current: ExportTask[], task: ExportTask): ExportTask[] {
+  return current.some((candidate) => candidate.id === task.id)
+    ? current.map((candidate) => (candidate.id === task.id ? task : candidate))
+    : [...current, task]
+}
+
+function upsertExportDownloads(current: ExportDownload[], downloads: ExportDownload[]): ExportDownload[] {
+  return downloads.reduce(
+    (items, download) =>
+      items.some((candidate) => candidate.id === download.id)
+        ? items.map((candidate) => (candidate.id === download.id ? download : candidate))
+        : [...items, download],
+    current,
+  )
+}
+
+function upsertProviderCallback(
+  current: ProviderCallbackReceipt[],
+  callback: ProviderCallbackReceipt,
+): ProviderCallbackReceipt[] {
+  return current.some((candidate) => candidate.id === callback.id)
+    ? current.map((candidate) => (candidate.id === callback.id ? callback : candidate))
+    : [...current, callback]
+}
+
 function createProviderJob(workflow: SunoWorkflow, result: ProviderJobResultInput): ProviderJob {
   return {
     id: `job-${workflow.jobQueue.length + 1}`,
@@ -1352,6 +1667,19 @@ function createProviderJob(workflow: SunoWorkflow, result: ProviderJobResultInpu
     receiptId: result.receiptId,
     sourceTrackId: workflow.selectedTrack?.id ?? workflow.musicVideoLane?.sourceTrackId,
   }
+}
+
+function upsertProviderJob(current: ProviderJob[], next: ProviderJob): ProviderJob[] {
+  const existingIndex = current.findIndex(
+    (job) =>
+      job.receiptId === next.receiptId ||
+      (Boolean(job.providerTaskId) && job.providerTaskId === next.providerTaskId && job.action === next.action),
+  )
+  if (existingIndex === -1) {
+    return [...current, next]
+  }
+
+  return current.map((job, index) => (index === existingIndex ? { ...next, id: job.id } : job))
 }
 
 function upsertVoicePersona(
@@ -1384,6 +1712,14 @@ function assetIdsForWorkflow(workflow: SunoWorkflow): string[] {
 
 function mergeIds(values: string[]): string[] {
   return values.filter((value, index) => values.indexOf(value) === index)
+}
+
+function sanitizeId(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 }
 
 function appendOnce(values: string[], value: string): string[] {

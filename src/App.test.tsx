@@ -270,6 +270,27 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByText(/Reference assets/i)).toHaveTextContent(/asset-cover-art-4/i)
   })
 
+  it('surfaces provider polling and export downloads as durable project assets', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /dark cinematic lift v2/i }))
+    await user.click(screen.getByRole('button', { name: /downloads \/ exports/i }))
+
+    expect(screen.getByRole('heading', { name: /provider export manager/i })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /poll selected generation job/i }))
+
+    expect(screen.getByText(/Get music generation details ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/audio ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/cover-art ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/stem ready/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /source assets:/i }))
+    expect(screen.getByText(/asset-generated-audio-/i)).toBeInTheDocument()
+    expect(screen.getByText(/generated-audio; .*master audio/i)).toBeInTheDocument()
+  })
+
   it('shows unsupported provider capabilities as explicit action results', async () => {
     const user = userEvent.setup()
     render(<App />)
