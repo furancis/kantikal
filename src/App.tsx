@@ -198,7 +198,7 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
           <h1>Visual music generation operating app</h1>
         </div>
         <div className="topbar-actions" aria-label="Project controls">
-          <button aria-label="Run generation" onClick={() => void handleGenerate()}>
+          <button aria-label="Run generation" disabled={isGenerating} onClick={() => void handleGenerate()}>
             <Play size={16} />
             Run
           </button>
