@@ -144,6 +144,26 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/unsupported/i)
   })
 
+  it('shows a blocked API action result when a provider action rejects', async () => {
+    const user = userEvent.setup()
+    const rejectingProvider: SunoProvider = {
+      async generateBatch() {
+        throw new Error('Generation not used')
+      },
+      async executeAction() {
+        throw new Error('Server adapter offline')
+      },
+    }
+
+    render(<App provider={rejectingProvider} />)
+
+    await user.click(screen.getByRole('button', { name: /run api action create song/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/create song/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/blocked/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/server adapter offline/i)
+  })
+
   it('shows release pack deliverables, provenance receipts, and archive-first cleanup', async () => {
     const user = userEvent.setup()
     render(<App />)

@@ -450,7 +450,7 @@ tasks:
           status: pass
         - cmd: git diff --check
           status: pass
-      summary: "Added an endpoint-backed provider action catalog sourced from live SunoAPI OpenAPI specs, a server-only Suno API adapter that blocks without server credentials and never returns keys, client API-console action dispatch through the provider lane, explicit unsupported states for capabilities absent from current provider docs, and server tests included in Vitest."
+      summary: "Added an endpoint-backed provider action catalog sourced from live SunoAPI OpenAPI specs, a server-only Suno API adapter that blocks without server credentials and never returns keys, client API-console action dispatch through the provider lane, explicit unsupported states for capabilities absent from current provider docs, and server tests included in Vitest. Greptile P1 follow-up catches provider action rejections and turns them into blocked API action results instead of stale UI state."
   - id: T080
     type: worker
     assignee: Worker

@@ -209,20 +209,33 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
   }
 
   async function handleRunApiAction(entry: ApiCoverageEntry) {
-    const result = await executeProviderAction(provider, {
-      action: entry.adapterAction,
-      capability: entry.capability,
-      brief: briefInput.brief,
-      lyrics: briefInput.lyrics,
-      style: briefInput.style,
-      voice: briefInput.voice,
-      payload: {
-        prompt: briefInput.lyrics || briefInput.brief,
+    const actionState = actionStateForEntry(entry)
+    try {
+      const result = await executeProviderAction(provider, {
+        action: entry.adapterAction,
+        capability: entry.capability,
+        brief: briefInput.brief,
+        lyrics: briefInput.lyrics,
         style: briefInput.style,
-        title: briefInput.brief,
-      },
-    })
-    setApiActionResult(result)
+        voice: briefInput.voice,
+        payload: {
+          prompt: briefInput.lyrics || briefInput.brief,
+          style: briefInput.style,
+          title: briefInput.brief,
+        },
+      })
+      setApiActionResult(result)
+    } catch (error) {
+      setApiActionResult({
+        action: entry.adapterAction,
+        capability: entry.capability,
+        outcome: 'blocked',
+        message: error instanceof Error ? error.message : 'Provider action failed',
+        authBoundary: actionState.authBoundary,
+        endpoint: actionState.path,
+        receiptId: `provider-action-error-${entry.adapterAction}`,
+      })
+    }
   }
 
   function handleFieldChange(field: keyof BriefInput) {
