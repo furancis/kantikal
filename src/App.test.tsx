@@ -2,7 +2,12 @@ import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from './App'
-import { createMemoryProjectStore, projectSnapshotFromState } from './api/projectStore'
+import {
+  createMemoryProjectStore,
+  projectSnapshotFromState,
+  type ProjectStore,
+  type ProjectWorkflowSnapshot,
+} from './api/projectStore'
 import type { SunoProvider } from './api/provider'
 import type { ProviderExportRuntimeClient } from './api/exportRuntime'
 import {
@@ -509,7 +514,7 @@ describe('Suno Visual Studio shell', () => {
     const user = userEvent.setup()
     const projectAWorkflow = persistedWorkflowFixture('project-a')
     const projectBWorkflow = persistedWorkflowFixture('project-b')
-    const projectStore = createMemoryProjectStore([
+    const baseProjectStore = createMemoryProjectStore([
       projectSnapshotFromState({
         projectId: 'project-a',
         briefInput: { ...persistedBrief, brief: 'Project A hook' },
@@ -525,21 +530,45 @@ describe('Suno Visual Studio shell', () => {
         savedAt: '2026-05-20T10:00:00.000Z',
       }),
     ])
+    const savedSnapshots: ProjectWorkflowSnapshot[] = []
+    const projectStore: ProjectStore = {
+      loadProject: baseProjectStore.loadProject,
+      listProjects: baseProjectStore.listProjects,
+      async saveProject(snapshot) {
+        savedSnapshots.push(snapshot)
+        return baseProjectStore.saveProject(snapshot)
+      },
+    }
+    const rejectingProvider: SunoProvider = {
+      async generateBatch() {
+        throw new Error('generation not used')
+      },
+      async executeAction() {
+        throw new Error('Project A action failed')
+      },
+    }
 
-    render(<App projectId="project-a" projectStore={projectStore} />)
+    render(<App projectId="project-a" projectStore={projectStore} provider={rejectingProvider} />)
 
     await user.click(await screen.findByRole('button', { name: /open project lobby/i }))
     const recentProjects = screen.getByLabelText(/recent projects/i)
     expect(within(recentProjects).getByText(/Project A hook/i)).toBeInTheDocument()
     expect(within(recentProjects).getByText(/Project B hook/i)).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /Project B hook/i }))
+    await user.click(screen.getByRole('button', { name: /run api action create song/i }))
+    expect(await screen.findByRole('status')).toHaveTextContent(/Project A action failed/i)
+
+    await user.click(within(recentProjects).getByRole('button', { name: /Project B hook/i }))
 
     expect((await screen.findAllByText(/Current project: project-b/i)).length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: /hydrated hook take 2 selected as audio source of truth \(project-b-track-2\)/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', {
       name: /hydrated hook take 2 selected as audio source of truth \(project-a-track-2\)/i,
     })).not.toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(savedSnapshots.some((snapshot) =>
+      snapshot.projectId === 'project-b' && snapshot.workflow.selectedTrack?.id === 'project-a-track-2',
+    )).toBe(false)
   })
 
   it('surfaces provider export hydrate failures as visible runtime errors', async () => {

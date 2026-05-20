@@ -228,7 +228,7 @@ export function App({
   const projectStore = injectedProjectStore ?? localProjectStore
   const coverageCounts = useMemo(() => apiCoverageStatusCounts(apiCoverageEntries), [])
   const [activeProjectId, setActiveProjectId] = useState(projectId)
-  const [projectHydrated, setProjectHydrated] = useState(false)
+  const [hydratedProjectId, setHydratedProjectId] = useState<string | null>(null)
   const [projectStoreError, setProjectStoreError] = useState<string | null>(null)
   const [recentProjects, setRecentProjects] = useState<ProjectSummary[]>([])
   const [briefInput, setBriefInput] = useState<BriefInput>(initialBrief)
@@ -240,6 +240,7 @@ export function App({
   const [videoExportError, setVideoExportError] = useState<string | null>(null)
   const [exportRuntimeError, setExportRuntimeError] = useState<string | null>(null)
   const [apiActionResult, setApiActionResult] = useState<ProviderActionResult | null>(null)
+  const projectHydrated = hydratedProjectId === activeProjectId
 
   const workflowNodes = useMemo(
     () => buildWorkflowNodes(workflow, releasePack, recentProjects, activeProjectId),
@@ -253,10 +254,16 @@ export function App({
 
   useEffect(() => {
     let cancelled = false
-    setProjectHydrated(false)
+    const loadingProjectId = activeProjectId
+    setHydratedProjectId(null)
     setProjectStoreError(null)
+    setIsGenerating(false)
+    setGenerateError(null)
+    setVideoExportError(null)
+    setExportRuntimeError(null)
+    setApiActionResult(null)
     void projectStore
-      .loadProject(activeProjectId)
+      .loadProject(loadingProjectId)
       .then((snapshot) => {
         if (cancelled) {
           return
@@ -267,7 +274,7 @@ export function App({
           setReleasePack(snapshot.releasePack)
           setSelectedId('project-lobby')
         }
-        setProjectHydrated(true)
+        setHydratedProjectId(loadingProjectId)
       })
       .then(() => projectStore.listProjects())
       .then((projects) => {
@@ -278,7 +285,7 @@ export function App({
       .catch((error) => {
         if (!cancelled) {
           setProjectStoreError(errorMessage(error, 'Project hydration failed'))
-          setProjectHydrated(true)
+          setHydratedProjectId(loadingProjectId)
         }
       })
     return () => {
@@ -287,7 +294,7 @@ export function App({
   }, [activeProjectId, projectStore])
 
   useEffect(() => {
-    if (!projectHydrated) {
+    if (hydratedProjectId !== activeProjectId) {
       return
     }
     let cancelled = false
@@ -313,7 +320,7 @@ export function App({
     return () => {
       cancelled = true
     }
-  }, [activeProjectId, briefInput, projectHydrated, projectStore, releasePack, workflow])
+  }, [activeProjectId, briefInput, hydratedProjectId, projectStore, releasePack, workflow])
 
   useEffect(() => {
     if (!projectHydrated) {

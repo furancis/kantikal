@@ -38,7 +38,7 @@ type BrowserStorageLike = {
 
 const projectStorageKey = 'suno-visual-studio.projects.v1'
 const credentialKeyPattern = /(api.?key|secret|token|authorization|bearer|password|credential)/i
-const credentialValuePattern = /(bearer\s+[a-z0-9._-]+|sk-[a-z0-9]{20,}|ghp_[a-z0-9]{20,}|github_pat_[a-z0-9_]{20,}|server-secret|provider-token)/i
+const credentialValuePattern = /(bearer\s+[a-z0-9+/=._-]+|sk-[a-z0-9]{20,}|ghp_[a-z0-9]{20,}|github_pat_[a-z0-9_]{20,}|server-secret|provider-token)/i
 
 export function projectSnapshotFromState(input: {
   projectId: string

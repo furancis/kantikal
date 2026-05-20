@@ -79,7 +79,7 @@ describe('project workflow store', () => {
     const workflowWithCredential = {
       ...workflow,
       apiKey: ['server', 'secret', 'value'].join('-'),
-      nested: { authorization: `${bearerPrefix} ${['provider', 'token', 'value'].join('-')}` },
+      nested: { authorization: `${bearerPrefix} ${['provider', 'token', 'value'].join('-')}+/=` },
     } as unknown as SunoWorkflow
 
     const snapshot = projectSnapshotFromState({
@@ -93,7 +93,7 @@ describe('project workflow store', () => {
     expect(snapshot.workflow.musicVideoLane?.exportStatus).toBe('ready')
     expect(snapshot.releasePack?.includesVideo).toBe(true)
     expect(JSON.stringify(snapshot)).not.toContain('server-secret-value')
-    expect(JSON.stringify(snapshot)).not.toContain('provider-token-value')
+    expect(JSON.stringify(snapshot)).not.toContain('provider-token-value+/=')
     expect(JSON.stringify(snapshot)).not.toContain('apiKey')
     expect(JSON.stringify(snapshot)).not.toContain('authorization')
   })
