@@ -31,6 +31,7 @@ test('renders the visual Suno workflow shell', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Provider export manager' })).toBeVisible()
   await page.getByRole('button', { name: /Poll selected generation job/i }).click()
   await expect(page.getByText(/Get music generation details ready/i)).toBeVisible()
+  await expect(page.getByText(/HTTP provider export route produced local downloadable outputs/i).first()).toBeVisible()
   await expect(page.getByText(/audio ready/i)).toBeVisible()
   await expect(page.getByText(/cover-art ready/i)).toBeVisible()
   await expect(page.getByText(/stem ready/i)).toBeVisible()

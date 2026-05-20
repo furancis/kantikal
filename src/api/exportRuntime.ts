@@ -1,4 +1,5 @@
 import {
+  failedLipsyncChecks,
   recordProviderCallback,
   recordProviderTaskUpdate,
   type ProviderTaskOutput,
@@ -20,6 +21,72 @@ export type ProviderExportRuntimeClient = {
   pollGenerationTask(input: ProviderExportRuntimeInput): Promise<ProviderExportSnapshot>
   receiveFailedCallback(input: ProviderExportRuntimeInput): Promise<ProviderExportSnapshot>
   recordProviderVideoOutput(input: ProviderExportRuntimeInput): Promise<ProviderExportSnapshot>
+}
+
+type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
+
+export type ProviderExportFetchRuntimeInput = {
+  baseUrl?: string
+  fetchImpl?: FetchLike
+  fallback?: ProviderExportRuntimeClient
+}
+
+export function createFetchProviderExportRuntimeClient(
+  input: ProviderExportFetchRuntimeInput = {},
+): ProviderExportRuntimeClient {
+  const fetchImpl = input.fetchImpl ?? fetch
+  const fallback = input.fallback ?? createLocalProviderExportRuntimeClient()
+
+  async function requestRoute<T>(
+    projectId: string,
+    path: string,
+    init: RequestInit,
+    fallbackAction: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      const response = await fetchImpl(providerExportRoute(input.baseUrl, projectId, path), init)
+      if (!response.ok) {
+        return fallbackAction()
+      }
+      const payload = (await response.json()) as { state?: T }
+      return payload.state !== undefined ? payload.state : fallbackAction()
+    } catch {
+      return fallbackAction()
+    }
+  }
+
+  return {
+    async hydrate(projectId) {
+      return requestRoute(projectId, '', { method: 'GET' }, () => fallback.hydrate(projectId))
+    },
+
+    async pollGenerationTask(request) {
+      return requestRoute(
+        request.projectId,
+        'poll-generation-task',
+        jsonRequest({ workflow: request.workflow }),
+        () => fallback.pollGenerationTask(request),
+      )
+    },
+
+    async receiveFailedCallback(request) {
+      return requestRoute(
+        request.projectId,
+        'callback',
+        jsonRequest({ workflow: request.workflow }),
+        () => fallback.receiveFailedCallback(request),
+      )
+    },
+
+    async recordProviderVideoOutput(request) {
+      return requestRoute(
+        request.projectId,
+        'video-output',
+        jsonRequest({ workflow: request.workflow }),
+        () => fallback.recordProviderVideoOutput(request),
+      )
+    },
+  }
 }
 
 export function createLocalProviderExportRuntimeClient(
@@ -114,6 +181,21 @@ export function createLocalProviderExportRuntimeClient(
         return save(projectId, current)
       }
 
+      if (!lane.lipsync || lane.exportStatus !== 'ready' || failedLipsyncChecks(lane.lipsync).length > 0) {
+        return save(
+          projectId,
+          recordProviderTaskUpdate(current, {
+            providerTaskId: `video-${lane.sourceTrackId}`,
+            action: 'createProviderMusicVideo',
+            capability: 'Provider music video creation',
+            providerStatus: 'FAILED',
+            message: 'Provider video output blocked until perfect lipsync QA passes',
+            outputs: [],
+            receiptId: `video-${lane.sourceTrackId}`,
+          }),
+        )
+      }
+
       return save(
         projectId,
         recordProviderTaskUpdate(current, {
@@ -134,5 +216,18 @@ export function createLocalProviderExportRuntimeClient(
         }),
       )
     },
+  }
+}
+
+function providerExportRoute(baseUrl: string | undefined, projectId: string, path: string): string {
+  const prefix = `${(baseUrl ?? '').replace(/\/$/, '')}/api/provider-exports/${encodeURIComponent(projectId)}`
+  return path ? `${prefix}/${path}` : prefix
+}
+
+function jsonRequest(body: unknown): RequestInit {
+  return {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   }
 }
