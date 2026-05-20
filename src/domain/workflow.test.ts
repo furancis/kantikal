@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyArchiveFirstCleanup,
   createWorkflow,
   evaluateLipsync,
   failedLipsyncChecks,
   openMusicVideoLane,
+  planArchiveFirstCleanup,
   queueLipsyncRepair,
+  restoreArchivedTracks,
   selectTrack,
   submitGenerationBatch,
   toReleasePack,
@@ -102,6 +105,161 @@ describe('Suno workflow state machine', () => {
         'lipsync-qa',
       ]),
     })
+  })
+
+  it('generates release pack deliverables and provenance receipts', () => {
+    const workflow = selectTrack(
+      submitGenerationBatch(
+        createWorkflow({
+          brief: 'Arabic pop hook',
+          lyrics: 'chorus',
+          style: 'pop',
+          voice: 'persona',
+        }),
+        {
+          providerJobId: 'job_004',
+          tracks: [
+            { id: 'song_a', title: 'Night Lift A', durationSeconds: 154 },
+            { id: 'song_b', title: 'Night Lift B', durationSeconds: 158 },
+          ],
+        },
+      ),
+      'song_b',
+    )
+
+    const releasePack = toReleasePack(workflow, { includeVideo: false })
+
+    expect(releasePack.items.map((item) => item.kind)).toEqual([
+      'audio',
+      'metadata',
+      'prompts',
+      'provenance',
+    ])
+    expect(releasePack.receipts.map((receipt) => receipt.action)).toEqual([
+      'source-track-locked',
+      'prompt-inputs-captured',
+      'release-pack-created',
+    ])
+    expect(releasePack.items[0]).toMatchObject({
+      id: 'audio-song_b',
+      label: 'Night Lift B master audio',
+      sourceId: 'song_b',
+    })
+  })
+
+  it('archives cleanup targets before removing discarded generated tracks', () => {
+    const workflow = selectTrack(
+      submitGenerationBatch(
+        createWorkflow({
+          brief: 'Arabic pop hook',
+          lyrics: 'chorus',
+          style: 'pop',
+          voice: 'persona',
+        }),
+        {
+          providerJobId: 'job_005',
+          tracks: [
+            { id: 'song_a', title: 'Night Lift A', durationSeconds: 154 },
+            { id: 'song_b', title: 'Night Lift B', durationSeconds: 158 },
+          ],
+        },
+      ),
+      'song_b',
+    )
+
+    const planned = planArchiveFirstCleanup(workflow, ['song_a'], 'discard unselected take')
+
+    expect(planned.cleanupPlan).toMatchObject({
+      id: 'cleanup-1',
+      status: 'archived',
+      targetTrackIds: ['song_a'],
+      receiptId: 'cleanup-receipt-1',
+    })
+    expect(planned.archiveEntries).toEqual([
+      {
+        id: 'archive-1',
+        track: { id: 'song_a', title: 'Night Lift A', durationSeconds: 154 },
+        reason: 'discard unselected take',
+        receiptId: 'cleanup-receipt-1',
+      },
+    ])
+    expect(planned.cleanupReceipts[0]).toMatchObject({
+      id: 'cleanup-receipt-1',
+      action: 'archive-before-cleanup',
+      targetTrackIds: ['song_a'],
+    })
+    expect(planned.generationBatch?.tracks.map((track) => track.id)).toEqual(['song_a', 'song_b'])
+
+    const applied = applyArchiveFirstCleanup(planned)
+
+    expect(applied.cleanupPlan?.status).toBe('applied')
+    expect(applied.generationBatch?.tracks.map((track) => track.id)).toEqual(['song_b'])
+    expect(applied.cleanupReceipts.at(-1)).toMatchObject({
+      action: 'cleanup-applied',
+      targetTrackIds: ['song_a'],
+    })
+
+    const restored = restoreArchivedTracks(applied)
+
+    expect(restored.cleanupPlan?.status).toBe('restored')
+    expect(restored.generationBatch?.tracks.map((track) => track.id).sort()).toEqual(['song_a', 'song_b'])
+    expect(restored.cleanupReceipts.at(-1)).toMatchObject({
+      action: 'cleanup-restored',
+      targetTrackIds: ['song_a'],
+    })
+  })
+
+  it('refuses to clean up the selected source track', () => {
+    const workflow = selectTrack(
+      submitGenerationBatch(
+        createWorkflow({
+          brief: 'Arabic pop hook',
+          lyrics: 'chorus',
+          style: 'pop',
+          voice: 'persona',
+        }),
+        {
+          providerJobId: 'job_006',
+          tracks: [{ id: 'song_a', title: 'Night Lift A', durationSeconds: 154 }],
+        },
+      ),
+      'song_a',
+    )
+
+    expect(() => planArchiveFirstCleanup(workflow, ['song_a'], 'bad cleanup')).toThrow(/selected source/i)
+  })
+
+  it('refuses to apply cleanup when archive entries are missing', () => {
+    const workflow = selectTrack(
+      submitGenerationBatch(
+        createWorkflow({
+          brief: 'Arabic pop hook',
+          lyrics: 'chorus',
+          style: 'pop',
+          voice: 'persona',
+        }),
+        {
+          providerJobId: 'job_007',
+          tracks: [
+            { id: 'song_a', title: 'Night Lift A', durationSeconds: 154 },
+            { id: 'song_b', title: 'Night Lift B', durationSeconds: 158 },
+          ],
+        },
+      ),
+      'song_b',
+    )
+
+    const forgedArchivedPlan = {
+      ...workflow,
+      cleanupPlan: {
+        id: 'cleanup-1',
+        status: 'archived' as const,
+        targetTrackIds: ['song_a'],
+        receiptId: 'cleanup-receipt-1',
+      },
+    }
+
+    expect(() => applyArchiveFirstCleanup(forgedArchivedPlan)).toThrow(/archive entries/i)
   })
 
   it('does not queue a repair pass without failed lipsync checks', () => {

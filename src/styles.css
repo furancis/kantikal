@@ -455,6 +455,32 @@ textarea {
   color: #b7b1a6;
 }
 
+.release-section,
+.archive-list {
+  display: grid;
+  gap: 8px;
+}
+
+.release-section h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.release-section div,
+.archive-list div {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.release-section small,
+.archive-list small {
+  color: #b7b1a6;
+}
+
 .api-box div {
   display: grid;
   gap: 2px;

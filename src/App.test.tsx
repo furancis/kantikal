@@ -91,6 +91,45 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.queryByRole('button', { name: /gulf chorus engine v1/i })).not.toBeInTheDocument()
   })
 
+  it('shows release pack deliverables, provenance receipts, and archive-first cleanup', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
+    await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
+
+    expect(screen.getByRole('heading', { name: /release pack/i })).toBeInTheDocument()
+    expect(screen.getByText(/audio only/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /package contents/i })).toBeInTheDocument()
+    expect(screen.getByText(/master audio/i)).toBeInTheDocument()
+    expect(screen.getByText(/release metadata/i)).toBeInTheDocument()
+    expect(screen.getByText(/prompt and lyric inputs/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /provenance receipts/i })).toBeInTheDocument()
+    expect(screen.getByText(/source-track-locked/i)).toBeInTheDocument()
+    expect(screen.getByText(/prompt-inputs-captured/i)).toBeInTheDocument()
+    expect(screen.getByText(/release-pack-created/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /plan archive-first cleanup/i }))
+
+    expect(screen.getByText(/cleanup archived/i)).toBeInTheDocument()
+    expect(screen.getByText(/archive-1/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/mock-track-1/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/discard unselected generated takes/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /apply cleanup/i }))
+
+    expect(screen.getByText(/cleanup applied/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /neon khaliji club hook v1/i })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /restore archived tracks/i }))
+
+    expect(screen.getByText(/cleanup restored/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /neon khaliji club hook v1/i })).toBeInTheDocument()
+  })
+
   it('clears stale generated tracks and video selection when the brief changes', async () => {
     const user = userEvent.setup()
     render(<App />)

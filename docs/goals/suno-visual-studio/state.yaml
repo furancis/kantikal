@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T050
+active_task: T060
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -240,7 +240,7 @@ tasks:
   - id: T050
     type: worker
     assignee: Worker
-    status: active
+    status: done
     objective: "Add release pack generation, archive-first cleanup, and provenance receipts."
     allowed_files:
       - src/**
@@ -254,11 +254,38 @@ tasks:
       - npm run test:e2e
     stop_if:
       - "Workflow model cannot represent cleanup/provenance safely."
-    receipt: null
+    receipt:
+      result: done
+      changed_files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: credential literal scan
+          status: pass
+        - cmd: static chat surface wording scan
+          status: pass
+      summary: "Added structured release pack contents and provenance receipts, plus archive-first cleanup planning, apply, and restore. Cleanup cannot target the selected source track and discarded generated takes are archived with receipts before being removed from the active workspace."
   - id: T060
     type: worker
     assignee: Worker
-    status: queued
+    status: active
     objective: "Add CI checks and Greptile-on-every-PR documentation/config."
     allowed_files:
       - .github/**

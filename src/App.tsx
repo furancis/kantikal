@@ -27,11 +27,14 @@ import { createMockSunoProvider } from './api/provider'
 import type { SunoProvider } from './api/provider'
 import { apiCoverageEntries, apiCoverageStatusCounts } from './api/coverage'
 import {
+  applyArchiveFirstCleanup,
   createWorkflow,
   evaluateLipsync,
   failedLipsyncChecks,
   openMusicVideoLane,
+  planArchiveFirstCleanup,
   queueLipsyncRepair,
+  restoreArchivedTracks,
   selectTrack,
   submitGenerationBatch,
   toReleasePack,
@@ -178,6 +181,8 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
   const lipsyncReadyCount = activeLipsync ? lipsyncCheckOrder.length - failedVideoChecks.length : 0
   const lipsyncReadinessPercent = Math.round((lipsyncReadyCount / lipsyncCheckOrder.length) * 100)
   const videoExportReady = workflow.musicVideoLane?.exportStatus === 'ready'
+  const cleanupTargets = discardedGeneratedTracks(workflow)
+  const cleanupStatus = workflow.cleanupPlan?.status ?? 'idle'
 
   async function handleGenerate(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault()
@@ -275,6 +280,21 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
       setVideoExportError(error instanceof Error ? error.message : 'Video release is blocked')
       setSelectedId('video')
     }
+  }
+
+  function handlePlanArchiveFirstCleanup() {
+    setWorkflow((current) => {
+      const targetTrackIds = discardedGeneratedTracks(current).map((track) => track.id)
+      return planArchiveFirstCleanup(current, targetTrackIds, 'discard unselected generated takes')
+    })
+  }
+
+  function handleApplyCleanup() {
+    setWorkflow((current) => applyArchiveFirstCleanup(current))
+  }
+
+  function handleRestoreArchivedTracks() {
+    setWorkflow((current) => restoreArchivedTracks(current))
   }
 
   return (
@@ -515,6 +535,68 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
               <strong>Release pack ready for {releasePack.trackId}</strong>
               <p>{releasePack.includesVideo ? 'Video included' : 'Audio only'}</p>
               <p>Provenance: {releasePack.provenance.join(', ')}</p>
+              <div className="release-section">
+                <h3>Package contents</h3>
+                {releasePack.items.map((item) => (
+                  <div key={item.id}>
+                    <strong>{item.kind}</strong>
+                    <small>{item.label}</small>
+                  </div>
+                ))}
+              </div>
+              <div className="release-section">
+                <h3>Provenance receipts</h3>
+                {releasePack.receipts.map((receipt) => (
+                  <div key={receipt.id}>
+                    <strong>{receipt.action}</strong>
+                    <small>{receipt.detail}</small>
+                  </div>
+                ))}
+              </div>
+              <div className="release-section">
+                <h3>Archive-first cleanup</h3>
+                <p>Cleanup {cleanupStatus}</p>
+                <div className="gate-actions">
+                  <button
+                    type="button"
+                    disabled={cleanupTargets.length === 0 || cleanupStatus === 'archived' || cleanupStatus === 'applied'}
+                    onClick={handlePlanArchiveFirstCleanup}
+                  >
+                    <Archive size={16} />
+                    Plan archive-first cleanup
+                  </button>
+                  <button type="button" disabled={cleanupStatus !== 'archived'} onClick={handleApplyCleanup}>
+                    <Scissors size={16} />
+                    Apply cleanup
+                  </button>
+                  <button type="button" disabled={cleanupStatus !== 'applied'} onClick={handleRestoreArchivedTracks}>
+                    <Library size={16} />
+                    Restore archived tracks
+                  </button>
+                </div>
+                {workflow.archiveEntries.length > 0 && (
+                  <div className="archive-list" aria-label="Archive entries">
+                    {workflow.archiveEntries.map((entry) => (
+                      <div key={entry.id}>
+                        <strong>{entry.id}</strong>
+                        <small>
+                          {entry.track.id} - {entry.reason}
+                        </small>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {workflow.cleanupReceipts.length > 0 && (
+                  <div className="archive-list" aria-label="Cleanup receipts">
+                    {workflow.cleanupReceipts.map((receipt) => (
+                      <div key={receipt.id}>
+                        <strong>{receipt.action}</strong>
+                        <small>{receipt.targetTrackIds.join(', ')}</small>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
           <div className="api-box">
@@ -694,4 +776,12 @@ function toGeneratedTrackNode(track: GeneratedTrack, index: number, isSelected: 
     meta: ['candidate take', track.id, `${track.durationSeconds}s`],
     trackId: track.id,
   }
+}
+
+function discardedGeneratedTracks(workflow: SunoWorkflow): GeneratedTrack[] {
+  if (!workflow.generationBatch || !workflow.selectedTrack) {
+    return []
+  }
+
+  return workflow.generationBatch.tracks.filter((track) => track.id !== workflow.selectedTrack?.id)
 }
