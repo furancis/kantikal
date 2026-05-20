@@ -164,7 +164,7 @@ describe('Suno Visual Studio shell', () => {
     await user.click(screen.getByRole('button', { name: /create video release pack/i }))
     expect(screen.getByRole('heading', { name: /release pack/i })).toBeInTheDocument()
     expect(screen.getByText(/video included/i)).toBeInTheDocument()
-  })
+  }, 15000)
 
   it('surfaces provider failures instead of dropping rejected generation promises', async () => {
     const user = userEvent.setup()

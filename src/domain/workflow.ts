@@ -919,6 +919,13 @@ export function failedLipsyncChecks(lipsync: LipsyncChecks): LipsyncCheckName[] 
   return lipsyncCheckNames.filter((checkName) => !lipsync[checkName])
 }
 
+export function isPerfectLipsyncApproved(lane: MusicVideoLane | null | undefined): boolean {
+  if (!lane?.lipsync || lane.exportStatus !== 'ready') {
+    return false
+  }
+  return failedLipsyncChecks(lane.lipsync).length === 0
+}
+
 export function queueLipsyncRepair(workflow: SunoWorkflow): SunoWorkflow {
   if (!workflow.musicVideoLane) {
     throw new Error('Lipsync repair requires an open music video lane')
@@ -962,7 +969,7 @@ export function toReleasePack(
     if (!workflow.musicVideoLane) {
       throw new Error('Video release requires the music video lane')
     }
-    if (workflow.musicVideoLane.exportStatus !== 'ready') {
+    if (!isPerfectLipsyncApproved(workflow.musicVideoLane)) {
       throw new Error('Video release is blocked until lipsync QA passes')
     }
   }
@@ -1595,10 +1602,11 @@ function providerOutputDownloadStatus(
 }
 
 function isVideoOutputApproved(workflow: SunoWorkflow, output: ProviderTaskOutput): boolean {
-  if (!workflow.musicVideoLane || workflow.musicVideoLane.exportStatus !== 'ready') {
+  const lane = workflow.musicVideoLane
+  if (!lane || !isPerfectLipsyncApproved(lane)) {
     return false
   }
-  if (output.sourceTrackId && output.sourceTrackId !== workflow.musicVideoLane.sourceTrackId) {
+  if (output.sourceTrackId && output.sourceTrackId !== lane.sourceTrackId) {
     return false
   }
   return true

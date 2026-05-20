@@ -98,6 +98,28 @@ describe('project workflow store', () => {
     expect(JSON.stringify(snapshot)).not.toContain('authorization')
   })
 
+  it('downgrades persisted video-ready state when lipsync proof is missing', async () => {
+    const workflow = fullWorkflow()
+    const forgedWorkflow = {
+      ...workflow,
+      musicVideoLane: {
+        ...workflow.musicVideoLane!,
+        exportStatus: 'ready' as const,
+        lipsync: null,
+      },
+    }
+
+    const snapshot = projectSnapshotFromState({
+      projectId: 'project-forged',
+      briefInput,
+      workflow: forgedWorkflow,
+      releasePack: toReleasePack(workflow, { includeVideo: true }),
+    })
+
+    expect(snapshot.workflow.musicVideoLane?.exportStatus).toBe('blocked')
+    expect(snapshot.releasePack).toBeNull()
+  })
+
   it('summarizes recent projects with brief, selected track, job/export counts, and blocked gates', async () => {
     const store = createMemoryProjectStore()
     const workflow = fullWorkflow()

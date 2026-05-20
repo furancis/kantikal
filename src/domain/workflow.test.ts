@@ -119,6 +119,36 @@ describe('Suno workflow state machine', () => {
     })
   })
 
+  it('rejects forged ready video state without a complete lipsync proof', () => {
+    const workflow = openMusicVideoLane(
+      selectTrack(
+        submitGenerationBatch(
+          createWorkflow({
+            brief: 'Forged video state hook',
+            lyrics: 'chorus',
+            style: 'pop',
+            voice: 'persona',
+          }),
+          {
+            providerJobId: 'job_forged',
+            tracks: [{ id: 'song_a', title: 'Night Lift A', durationSeconds: 154 }],
+          },
+        ),
+        'song_a',
+      ),
+    )
+    const forgedReady = {
+      ...workflow,
+      musicVideoLane: {
+        ...workflow.musicVideoLane!,
+        exportStatus: 'ready' as const,
+        lipsync: null,
+      },
+    }
+
+    expect(() => toReleasePack(forgedReady, { includeVideo: true })).toThrow(/lipsync/i)
+  })
+
   it('opens Music Video Lane with scene cards tied to the selected song sections', () => {
     const workflow = openMusicVideoLane(
       openSongLab(
@@ -674,6 +704,17 @@ describe('Suno workflow state machine', () => {
     }
 
     const blocked = recordProviderTaskUpdate(workflow, videoOutput)
+    const forgedReady = recordProviderTaskUpdate(
+      {
+        ...workflow,
+        musicVideoLane: {
+          ...workflow.musicVideoLane!,
+          exportStatus: 'ready' as const,
+          lipsync: null,
+        },
+      },
+      videoOutput,
+    )
     expect(blocked.exports.downloads).toEqual([
       expect.objectContaining({
         kind: 'video',
@@ -690,6 +731,13 @@ describe('Suno workflow state machine', () => {
         }),
       ]),
     )
+    expect(forgedReady.exports.downloads).toEqual([
+      expect.objectContaining({
+        kind: 'video',
+        status: 'blocked',
+        message: expect.stringMatching(/lipsync/i),
+      }),
+    ])
 
     const passed = evaluateLipsync(workflow, {
       phoneme: true,
