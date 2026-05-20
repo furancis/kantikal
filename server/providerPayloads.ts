@@ -89,6 +89,7 @@ export function buildProviderActionPayload(input: ProviderPayloadBuildInput): Pr
         definition.label,
       )
     case 'coverTrack':
+      // Suno's upload-cover endpoint is the documented cover path and requires a provider-visible uploadUrl.
       return requireFields(
         {
           uploadUrl: uploadUrl(source),
@@ -138,6 +139,7 @@ export function buildProviderActionPayload(input: ProviderPayloadBuildInput): Pr
         definition.label,
       )
     case 'checkVoiceAvailability':
+      // Suno's voice/check-voice schema uses task_id here, unlike the other task-based endpoints.
       return requireFields({ task_id: taskId(source) }, ['task_id'], definition.label)
     case 'createCustomVoice':
       return requireFields(
@@ -176,6 +178,7 @@ export function buildProviderActionPayload(input: ProviderPayloadBuildInput): Pr
         definition.label,
       )
     case 'regenerateVoiceValidationPhrase':
+      // Suno's voice/regenerate schema documents calBackUrl; accept normal aliases but send the provider field.
       return requireFields(
         {
           taskId: taskId(source),

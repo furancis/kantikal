@@ -182,6 +182,38 @@ describe('server Suno API adapter', () => {
     })
   })
 
+  it('sends the documented snake_case voice availability task field', async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = []
+    const adapter = createSunoApiServerAdapter({
+      runtime: 'server',
+      apiKey: 'server-secret',
+      baseUrl: 'https://api.sunoapi.org',
+      fetchImpl: async (url, init) => {
+        calls.push({ url: String(url), init: init ?? {} })
+        return new Response(JSON.stringify({ code: 200, msg: 'success', data: { isAvailable: true } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      },
+    })
+
+    const result = await adapter.executeProviderAction({
+      action: 'checkVoiceAvailability',
+      capability: 'Custom voice availability',
+      payload: { taskId: 'task_voice_current' },
+    })
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toBe('https://api.sunoapi.org/api/v1/voice/check-voice')
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({
+      task_id: 'task_voice_current',
+    })
+    expect(result).toMatchObject({
+      action: 'checkVoiceAvailability',
+      outcome: 'succeeded',
+    })
+  })
+
   it('sends the documented voice-regenerate callback spelling while accepting normal callback aliases', async () => {
     const calls: Array<{ url: string; init: RequestInit }> = []
     const adapter = createSunoApiServerAdapter({
