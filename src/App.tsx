@@ -239,7 +239,6 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
 
   function handleOpenVideoLane() {
     setWorkflow((current) => openMusicVideoLane(current))
-    setReleasePack(null)
     setVideoExportError(null)
     setSelectedId('video')
   }
@@ -276,7 +275,6 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
       setVideoExportError(null)
       setSelectedId('export')
     } catch (error) {
-      setReleasePack(null)
       setVideoExportError(error instanceof Error ? error.message : 'Video release is blocked')
       setSelectedId('video')
     }

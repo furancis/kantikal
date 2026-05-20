@@ -131,6 +131,31 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByRole('button', { name: /neon khaliji club hook v1/i })).toBeInTheDocument()
   })
 
+  it('keeps an audio release pack when blocked video export fails', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
+    await user.click(screen.getByRole('button', { name: /create audio release pack/i }))
+
+    expect(screen.getByText(/audio only/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /open music video lane/i }))
+    await user.click(screen.getByRole('button', { name: /create video release pack/i }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/blocked until lipsync qa passes/i)
+    expect(screen.getByRole('button', { name: /release pack: audio/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /release pack: audio/i }))
+
+    expect(screen.getByText(/audio only/i)).toBeInTheDocument()
+    expect(screen.getByText(/master audio/i)).toBeInTheDocument()
+  })
+
   it('clears stale generated tracks and video selection when the brief changes', async () => {
     const user = userEvent.setup()
     render(<App />)
