@@ -22,7 +22,6 @@ describe('provider request routes', () => {
               headers: { 'Content-Type': 'application/json' },
             }),
         }),
-        fallback: createMockSunoProvider(),
       }),
     })
 
@@ -69,7 +68,6 @@ describe('provider request routes', () => {
             })
           },
         }),
-        fallback: createMockSunoProvider(),
       }),
     })
 

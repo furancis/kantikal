@@ -1,7 +1,6 @@
 import react from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
-import { createMockSunoProvider } from './src/api/provider'
 import { createMemoryProviderExportStore, createProviderExportHandlers } from './server/providerExportHandlers'
 import { createProviderExportNodeMiddleware } from './server/providerExportRoutes'
 import { createProviderNodeMiddleware, createServerSunoProvider } from './server/providerRoutes'
@@ -28,7 +27,6 @@ function providerExportRoutesPlugin(): Plugin {
       })
       const provider = createServerSunoProvider({
         adapter,
-        fallback: createMockSunoProvider(),
       })
       const handlers = createProviderExportHandlers({
         adapter,

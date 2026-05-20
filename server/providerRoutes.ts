@@ -18,7 +18,6 @@ type ProviderRouteResponseBody =
 
 export type ServerSunoProviderInput = {
   adapter: SunoApiServerAdapter
-  fallback?: SunoProvider
 }
 
 const routePrefix = '/api/provider'
