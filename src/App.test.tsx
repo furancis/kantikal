@@ -37,7 +37,7 @@ describe('Suno Visual Studio shell', () => {
     expect(await screen.findByRole('button', { name: /neon khaliji club hook v1/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /neon khaliji club hook v2/i })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /neon khaliji club hook v2/i }))
+    await user.click(screen.getByRole('button', { name: /generated track mock-track-2/i }))
 
     expect(screen.getByRole('heading', { name: /chosen track/i })).toBeInTheDocument()
     expect(screen.getByText(/selected source: mock-track-2/i)).toBeInTheDocument()
@@ -154,6 +154,38 @@ describe('Suno Visual Studio shell', () => {
 
     expect(screen.getByText(/audio only/i)).toBeInTheDocument()
     expect(screen.getByText(/master audio/i)).toBeInTheDocument()
+  })
+
+  it('keeps completed video and release state when reselecting the chosen generated track', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
+    await user.click(screen.getByRole('button', { name: /open music video lane/i }))
+    await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
+    await user.click(screen.getByRole('button', { name: /queue repair pass/i }))
+    await user.click(screen.getByRole('button', { name: /run lipsync qa/i }))
+    await user.click(screen.getByRole('button', { name: /create video release pack/i }))
+
+    expect(screen.getByText(/video included/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /generated track mock-track-2/i }))
+    await user.click(
+      screen.getByRole('button', {
+        name: /storyboard and lipsync qa opened from mock-track-2; video export ready/i,
+      }),
+    )
+
+    expect(screen.getByLabelText(/video export gate state/i)).toHaveTextContent(/video export ready/i)
+    expect(screen.getByRole('button', { name: /release pack: audio, video/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /release pack: audio, video/i }))
+
+    expect(screen.getByText(/video included/i)).toBeInTheDocument()
+    expect(screen.getByText(/lipsync-approved video/i)).toBeInTheDocument()
   })
 
   it('clears stale generated tracks and video selection when the brief changes', async () => {

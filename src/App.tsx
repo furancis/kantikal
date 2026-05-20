@@ -227,8 +227,10 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
 
   function handleNodeSelect(node: WorkflowNode) {
     if (node.kind === 'generated' && node.trackId) {
-      setWorkflow((current) => selectTrack(current, node.trackId as string))
-      setReleasePack(null)
+      const trackId = node.trackId
+      const isSameSelectedTrack = workflow.selectedTrack?.id === trackId
+      setWorkflow((current) => (current.selectedTrack?.id === trackId ? current : selectTrack(current, trackId)))
+      setReleasePack((current) => (isSameSelectedTrack ? current : null))
       setVideoExportError(null)
       setSelectedId('track')
       return
