@@ -230,21 +230,25 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
     setGenerateError(null)
     setVideoExportError(null)
     try {
-      const baseWorkflow = {
-        ...createWorkflow(briefInput),
-        projectAssets: workflow.projectAssets,
-        voicePersonas: workflow.voicePersonas,
-        exports: workflow.exports,
-        jobQueue: workflow.jobQueue,
-        provenance: workflow.provenance,
-      }
       const generationBatch = await provider.generateBatch({
         ...briefInput,
         count: 2,
       })
-      const nextWorkflow = submitGenerationBatch(baseWorkflow, generationBatch)
+      if (generationBatch.tracks.length === 0) {
+        throw new Error('Generation batch requires at least one track')
+      }
       setReleasePack(null)
-      setWorkflow(nextWorkflow)
+      setWorkflow((current) => {
+        const baseWorkflow = {
+          ...createWorkflow(briefInput),
+          projectAssets: current.projectAssets,
+          voicePersonas: current.voicePersonas,
+          exports: current.exports,
+          jobQueue: current.jobQueue,
+          provenance: current.provenance,
+        }
+        return submitGenerationBatch(baseWorkflow, generationBatch)
+      })
       setSelectedId('batch')
     } catch (error) {
       setGenerateError(error instanceof Error ? error.message : 'Generation failed')

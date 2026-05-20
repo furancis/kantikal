@@ -755,7 +755,7 @@ tasks:
           status: pass
         - cmd: git diff --check
           status: pass
-      summary: "Added provider task polling and callback intake state that turns completed Suno generation records into durable local project assets and export downloads for generated audio, cover art, and stems. Added provider callback failure receipts, server-side normalization for record-info and callback payloads, a visual Provider export manager lane, and video-output blocking that keeps Music Video Lane export subordinate to selected-song ownership and perfect lipsync approval. Tightened credential scanning so ordinary task/webhook identifiers are not false positives while long-form secret patterns remain blocked."
+      summary: "Added provider task polling and callback intake state that turns completed Suno generation records into durable local project assets and export downloads for generated audio, cover art, and stems. Added provider callback failure receipts, server-side normalization for record-info and callback payloads, a visual Provider export manager lane, and video-output blocking that keeps Music Video Lane export subordinate to selected-song ownership and perfect lipsync approval. Tightened credential scanning so ordinary task/webhook identifiers are not false positives while long-form secret patterns remain blocked. Greptile P1 follow-up keeps mid-generation provider action/export updates when generation completion commits its new batch."
   - id: T120
     type: worker
     assignee: Worker
