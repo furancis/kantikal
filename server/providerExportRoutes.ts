@@ -14,6 +14,7 @@ type JsonResponseBody = {
 }
 
 const routePrefix = '/api/provider-exports'
+const maxProviderExportBodyBytes = 1_048_576
 
 export function createProviderExportRequestHandler(handlers: ProviderExportHandlers) {
   return async function handleProviderExportRequest(request: Request): Promise<Response> {
@@ -91,15 +92,19 @@ export function createProviderExportNodeMiddleware(handlers: ProviderExportHandl
       return
     }
 
-    const webRequest = new Request(new URL(request.url, 'http://local.test'), {
-      method: request.method ?? 'GET',
-      headers: nodeHeaders(request),
-      body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await readNodeBody(request),
-    })
-    const webResponse = await requestHandler(webRequest)
-    response.statusCode = webResponse.status
-    webResponse.headers.forEach((value, key) => response.setHeader(key, value))
-    response.end(await webResponse.text())
+    try {
+      const webRequest = new Request(new URL(request.url, 'http://local.test'), {
+        method: request.method ?? 'GET',
+        headers: nodeHeaders(request),
+        body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await readNodeBody(request),
+      })
+      await writeNodeResponse(response, await requestHandler(webRequest))
+    } catch (error) {
+      await writeNodeResponse(
+        response,
+        jsonError(errorMessage(error, 'Provider export route failed'), error instanceof RouteError ? error.status : 500),
+      )
+    }
   }
 }
 
@@ -176,14 +181,41 @@ function nodeHeaders(request: IncomingMessage): Headers {
 
 function readNodeBody(request: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
+    let settled = false
     let body = ''
     request.setEncoding('utf8')
     request.on('data', (chunk) => {
+      if (settled) {
+        return
+      }
       body += chunk
+      if (Buffer.byteLength(body, 'utf8') > maxProviderExportBodyBytes) {
+        settled = true
+        reject(new RouteError('Provider export request body too large', 413))
+        request.destroy()
+      }
     })
-    request.on('end', () => resolve(body))
-    request.on('error', reject)
+    request.on('end', () => {
+      if (settled) {
+        return
+      }
+      settled = true
+      resolve(body)
+    })
+    request.on('error', (error) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      reject(error)
+    })
   })
+}
+
+async function writeNodeResponse(response: ServerResponse, webResponse: Response): Promise<void> {
+  response.statusCode = webResponse.status
+  webResponse.headers.forEach((value, key) => response.setHeader(key, value))
+  response.end(await webResponse.text())
 }
 
 function errorMessage(error: unknown, fallback: string): string {

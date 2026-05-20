@@ -909,7 +909,7 @@ tasks:
           status: pass
         - cmd: git diff --check
           status: pass
-      summary: "Mounted provider export handlers behind local HTTP Request/Response routes and Vite dev middleware. The app now uses a fetch-backed export runtime client with local fallback, and Playwright proves the Downloads lane goes through the HTTP export route while unit tests prove fallback behavior when the route is unavailable. Added callback and video-output route adapters without exposing provider credential material."
+      summary: "Mounted provider export handlers behind local HTTP Request/Response routes and Vite dev middleware. The app now uses a fetch-backed export runtime client with local fallback, and Playwright proves the Downloads lane goes through the HTTP export route while unit tests prove fallback behavior when the route is unavailable. Added callback and video-output route adapters without exposing provider credential material. Greptile follow-up preserves explicit null hydrate responses, rejects oversized Node route bodies with 413, and prevents provider video-output records from creating any video download until perfect lipsync QA has passed."
   - id: T140
     type: worker
     assignee: Worker

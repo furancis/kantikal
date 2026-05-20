@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { createWorkflow, recordProviderTaskUpdate, submitGenerationBatch } from '../domain/workflow'
+import {
+  createWorkflow,
+  evaluateLipsync,
+  openMusicVideoLane,
+  recordProviderTaskUpdate,
+  selectTrack,
+  submitGenerationBatch,
+} from '../domain/workflow'
 import { exportSnapshotFromWorkflow } from './exportState'
-import { createFetchProviderExportRuntimeClient } from './exportRuntime'
+import { createFetchProviderExportRuntimeClient, createLocalProviderExportRuntimeClient } from './exportRuntime'
 
 function workflowWithGeneration() {
   return submitGenerationBatch(
@@ -72,5 +79,53 @@ describe('fetch provider export runtime client', () => {
       status: 'ready',
     })
     expect(state.exports.downloads.map((download) => download.kind)).toEqual(['audio', 'cover-art', 'stem'])
+  })
+
+  it('preserves an explicit null hydrate response from the HTTP route', async () => {
+    const fallbackSnapshot = exportSnapshotFromWorkflow('project-a', workflowWithGeneration())
+    const client = createFetchProviderExportRuntimeClient({
+      fallback: {
+        async hydrate() {
+          return fallbackSnapshot
+        },
+        async pollGenerationTask() {
+          return fallbackSnapshot
+        },
+        async receiveFailedCallback() {
+          return fallbackSnapshot
+        },
+        async recordProviderVideoOutput() {
+          return fallbackSnapshot
+        },
+      },
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ state: null }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    })
+
+    await expect(client.hydrate('project-a')).resolves.toBeNull()
+  })
+
+  it('keeps local video output blocked until lipsync QA has passed', async () => {
+    const client = createLocalProviderExportRuntimeClient()
+    const videoWorkflow = openMusicVideoLane(selectTrack(workflowWithGeneration(), 'song_fetch'))
+
+    const blocked = await client.recordProviderVideoOutput({ projectId: 'project-a', workflow: videoWorkflow })
+    const passed = await client.recordProviderVideoOutput({
+      projectId: 'project-a',
+      workflow: evaluateLipsync(videoWorkflow, {
+        phoneme: true,
+        frame: true,
+        mouthShape: true,
+        segmentDrift: true,
+        postStitch: true,
+      }),
+    })
+
+    expect(blocked.exports.downloads.some((download) => download.kind === 'video')).toBe(false)
+    expect(blocked.exports.tasks[0]).toMatchObject({
+      action: 'createProviderMusicVideo',
+      status: 'failed',
+    })
+    expect(passed.exports.downloads.some((download) => download.kind === 'video')).toBe(true)
   })
 })

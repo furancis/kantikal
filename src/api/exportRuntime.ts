@@ -1,4 +1,5 @@
 import {
+  failedLipsyncChecks,
   recordProviderCallback,
   recordProviderTaskUpdate,
   type ProviderTaskOutput,
@@ -48,7 +49,7 @@ export function createFetchProviderExportRuntimeClient(
         return fallbackAction()
       }
       const payload = (await response.json()) as { state?: T }
-      return payload.state ?? fallbackAction()
+      return payload.state !== undefined ? payload.state : fallbackAction()
     } catch {
       return fallbackAction()
     }
@@ -178,6 +179,21 @@ export function createLocalProviderExportRuntimeClient(
       const lane = current.musicVideoLane
       if (!lane) {
         return save(projectId, current)
+      }
+
+      if (!lane.lipsync || lane.exportStatus !== 'ready' || failedLipsyncChecks(lane.lipsync).length > 0) {
+        return save(
+          projectId,
+          recordProviderTaskUpdate(current, {
+            providerTaskId: `video-${lane.sourceTrackId}`,
+            action: 'createProviderMusicVideo',
+            capability: 'Provider music video creation',
+            providerStatus: 'FAILED',
+            message: 'Provider video output blocked until perfect lipsync QA passes',
+            outputs: [],
+            receiptId: `video-${lane.sourceTrackId}`,
+          }),
+        )
       }
 
       return save(

@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import {
+  failedLipsyncChecks,
   recordProviderCallback,
   recordProviderTaskUpdate,
   type ProviderTaskOutput,
@@ -147,6 +148,21 @@ export function createProviderExportHandlers(input: {
       const lane = workflow.musicVideoLane
       if (!lane) {
         return persist(request.projectId, workflow)
+      }
+
+      if (!lane.lipsync || lane.exportStatus !== 'ready' || failedLipsyncChecks(lane.lipsync).length > 0) {
+        return persist(
+          request.projectId,
+          recordProviderTaskUpdate(workflow, {
+            providerTaskId: `video-${lane.sourceTrackId}`,
+            action: 'createProviderMusicVideo',
+            capability: 'Provider music video creation',
+            providerStatus: 'FAILED',
+            message: 'Provider video output blocked until perfect lipsync QA passes',
+            outputs: [],
+            receiptId: `video-${lane.sourceTrackId}`,
+          }),
+        )
       }
 
       const outputs: ProviderTaskOutput[] = [
