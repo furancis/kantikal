@@ -2,6 +2,8 @@ import type { GenerationBatch } from '../domain/workflow'
 import { providerActionDefinitionByAction } from './actionCatalog'
 import type { ProviderActionDefinition } from './actionCatalog'
 
+type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
+
 export type ProviderRuntimeConfigInput = {
   runtime: 'server' | 'client'
   apiKey?: string
@@ -59,6 +61,12 @@ export type SunoProvider = {
   executeAction?(request: ExecuteProviderActionRequest): Promise<ProviderActionResult>
 }
 
+export type FetchSunoProviderInput = {
+  baseUrl?: string
+  fetchImpl?: FetchLike
+  fallback?: SunoProvider
+}
+
 export function createProviderRuntimeConfig(
   input: ProviderRuntimeConfigInput,
 ): ProviderRuntimeConfig {
@@ -81,6 +89,60 @@ export function publicProviderStatus(config: ProviderRuntimeConfig): PublicProvi
     baseUrl: config.baseUrl,
     hasApiKey: config.hasApiKey,
     credentialMode: config.credentialMode,
+  }
+}
+
+export function createFetchSunoProvider(input: FetchSunoProviderInput = {}): SunoProvider {
+  const fetchImpl = input.fetchImpl ?? fetch
+  const fallback = input.fallback ?? createMockSunoProvider()
+
+  async function fetchRoute<T>(
+    path: string,
+    init: RequestInit,
+    valueName: string,
+    fallbackAction: () => Promise<T>,
+  ): Promise<T> {
+    let response: Response
+    try {
+      response = await fetchImpl(providerRoute(input.baseUrl, path), init)
+    } catch {
+      return fallbackAction()
+    }
+
+    if (response.status === 404) {
+      return fallbackAction()
+    }
+
+    const payload = await readProviderRoutePayload(response)
+    if (!response.ok) {
+      throw new Error(stringFrom(payload.error) ?? `Provider route failed with HTTP ${response.status}`)
+    }
+
+    const value = payload[valueName]
+    if (value === undefined) {
+      throw new Error(`Provider route returned no ${valueName}`)
+    }
+    return value as T
+  }
+
+  return {
+    generateBatch(request) {
+      return fetchRoute(
+        'generate-batch',
+        jsonRequest({ request }),
+        'batch',
+        () => fallback.generateBatch(request),
+      )
+    },
+
+    executeAction(request) {
+      return fetchRoute(
+        'actions',
+        jsonRequest({ request }),
+        'result',
+        () => executeProviderAction(fallback, request),
+      )
+    },
   }
 }
 
@@ -198,12 +260,42 @@ export async function executeProviderAction(
   })
 }
 
+function providerRoute(baseUrl: string | undefined, path: string): string {
+  return `${(baseUrl ?? '').replace(/\/$/, '')}/api/provider/${path}`
+}
+
+function jsonRequest(body: unknown): RequestInit {
+  return {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }
+}
+
+async function readProviderRoutePayload(response: Response): Promise<Record<string, unknown>> {
+  const text = await response.text()
+  if (!text) {
+    return {}
+  }
+
+  try {
+    const parsed = JSON.parse(text) as unknown
+    return isRecord(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
 function slugify(value: string): string {
   return value
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
+}
+
+function stringFrom(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
 function providerResult(
@@ -216,4 +308,8 @@ function providerResult(
     receiptId: `provider-action-${slugify(`${request.capability}-${request.action}`)}`,
     ...result,
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

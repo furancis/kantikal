@@ -37,6 +37,7 @@ npm run scan:wording
 
 Provider/API shape:
 
-- Client UI uses the mock/local provider action lane by default.
-- Real Suno-compatible HTTP dispatch lives under `server/` and requires server runtime plus a server-side API key.
+- Client UI uses fetch-backed provider and export clients, with local mock fallback only when the HTTP route is absent.
+- Vite dev mounts `/api/provider/*` for generation/action dispatch and `/api/provider-exports/*` for export hydration, polling, callbacks, and video-output records.
+- Real Suno-compatible HTTP dispatch lives under `server/` and requires server runtime plus a server-side API key; local dev uses a server-side simulated provider fetch without exposing credentials to the browser.
 - API parity states are enforced from `docs/api-coverage.md`, `src/api/coverage.ts`, and `src/api/actionCatalog.ts`.

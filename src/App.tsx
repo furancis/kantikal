@@ -632,9 +632,9 @@ export function App({ provider: injectedProvider, exportRuntime: injectedExportR
               <span>Voice</span>
               <input value={briefInput.voice} onChange={handleFieldChange('voice')} disabled={promptLocked} />
             </label>
-            <button type="submit" aria-label="Generate mock Suno batch" disabled={promptLocked}>
+            <button type="submit" aria-label="Generate Suno batch" disabled={promptLocked}>
               <Sparkles size={16} />
-              {isGenerating ? 'Generating' : 'Generate mock Suno batch'}
+              {isGenerating ? 'Generating' : 'Generate Suno batch'}
             </button>
             {generateError && (
               <p className="form-error" role="alert">
@@ -781,8 +781,8 @@ export function App({ provider: injectedProvider, exportRuntime: injectedExportR
             <div className="workflow-section">
               <h3>Project asset library</h3>
               <p>
-                Source assets are project evidence. Provider-backed imports stay planned or blocked until a
-                server/worker lane can execute them.
+                Source assets are project evidence. Provider-backed imports show completed, planned, or blocked states
+                from the active server/worker lane.
               </p>
               <div className="asset-list" aria-label="Project assets">
                 {workflow.projectAssets.items.map((asset) => (
@@ -1484,11 +1484,11 @@ function buildWorkflowNodes(workflow: SunoWorkflow, releasePack: ReleasePack | n
       id: 'batch',
       kind: 'batch',
       title: 'Generation batch',
-      summary: `${workflow.generationBatch.tracks.length} mock Suno variants from ${workflow.generationBatch.providerJobId}`,
+      summary: `${workflow.generationBatch.tracks.length} Suno variants from ${workflow.generationBatch.providerJobId}`,
       status: workflow.selectedTrack ? 'locked' : 'needs-review',
       x: 49,
       y: 45,
-      meta: ['mock create', 'version candidates', workflow.generationBatch.providerJobId],
+      meta: ['provider create', 'version candidates', workflow.generationBatch.providerJobId],
     })
 
     nodes.push({
