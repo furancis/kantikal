@@ -342,7 +342,8 @@ textarea {
 .lipsync-gate,
 .api-box,
 .action-box,
-.workflow-section {
+.workflow-section,
+.video-lane-section {
   display: grid;
   gap: 10px;
   padding: 14px;
@@ -461,13 +462,19 @@ textarea {
 .comparison-list,
 .song-section-list,
 .job-list,
-.library-list {
+.library-list,
+.scene-list,
+.render-list,
+.worker-list,
+.failure-list {
   display: grid;
   gap: 8px;
 }
 
 .release-section h3,
-.workflow-section h3 {
+.workflow-section h3,
+.video-lane-section h3,
+.failure-list h3 {
   margin: 0;
   font-size: 14px;
 }
@@ -477,7 +484,11 @@ textarea {
 .comparison-list div,
 .song-section-list div,
 .job-list div,
-.library-list div {
+.library-list div,
+.scene-list div,
+.render-list div,
+.worker-list div,
+.failure-list div {
   display: grid;
   gap: 3px;
   padding: 9px 10px;
@@ -491,7 +502,11 @@ textarea {
 .comparison-list small,
 .song-section-list small,
 .job-list small,
-.library-list small {
+.library-list small,
+.scene-list small,
+.render-list small,
+.worker-list small,
+.failure-list small {
   color: #b7b1a6;
 }
 
@@ -501,6 +516,26 @@ textarea {
 }
 
 .song-section-list div.locked {
+  border-color: rgba(107, 218, 132, 0.42);
+  background: rgba(107, 218, 132, 0.1);
+}
+
+.scene-list div.needs-repair,
+.worker-list div.blocked,
+.failure-list div {
+  border-color: rgba(229, 83, 83, 0.4);
+  background: rgba(229, 83, 83, 0.1);
+}
+
+.worker-list div.queued,
+.scene-list div.queued {
+  border-color: rgba(240, 181, 76, 0.42);
+  background: rgba(240, 181, 76, 0.1);
+}
+
+.scene-list div.rendered,
+.worker-list div.online,
+.worker-list div.completed {
   border-color: rgba(107, 218, 132, 0.42);
   background: rgba(107, 218, 132, 0.1);
 }

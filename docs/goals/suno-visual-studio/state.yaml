@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T090
+active_task: T100
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -528,7 +528,7 @@ tasks:
   - id: T090
     type: worker
     assignee: Worker
-    status: active
+    status: done
     objective: "Implement Music Video Lane scene planning, ComfyUI render graph state, worker queue health, and exact lipsync failure ranges while keeping video subordinate to the selected song."
     inputs:
       - docs/prd.md
@@ -565,4 +565,77 @@ tasks:
     stop_if:
       - "A ComfyUI provider or local worker capability is assumed without explicit mocked/planned/blocked state."
       - "A video export path can bypass perfect lipsync range-level QA."
-    receipt: null
+    receipt:
+      result: done
+      changed_files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: credential literal rg scan
+          status: pass
+        - cmd: static chat surface wording rg scan
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Added subordinate Music Video Lane planning surfaces and state: timestamped scene cards from song sections, ComfyUI render graph planning with model/seed/reference/asset routing nodes, external render/stitch/QA worker health and job queues, and exact lipsync failure ranges that mark affected scenes for repair and keep video export blocked until range-level QA clears."
+  - id: T100
+    type: worker
+    assignee: Worker
+    status: active
+    objective: "Implement source asset, upload, voice/persona, and cover-art workflow lanes so generation inputs become durable project assets instead of plain prompt fields."
+    inputs:
+      - docs/prd.md
+      - docs/api-coverage.md
+      - src/domain/workflow.ts
+      - src/App.tsx
+      - src/api/actionCatalog.ts
+      - server/sunoApiAdapter.ts
+    constraints:
+      - "Uploaded/source assets must be project evidence with provenance, not loose client-only strings."
+      - "Voice/persona surfaces must preserve consent notes and avoid pretending unsupported provider cloning is live."
+      - "Cover-art/image/video references must feed Song Lab and Music Video Lane without replacing the selected song as source-of-truth."
+      - "Server-side provider payloads must not expose secrets to the client bundle."
+    expected_output:
+      - "Project asset library for audio references, lyrics docs, cover art, persona references, and video references."
+      - "Upload/import actions modeled through provider/server boundaries with blocked/planned/unsupported states where real API support is absent."
+      - "Voice/persona workbench state with consent, tags, prompt-safe notes, and provider action results."
+      - "Cover-art/source-asset references visible in generation, Song Lab, and Music Video Lane inspectors."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    stop_if:
+      - "A real upload or voice-clone provider capability is assumed without current docs or explicit unsupported state."
+      - "Any asset action would persist or display credential material."

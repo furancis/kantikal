@@ -9,8 +9,10 @@ import {
   openSongLab,
   openMusicVideoLane,
   planArchiveFirstCleanup,
+  planComfyRenderGraph,
   queueSongLabEdit,
   queueLipsyncRepair,
+  queueMusicVideoRender,
   rateTrack,
   recordProviderJobResult,
   restoreArchivedTracks,
@@ -112,6 +114,195 @@ describe('Suno workflow state machine', () => {
         'lipsync-qa',
       ]),
     })
+  })
+
+  it('opens Music Video Lane with scene cards tied to the selected song sections', () => {
+    const workflow = openMusicVideoLane(
+      openSongLab(
+        selectTrack(
+          submitGenerationBatch(
+            createWorkflow({
+              brief: 'Arabic pop hook',
+              lyrics: 'chorus',
+              style: 'pop',
+              voice: 'persona',
+            }),
+            {
+              providerJobId: 'job_012',
+              tracks: [{ id: 'song_a', title: 'Night Lift A', durationSeconds: 154 }],
+            },
+          ),
+          'song_a',
+        ),
+      ),
+    )
+
+    expect(workflow.musicVideoLane?.sourceTrackId).toBe('song_a')
+    expect(workflow.musicVideoLane?.scenes.map((scene) => `${scene.sectionId}:${scene.startSeconds}-${scene.endSeconds}`)).toEqual([
+      'intro:0-18',
+      'verse:18-65',
+      'hook:65-108',
+      'outro:108-154',
+    ])
+    expect(workflow.musicVideoLane?.scenes.find((scene) => scene.sectionId === 'hook')).toMatchObject({
+      id: 'scene-hook',
+      mode: 'lyric',
+      sourceTrackId: 'song_a',
+      status: 'planned',
+    })
+    expect(workflow.musicVideoLane?.renderPlan).toBeNull()
+  })
+
+  it('plans and queues a ComfyUI render graph as external worker state', () => {
+    const workflow = openMusicVideoLane(
+      selectTrack(
+        submitGenerationBatch(
+          createWorkflow({
+            brief: 'Arabic pop hook',
+            lyrics: 'chorus',
+            style: 'pop',
+            voice: 'persona',
+          }),
+          {
+            providerJobId: 'job_013',
+            tracks: [{ id: 'song_a', title: 'Night Lift A', durationSeconds: 154 }],
+          },
+        ),
+        'song_a',
+      ),
+    )
+
+    const planned = planComfyRenderGraph(workflow, {
+      model: 'wan-video-lipsync',
+      seed: 4242,
+      referenceAssetIds: ['persona-ref', 'cover-ref'],
+    })
+
+    expect(planned.musicVideoLane?.renderPlan).toMatchObject({
+      id: 'comfy-song_a',
+      sourceTrackId: 'song_a',
+      model: 'wan-video-lipsync',
+      seed: 4242,
+      referenceAssetIds: ['persona-ref', 'cover-ref'],
+      status: 'planned',
+    })
+    expect(planned.musicVideoLane?.renderPlan?.nodes.map((node) => node.id)).toEqual([
+      'model',
+      'seed',
+      'references',
+      'scene-prompts',
+      'output',
+    ])
+
+    const queued = queueMusicVideoRender(planned)
+
+    expect(queued.musicVideoLane?.renderPlan?.status).toBe('queued')
+    expect(queued.musicVideoLane?.workerHealth.map((worker) => `${worker.lane}:${worker.status}`)).toEqual([
+      'render:blocked',
+      'stitch:queued',
+      'qa:queued',
+    ])
+    expect(queued.musicVideoLane?.workerJobs.map((job) => `${job.lane}:${job.status}`)).toEqual([
+      'render:blocked',
+      'stitch:queued',
+      'qa:queued',
+    ])
+    expect(queued.provenance).toEqual(expect.arrayContaining(['comfy-render-plan', 'music-video-render-queued']))
+  })
+
+  it('records exact lipsync failure ranges and blocks export until ranges clear', () => {
+    const workflow = planComfyRenderGraph(
+      openMusicVideoLane(
+        selectTrack(
+          submitGenerationBatch(
+            createWorkflow({
+              brief: 'Arabic pop hook',
+              lyrics: 'chorus',
+              style: 'pop',
+              voice: 'persona',
+            }),
+            {
+              providerJobId: 'job_014',
+              tracks: [{ id: 'song_a', title: 'Night Lift A', durationSeconds: 154 }],
+            },
+          ),
+          'song_a',
+        ),
+      ),
+      {
+        model: 'wan-video-lipsync',
+        seed: 4242,
+        referenceAssetIds: ['persona-ref'],
+      },
+    )
+
+    const failed = evaluateLipsync(
+      workflow,
+      {
+        phoneme: true,
+        frame: true,
+        mouthShape: true,
+        segmentDrift: false,
+        postStitch: false,
+      },
+      [
+        {
+          id: 'range-hook-drift',
+          checkName: 'segmentDrift',
+          startSeconds: 65,
+          endSeconds: 82,
+          severity: 'blocker',
+          repairAction: 'Split hook scene and retime mouth track',
+        },
+        {
+          id: 'range-outro-stitch',
+          checkName: 'postStitch',
+          startSeconds: 108,
+          endSeconds: 154,
+          severity: 'repair',
+          repairAction: 'Rerender stitched outro and re-run QA',
+        },
+      ],
+    )
+
+    expect(failed.musicVideoLane?.exportStatus).toBe('blocked')
+    expect(failed.musicVideoLane?.failureRanges).toEqual([
+      {
+        id: 'range-hook-drift',
+        checkName: 'segmentDrift',
+        startSeconds: 65,
+        endSeconds: 82,
+        severity: 'blocker',
+        repairAction: 'Split hook scene and retime mouth track',
+      },
+      {
+        id: 'range-outro-stitch',
+        checkName: 'postStitch',
+        startSeconds: 108,
+        endSeconds: 154,
+        severity: 'repair',
+        repairAction: 'Rerender stitched outro and re-run QA',
+      },
+    ])
+    expect(failed.musicVideoLane?.scenes.find((scene) => scene.sectionId === 'hook')?.status).toBe('needs-repair')
+    expect(() => toReleasePack(failed, { includeVideo: true })).toThrow(/lipsync/i)
+
+    const queuedRepair = queueLipsyncRepair(failed)
+    const passed = evaluateLipsync(
+      queuedRepair,
+      {
+        phoneme: true,
+        frame: true,
+        mouthShape: true,
+        segmentDrift: true,
+        postStitch: true,
+      },
+      [],
+    )
+
+    expect(passed.musicVideoLane?.failureRanges).toEqual([])
+    expect(passed.musicVideoLane?.exportStatus).toBe('ready')
+    expect(toReleasePack(passed, { includeVideo: true }).includesVideo).toBe(true)
   })
 
   it('generates release pack deliverables and provenance receipts', () => {

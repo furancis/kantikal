@@ -37,9 +37,11 @@ import {
   lockSongLabRegion,
   openSongLab,
   openMusicVideoLane,
+  planComfyRenderGraph,
   planArchiveFirstCleanup,
   queueSongLabEdit,
   queueLipsyncRepair,
+  queueMusicVideoRender,
   rateTrack,
   recordProviderJobResult,
   restoreArchivedTracks,
@@ -300,6 +302,22 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
   function handleOpenVideoLane() {
     setWorkflow((current) => openMusicVideoLane(current))
     setVideoExportError(null)
+    setSelectedId('video')
+  }
+
+  function handlePlanComfyRenderGraph() {
+    setWorkflow((current) =>
+      planComfyRenderGraph(current, {
+        model: 'wan-video-lipsync',
+        seed: 4242,
+        referenceAssetIds: ['persona-ref', 'cover-ref'],
+      }),
+    )
+    setSelectedId('video')
+  }
+
+  function handleQueueMusicVideoRender() {
+    setWorkflow((current) => queueMusicVideoRender(current))
     setSelectedId('video')
   }
 
@@ -753,6 +771,81 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
                 Video export stays blocked until phoneme, frame, mouth-shape, segment drift, and
                 post-stitch checks all pass hard thresholds.
               </p>
+              <div className="video-lane-section">
+                <h3>Scene cards</h3>
+                <div className="scene-list" aria-label="Music video scene cards">
+                  {workflow.musicVideoLane.scenes.map((scene) => (
+                    <div className={scene.status} key={scene.id}>
+                      <strong>{scene.title}</strong>
+                      <small>
+                        {scene.startSeconds}s-{scene.endSeconds}s - {scene.mode} - {scene.status}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="video-lane-section">
+                <h3>ComfyUI render graph</h3>
+                {workflow.musicVideoLane.renderPlan ? (
+                  <>
+                    <p>
+                      {workflow.musicVideoLane.renderPlan.model} seed {workflow.musicVideoLane.renderPlan.seed};{' '}
+                      {workflow.musicVideoLane.renderPlan.status}
+                    </p>
+                    <div className="render-list" aria-label="ComfyUI render graph nodes">
+                      {workflow.musicVideoLane.renderPlan.nodes.map((node) => (
+                        <div key={node.id}>
+                          <strong>{node.id}</strong>
+                          <small>
+                            {node.label}: {node.value}
+                          </small>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p>Render graph is planned from scenes, references, model, seed, and blocked worker output.</p>
+                )}
+                <div className="gate-actions">
+                  <button type="button" disabled={Boolean(workflow.musicVideoLane.renderPlan)} onClick={handlePlanComfyRenderGraph}>
+                    <GitBranch size={16} />
+                    Plan ComfyUI render graph
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!workflow.musicVideoLane.renderPlan || workflow.musicVideoLane.renderPlan.status === 'queued'}
+                    onClick={handleQueueMusicVideoRender}
+                  >
+                    <Activity size={16} />
+                    Queue music video render
+                  </button>
+                </div>
+              </div>
+              <div className="video-lane-section">
+                <h3>Worker health</h3>
+                <div className="worker-list" aria-label="Music video worker health">
+                  {workflow.musicVideoLane.workerHealth.map((worker) => (
+                    <div className={worker.status} key={worker.id}>
+                      <strong>
+                        {worker.label} {worker.status}
+                      </strong>
+                      <small>{worker.detail}</small>
+                    </div>
+                  ))}
+                </div>
+                {workflow.musicVideoLane.workerJobs.length > 0 && (
+                  <div className="worker-list" aria-label="Music video worker jobs">
+                    {workflow.musicVideoLane.workerJobs.map((job) => (
+                      <div className={job.status} key={job.id}>
+                        <strong>
+                          {job.lane} {job.status}
+                        </strong>
+                        <small>{job.detail}</small>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <ul className="lipsync-checklist" aria-label="Lipsync QA checks">
                 {lipsyncCheckOrder.map((checkName) => {
                   const checkResult = activeLipsync?.[checkName]
@@ -794,6 +887,20 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
                 <p className="form-error" role="alert">
                   {videoExportError}
                 </p>
+              )}
+              {workflow.musicVideoLane.failureRanges.length > 0 && (
+                <div className="failure-list" aria-label="Exact lipsync failure ranges">
+                  <h3>Exact failure ranges</h3>
+                  {workflow.musicVideoLane.failureRanges.map((range) => (
+                    <div key={range.id}>
+                      <strong>{range.id}</strong>
+                      <small>
+                        {range.checkName} {range.startSeconds}s-{range.endSeconds}s - {range.severity};{' '}
+                        {range.repairAction}
+                      </small>
+                    </div>
+                  ))}
+                </div>
               )}
               {workflow.musicVideoLane.repairAttempts.length > 0 && (
                 <div className="repair-list" aria-label="Lipsync repair attempts">

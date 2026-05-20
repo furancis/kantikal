@@ -129,11 +129,75 @@ export type LipsyncRepairAttempt = {
   status: 'queued' | 'applied'
 }
 
+export type MusicVideoSceneMode = 'performance' | 'narrative' | 'abstract' | 'lyric'
+
+export type MusicVideoScene = {
+  id: string
+  sectionId: string
+  title: string
+  startSeconds: number
+  endSeconds: number
+  mode: MusicVideoSceneMode
+  prompt: string
+  assetRefs: string[]
+  sourceTrackId: string
+  status: 'planned' | 'queued' | 'rendered' | 'needs-repair'
+}
+
+export type ComfyRenderGraphNode = {
+  id: string
+  type: 'model' | 'seed' | 'references' | 'scene-prompts' | 'output'
+  label: string
+  value: string
+}
+
+export type ComfyRenderPlan = {
+  id: string
+  sourceTrackId: string
+  model: string
+  seed: number
+  referenceAssetIds: string[]
+  nodes: ComfyRenderGraphNode[]
+  status: 'planned' | 'queued' | 'blocked'
+}
+
+export type MusicVideoWorkerLane = 'render' | 'stitch' | 'qa'
+
+export type MusicVideoWorkerHealth = {
+  id: string
+  lane: MusicVideoWorkerLane
+  label: string
+  status: 'planned' | 'queued' | 'blocked' | 'online'
+  detail: string
+}
+
+export type MusicVideoWorkerJob = {
+  id: string
+  lane: MusicVideoWorkerLane
+  status: 'queued' | 'blocked' | 'completed'
+  sourceId: string
+  detail: string
+}
+
+export type LipsyncFailureRange = {
+  id: string
+  checkName: LipsyncCheckName
+  startSeconds: number
+  endSeconds: number
+  severity: 'repair' | 'blocker'
+  repairAction: string
+}
+
 export type MusicVideoLane = {
   sourceTrackId: string
   exportStatus: 'blocked' | 'ready'
   lipsync: LipsyncChecks | null
   repairAttempts: LipsyncRepairAttempt[]
+  scenes: MusicVideoScene[]
+  renderPlan: ComfyRenderPlan | null
+  workerHealth: MusicVideoWorkerHealth[]
+  workerJobs: MusicVideoWorkerJob[]
+  failureRanges: LipsyncFailureRange[]
 }
 
 export type ReleasePackItemKind = 'audio' | 'video' | 'metadata' | 'prompts' | 'provenance'
@@ -453,28 +517,107 @@ export function openMusicVideoLane(workflow: SunoWorkflow): SunoWorkflow {
   if (!workflow.selectedTrack) {
     throw new Error('Music video lane requires a selected track')
   }
+  const selectedTrack = workflow.selectedTrack
+  const sectionSource =
+    workflow.songLab?.sourceTrackId === selectedTrack.id
+      ? workflow.songLab.sections
+      : createSongLabSections(selectedTrack)
 
   return {
     ...workflow,
     stage: 'video-open',
     musicVideoLane: {
-      sourceTrackId: workflow.selectedTrack.id,
+      sourceTrackId: selectedTrack.id,
       exportStatus: 'blocked',
       lipsync: null,
       repairAttempts: [],
+      scenes: createMusicVideoScenes(selectedTrack, sectionSource),
+      renderPlan: null,
+      workerHealth: createDefaultMusicVideoWorkerHealth(),
+      workerJobs: [],
+      failureRanges: [],
     },
+  }
+}
+
+export function planComfyRenderGraph(
+  workflow: SunoWorkflow,
+  input: { model: string; seed: number; referenceAssetIds: string[] },
+): SunoWorkflow {
+  if (!workflow.musicVideoLane) {
+    throw new Error('ComfyUI render planning requires an open music video lane')
+  }
+
+  const renderPlan: ComfyRenderPlan = {
+    id: `comfy-${workflow.musicVideoLane.sourceTrackId}`,
+    sourceTrackId: workflow.musicVideoLane.sourceTrackId,
+    model: input.model,
+    seed: input.seed,
+    referenceAssetIds: input.referenceAssetIds,
+    nodes: createComfyRenderGraphNodes(
+      input.model,
+      input.seed,
+      input.referenceAssetIds,
+      workflow.musicVideoLane.scenes,
+    ),
+    status: 'planned',
+  }
+
+  return {
+    ...workflow,
+    musicVideoLane: {
+      ...workflow.musicVideoLane,
+      renderPlan,
+    },
+    provenance: appendOnce(workflow.provenance, 'comfy-render-plan'),
+  }
+}
+
+export function queueMusicVideoRender(workflow: SunoWorkflow): SunoWorkflow {
+  if (!workflow.musicVideoLane) {
+    throw new Error('Music video render queue requires an open music video lane')
+  }
+  if (!workflow.musicVideoLane.renderPlan) {
+    throw new Error('Music video render queue requires a ComfyUI render plan')
+  }
+
+  const renderPlan = {
+    ...workflow.musicVideoLane.renderPlan,
+    status: 'queued' as const,
+  }
+
+  return {
+    ...workflow,
+    musicVideoLane: {
+      ...workflow.musicVideoLane,
+      renderPlan,
+      scenes: workflow.musicVideoLane.scenes.map((scene) => ({
+        ...scene,
+        status: 'queued',
+      })),
+      workerHealth: createQueuedMusicVideoWorkerHealth(),
+      workerJobs: createMusicVideoWorkerJobs(renderPlan),
+    },
+    provenance: appendOnce(workflow.provenance, 'music-video-render-queued'),
   }
 }
 
 export function evaluateLipsync(
   workflow: SunoWorkflow,
   lipsync: LipsyncChecks,
+  failureRanges: LipsyncFailureRange[] = [],
 ): SunoWorkflow {
   if (!workflow.musicVideoLane) {
     throw new Error('Lipsync QA requires an open music video lane')
   }
 
   const exportStatus = failedLipsyncChecks(lipsync).length === 0 ? 'ready' : 'blocked'
+  const activeFailureRanges =
+    exportStatus === 'ready'
+      ? []
+      : failureRanges.length > 0
+        ? failureRanges
+        : deriveLipsyncFailureRanges(workflow.musicVideoLane.scenes, lipsync)
 
   return {
     ...workflow,
@@ -482,6 +625,14 @@ export function evaluateLipsync(
       ...workflow.musicVideoLane,
       exportStatus,
       lipsync,
+      failureRanges: activeFailureRanges,
+      scenes:
+        exportStatus === 'ready'
+          ? workflow.musicVideoLane.scenes.map((scene) => ({
+              ...scene,
+              status: scene.status === 'needs-repair' ? 'rendered' : scene.status,
+            }))
+          : markScenesForFailureRanges(workflow.musicVideoLane.scenes, activeFailureRanges),
       repairAttempts:
         exportStatus === 'ready'
           ? workflow.musicVideoLane.repairAttempts.map((attempt) => ({
@@ -835,6 +986,181 @@ function createSongStems(track: GeneratedTrack): SongStem[] {
       sourceTrackId: track.id,
     },
   ]
+}
+
+function createMusicVideoScenes(track: GeneratedTrack, sections: SongLabSection[]): MusicVideoScene[] {
+  const modeBySection: Record<string, MusicVideoSceneMode> = {
+    intro: 'narrative',
+    verse: 'performance',
+    hook: 'lyric',
+    outro: 'abstract',
+  }
+
+  return sections.map((section) => ({
+    id: `scene-${section.id}`,
+    sectionId: section.id,
+    title: `${section.label} scene`,
+    startSeconds: section.startSeconds,
+    endSeconds: section.endSeconds,
+    mode: modeBySection[section.id] ?? 'performance',
+    prompt: `${track.title} ${section.label.toLowerCase()} visual treatment`,
+    assetRefs: [`audio:${track.id}`, `section:${section.id}`],
+    sourceTrackId: track.id,
+    status: 'planned',
+  }))
+}
+
+function createComfyRenderGraphNodes(
+  model: string,
+  seed: number,
+  referenceAssetIds: string[],
+  scenes: MusicVideoScene[],
+): ComfyRenderGraphNode[] {
+  return [
+    {
+      id: 'model',
+      type: 'model',
+      label: 'ComfyUI model',
+      value: model,
+    },
+    {
+      id: 'seed',
+      type: 'seed',
+      label: 'Render seed',
+      value: String(seed),
+    },
+    {
+      id: 'references',
+      type: 'references',
+      label: 'Reference assets',
+      value: referenceAssetIds.length > 0 ? referenceAssetIds.join(', ') : 'none',
+    },
+    {
+      id: 'scene-prompts',
+      type: 'scene-prompts',
+      label: 'Scene prompts',
+      value: `${scenes.length} timestamped scene prompts`,
+    },
+    {
+      id: 'output',
+      type: 'output',
+      label: 'Output route',
+      value: 'blocked until external worker is connected',
+    },
+  ]
+}
+
+function createDefaultMusicVideoWorkerHealth(): MusicVideoWorkerHealth[] {
+  return [
+    {
+      id: 'render-worker',
+      lane: 'render',
+      label: 'ComfyUI render worker',
+      status: 'planned',
+      detail: 'Waiting for a render graph',
+    },
+    {
+      id: 'stitch-worker',
+      lane: 'stitch',
+      label: 'Stitch worker',
+      status: 'planned',
+      detail: 'Waiting for rendered scenes',
+    },
+    {
+      id: 'qa-worker',
+      lane: 'qa',
+      label: 'Lipsync QA worker',
+      status: 'planned',
+      detail: 'Waiting for stitched video',
+    },
+  ]
+}
+
+function createQueuedMusicVideoWorkerHealth(): MusicVideoWorkerHealth[] {
+  return [
+    {
+      id: 'render-worker',
+      lane: 'render',
+      label: 'ComfyUI render worker',
+      status: 'blocked',
+      detail: 'External ComfyUI worker is modeled but not connected in the browser lane',
+    },
+    {
+      id: 'stitch-worker',
+      lane: 'stitch',
+      label: 'Stitch worker',
+      status: 'queued',
+      detail: 'Waiting for rendered scenes',
+    },
+    {
+      id: 'qa-worker',
+      lane: 'qa',
+      label: 'Lipsync QA worker',
+      status: 'queued',
+      detail: 'Waiting for stitched video and phoneme timing',
+    },
+  ]
+}
+
+function createMusicVideoWorkerJobs(renderPlan: ComfyRenderPlan): MusicVideoWorkerJob[] {
+  return [
+    {
+      id: 'mv-job-render-1',
+      lane: 'render',
+      status: 'blocked',
+      sourceId: renderPlan.id,
+      detail: 'ComfyUI external-worker execution is not connected yet',
+    },
+    {
+      id: 'mv-job-stitch-1',
+      lane: 'stitch',
+      status: 'queued',
+      sourceId: renderPlan.id,
+      detail: 'Stitch waits for rendered scene outputs',
+    },
+    {
+      id: 'mv-job-qa-1',
+      lane: 'qa',
+      status: 'queued',
+      sourceId: renderPlan.id,
+      detail: 'QA waits for stitched video and exact lipsync ranges',
+    },
+  ]
+}
+
+function deriveLipsyncFailureRanges(
+  scenes: MusicVideoScene[],
+  lipsync: LipsyncChecks,
+): LipsyncFailureRange[] {
+  const failedChecks = failedLipsyncChecks(lipsync)
+  if (failedChecks.length === 0) {
+    return []
+  }
+  const fallbackScene = scenes.find((scene) => scene.sectionId === 'hook') ?? scenes[0]
+  if (!fallbackScene) {
+    return []
+  }
+
+  return failedChecks.map((checkName, index) => ({
+    id: `range-${checkName}-${index + 1}`,
+    checkName,
+    startSeconds: fallbackScene.startSeconds,
+    endSeconds: fallbackScene.endSeconds,
+    severity: 'blocker',
+    repairAction: `Repair ${checkName} timing before export`,
+  }))
+}
+
+function markScenesForFailureRanges(
+  scenes: MusicVideoScene[],
+  failureRanges: LipsyncFailureRange[],
+): MusicVideoScene[] {
+  return scenes.map((scene) => {
+    const hasFailure = failureRanges.some(
+      (range) => range.startSeconds < scene.endSeconds && range.endSeconds > scene.startSeconds,
+    )
+    return hasFailure ? { ...scene, status: 'needs-repair' } : scene
+  })
 }
 
 function providerOutcomeToJobStatus(outcome: ProviderJobResultInput['outcome']): ProviderJobStatus {
