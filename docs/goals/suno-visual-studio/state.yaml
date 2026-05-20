@@ -675,7 +675,7 @@ tasks:
           status: pass
         - cmd: git diff --check
           status: pass
-      summary: "Added durable project asset state for lyrics docs, reference audio, cover art, persona references, and video references; provider-bound import receipts with planned/blocked server ownership; a consent-preserving voice/persona workbench; and propagation of source asset IDs into Song Lab and the subordinate Music Video Lane ComfyUI render plan."
+      summary: "Added durable project asset state for lyrics docs, reference audio, cover art, persona references, and video references; provider-bound import receipts with planned/blocked server ownership; a consent-preserving voice/persona workbench; and propagation of source asset IDs into Song Lab and the subordinate Music Video Lane ComfyUI render plan. CI follow-up stabilized the visual canvas into a responsive non-overlapping grid after the Source assets node intercepted Voice/persona clicks at the hosted runner viewport."
   - id: T110
     type: worker
     assignee: Worker
