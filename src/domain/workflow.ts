@@ -3,7 +3,6 @@ export type WorkflowStage =
   | 'batch-ready'
   | 'track-selected'
   | 'video-open'
-  | 'release-ready'
 
 export type BriefInput = {
   brief: string

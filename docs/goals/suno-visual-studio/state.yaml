@@ -106,7 +106,7 @@ tasks:
           status: pass
         - cmd: npm run test:e2e
           status: pass
-      summary: "Added TDD core workflow state machine and mocked server-side provider boundary. Proves brief -> batch -> selected track -> subordinate MV lane -> lipsync-gated release pack path."
+      summary: "Added TDD core workflow state machine and mocked server-side provider boundary. Proves brief -> batch -> selected track -> subordinate MV lane -> lipsync-gated release pack path. Removed dead release-ready stage after Greptile review."
   - id: T020
     type: worker
     assignee: Worker
