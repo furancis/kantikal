@@ -22,6 +22,100 @@ export type GenerationBatch = {
   tracks: GeneratedTrack[]
 }
 
+export type TrackTasteRating = {
+  trackId: string
+  score: number
+  notes: string
+  tags: string[]
+}
+
+export type VersionComparison = {
+  id: string
+  leftTrackId: string
+  rightTrackId: string
+  winnerTrackId: string
+  notes: string
+}
+
+export type TasteState = {
+  ratings: Record<string, TrackTasteRating>
+  comparisons: VersionComparison[]
+}
+
+export type SongLabSection = {
+  id: string
+  label: string
+  startSeconds: number
+  endSeconds: number
+  locked: boolean
+  sourceTrackId: string
+}
+
+export type SongStem = {
+  id: 'vocals' | 'instrumental' | 'full-mix'
+  label: string
+  status: 'available' | 'planned' | 'queued'
+  sourceTrackId: string
+}
+
+export type SongLabEditAction = {
+  id: string
+  sectionId: string
+  action: string
+  label: string
+  status: 'queued' | 'planned' | 'blocked' | 'completed'
+  providerJobId?: string
+}
+
+export type SongLab = {
+  sourceTrackId: string
+  status: 'open'
+  sections: SongLabSection[]
+  stems: SongStem[]
+  editActions: SongLabEditAction[]
+}
+
+export type ProviderJobStatus = 'planned' | 'blocked' | 'unsupported' | 'completed'
+
+export type ProviderJobResultInput = {
+  action: string
+  capability: string
+  outcome: 'succeeded' | 'planned' | 'blocked' | 'unsupported'
+  message: string
+  authBoundary: string
+  endpoint?: string
+  providerTaskId?: string
+  receiptId: string
+}
+
+export type ProviderJob = {
+  id: string
+  action: string
+  capability: string
+  outcome: ProviderJobResultInput['outcome']
+  status: ProviderJobStatus
+  message: string
+  authBoundary: string
+  endpoint?: string
+  providerTaskId?: string
+  receiptId: string
+  sourceTrackId?: string
+}
+
+export type LocalLibraryItem = {
+  id: string
+  scope: 'local-project'
+  track: GeneratedTrack
+  notes: string
+  tags: string[]
+  ratingScore?: number
+}
+
+export type LocalLibraryState = {
+  providerLibraryStatus: 'unsupported'
+  items: LocalLibraryItem[]
+}
+
 const lipsyncCheckNames = ['phoneme', 'frame', 'mouthShape', 'segmentDrift', 'postStitch'] as const
 
 export type LipsyncCheckName = (typeof lipsyncCheckNames)[number]
@@ -84,6 +178,10 @@ export type SunoWorkflow = BriefInput & {
   generationBatch: GenerationBatch | null
   selectedTrack: GeneratedTrack | null
   musicVideoLane: MusicVideoLane | null
+  taste: TasteState
+  songLab: SongLab | null
+  jobQueue: ProviderJob[]
+  localLibrary: LocalLibraryState
   archiveEntries: ArchiveEntry[]
   cleanupPlan: CleanupPlan | null
   cleanupReceipts: CleanupReceipt[]
@@ -105,6 +203,10 @@ export function createWorkflow(input: BriefInput): SunoWorkflow {
     generationBatch: null,
     selectedTrack: null,
     musicVideoLane: null,
+    taste: emptyTasteState(),
+    songLab: null,
+    jobQueue: [],
+    localLibrary: createLocalLibraryState(),
     archiveEntries: [],
     cleanupPlan: null,
     cleanupReceipts: [],
@@ -126,6 +228,8 @@ export function submitGenerationBatch(
     generationBatch,
     selectedTrack: null,
     musicVideoLane: null,
+    taste: emptyTasteState(),
+    songLab: null,
     cleanupPlan: null,
     provenance: appendOnce(workflow.provenance, 'generation-batch'),
   }
@@ -142,8 +246,206 @@ export function selectTrack(workflow: SunoWorkflow, trackId: string): SunoWorkfl
     stage: 'track-selected',
     selectedTrack,
     musicVideoLane: null,
+    songLab: null,
     cleanupPlan: null,
     provenance: appendOnce(workflow.provenance, 'selected-track'),
+  }
+}
+
+export function rateTrack(
+  workflow: SunoWorkflow,
+  trackId: string,
+  input: { score: number; notes: string; tags?: string[] },
+): SunoWorkflow {
+  ensureTrackInActiveBatch(workflow, trackId)
+  if (input.score < 1 || input.score > 5) {
+    throw new Error('Track rating score must be between 1 and 5')
+  }
+
+  return {
+    ...workflow,
+    taste: {
+      ...workflow.taste,
+      ratings: {
+        ...workflow.taste.ratings,
+        [trackId]: {
+          trackId,
+          score: input.score,
+          notes: input.notes,
+          tags: input.tags ?? [],
+        },
+      },
+    },
+    provenance: appendOnce(workflow.provenance, 'taste-rating'),
+  }
+}
+
+export function compareTracks(
+  workflow: SunoWorkflow,
+  input: {
+    leftTrackId: string
+    rightTrackId: string
+    winnerTrackId: string
+    notes: string
+  },
+): SunoWorkflow {
+  ensureTrackInActiveBatch(workflow, input.leftTrackId)
+  ensureTrackInActiveBatch(workflow, input.rightTrackId)
+  if (input.leftTrackId === input.rightTrackId) {
+    throw new Error('Version comparison requires two different tracks')
+  }
+  if (![input.leftTrackId, input.rightTrackId].includes(input.winnerTrackId)) {
+    throw new Error('Version comparison winner must be one of the compared tracks')
+  }
+
+  const comparison: VersionComparison = {
+    id: `comparison-${workflow.taste.comparisons.length + 1}`,
+    leftTrackId: input.leftTrackId,
+    rightTrackId: input.rightTrackId,
+    winnerTrackId: input.winnerTrackId,
+    notes: input.notes,
+  }
+
+  return {
+    ...workflow,
+    taste: {
+      ...workflow.taste,
+      comparisons: [...workflow.taste.comparisons, comparison],
+    },
+    provenance: appendOnce(workflow.provenance, 'version-comparison'),
+  }
+}
+
+export function openSongLab(workflow: SunoWorkflow): SunoWorkflow {
+  if (!workflow.selectedTrack) {
+    throw new Error('Song Lab requires a selected track')
+  }
+
+  const selectedTrack = workflow.selectedTrack
+
+  return {
+    ...workflow,
+    songLab: {
+      sourceTrackId: selectedTrack.id,
+      status: 'open',
+      sections: createSongLabSections(selectedTrack),
+      stems: createSongStems(selectedTrack),
+      editActions: [],
+    },
+    provenance: appendOnce(workflow.provenance, 'song-lab-opened'),
+  }
+}
+
+export function lockSongLabRegion(workflow: SunoWorkflow, sectionId: string): SunoWorkflow {
+  if (!workflow.songLab) {
+    throw new Error('Song Lab region lock requires an open Song Lab')
+  }
+  const section = workflow.songLab.sections.find((candidate) => candidate.id === sectionId)
+  if (!section) {
+    throw new Error(`Song Lab section ${sectionId} is not available`)
+  }
+
+  return {
+    ...workflow,
+    songLab: {
+      ...workflow.songLab,
+      sections: workflow.songLab.sections.map((candidate) =>
+        candidate.id === sectionId ? { ...candidate, locked: true } : candidate,
+      ),
+    },
+    provenance: appendOnce(workflow.provenance, 'song-lab-region-locked'),
+  }
+}
+
+export function queueSongLabEdit(
+  workflow: SunoWorkflow,
+  input: { sectionId: string; action: string; label: string },
+): SunoWorkflow {
+  if (!workflow.songLab) {
+    throw new Error('Song Lab edit requires an open Song Lab')
+  }
+  const section = workflow.songLab.sections.find((candidate) => candidate.id === input.sectionId)
+  if (!section) {
+    throw new Error(`Song Lab section ${input.sectionId} is not available`)
+  }
+
+  const editAction: SongLabEditAction = {
+    id: `songlab-edit-${workflow.songLab.editActions.length + 1}`,
+    sectionId: input.sectionId,
+    action: input.action,
+    label: input.label,
+    status: 'queued',
+  }
+
+  return {
+    ...workflow,
+    songLab: {
+      ...workflow.songLab,
+      stems:
+        input.action === 'separateStems'
+          ? workflow.songLab.stems.map((stem) =>
+              stem.id === 'vocals' || stem.id === 'instrumental' ? { ...stem, status: 'queued' } : stem,
+            )
+          : workflow.songLab.stems,
+      editActions: [...workflow.songLab.editActions, editAction],
+    },
+    provenance: appendOnce(workflow.provenance, 'song-lab-edit-queued'),
+  }
+}
+
+export function recordProviderJobResult(
+  workflow: SunoWorkflow,
+  result: ProviderJobResultInput,
+): SunoWorkflow {
+  const job: ProviderJob = {
+    id: `job-${workflow.jobQueue.length + 1}`,
+    action: result.action,
+    capability: result.capability,
+    outcome: result.outcome,
+    status: providerOutcomeToJobStatus(result.outcome),
+    message: result.message,
+    authBoundary: result.authBoundary,
+    endpoint: result.endpoint,
+    providerTaskId: result.providerTaskId,
+    receiptId: result.receiptId,
+    sourceTrackId: workflow.selectedTrack?.id ?? workflow.musicVideoLane?.sourceTrackId,
+  }
+
+  return {
+    ...workflow,
+    jobQueue: [...workflow.jobQueue, job],
+    provenance: appendOnce(workflow.provenance, 'provider-job-result'),
+  }
+}
+
+export function saveSelectedTrackToLocalLibrary(
+  workflow: SunoWorkflow,
+  input: { notes: string; tags?: string[] },
+): SunoWorkflow {
+  if (!workflow.selectedTrack) {
+    throw new Error('Local library save requires a selected track')
+  }
+
+  const selectedTrack = workflow.selectedTrack
+  const libraryItem: LocalLibraryItem = {
+    id: `local-library-${selectedTrack.id}`,
+    scope: 'local-project',
+    track: selectedTrack,
+    notes: input.notes,
+    tags: input.tags ?? [],
+    ratingScore: workflow.taste.ratings[selectedTrack.id]?.score,
+  }
+
+  return {
+    ...workflow,
+    localLibrary: {
+      ...workflow.localLibrary,
+      items: [
+        ...workflow.localLibrary.items.filter((item) => item.track.id !== selectedTrack.id),
+        libraryItem,
+      ],
+    },
+    provenance: appendOnce(workflow.provenance, 'local-library-save'),
   }
 }
 
@@ -467,6 +769,79 @@ function toReleasePackReceipts(workflow: SunoWorkflow, includeVideo: boolean): P
   })
 
   return receipts
+}
+
+function emptyTasteState(): TasteState {
+  return {
+    ratings: {},
+    comparisons: [],
+  }
+}
+
+function createLocalLibraryState(): LocalLibraryState {
+  return {
+    providerLibraryStatus: 'unsupported',
+    items: [],
+  }
+}
+
+function ensureTrackInActiveBatch(workflow: SunoWorkflow, trackId: string): GeneratedTrack {
+  const track = workflow.generationBatch?.tracks.find((candidate) => candidate.id === trackId)
+  if (!track) {
+    throw new Error(`Track ${trackId} is not in the active generation batch`)
+  }
+  return track
+}
+
+function createSongLabSections(track: GeneratedTrack): SongLabSection[] {
+  const introEnd = Math.max(8, Math.round(track.durationSeconds * 0.12))
+  const verseEnd = Math.max(introEnd + 8, Math.round(track.durationSeconds * 0.42))
+  const hookEnd = Math.max(verseEnd + 8, Math.round(track.durationSeconds * 0.7))
+  const sectionBounds = [
+    ['intro', 'Intro', 0, introEnd],
+    ['verse', 'Verse', introEnd, verseEnd],
+    ['hook', 'Hook', verseEnd, hookEnd],
+    ['outro', 'Outro', hookEnd, track.durationSeconds],
+  ] as const
+
+  return sectionBounds.map(([id, label, startSeconds, endSeconds]) => ({
+    id,
+    label,
+    startSeconds,
+    endSeconds,
+    locked: false,
+    sourceTrackId: track.id,
+  }))
+}
+
+function createSongStems(track: GeneratedTrack): SongStem[] {
+  return [
+    {
+      id: 'vocals',
+      label: 'Vocal stem',
+      status: 'planned',
+      sourceTrackId: track.id,
+    },
+    {
+      id: 'instrumental',
+      label: 'Instrumental stem',
+      status: 'planned',
+      sourceTrackId: track.id,
+    },
+    {
+      id: 'full-mix',
+      label: 'Full mix source',
+      status: 'available',
+      sourceTrackId: track.id,
+    },
+  ]
+}
+
+function providerOutcomeToJobStatus(outcome: ProviderJobResultInput['outcome']): ProviderJobStatus {
+  if (outcome === 'succeeded') {
+    return 'completed'
+  }
+  return outcome
 }
 
 function appendOnce(values: string[], value: string): string[] {

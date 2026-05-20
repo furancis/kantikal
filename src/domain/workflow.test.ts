@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyArchiveFirstCleanup,
+  compareTracks,
   createWorkflow,
   evaluateLipsync,
   failedLipsyncChecks,
+  lockSongLabRegion,
+  openSongLab,
   openMusicVideoLane,
   planArchiveFirstCleanup,
+  queueSongLabEdit,
   queueLipsyncRepair,
+  rateTrack,
+  recordProviderJobResult,
   restoreArchivedTracks,
+  saveSelectedTrackToLocalLibrary,
   selectTrack,
   submitGenerationBatch,
   toReleasePack,
@@ -227,6 +234,226 @@ describe('Suno workflow state machine', () => {
     )
 
     expect(() => planArchiveFirstCleanup(workflow, ['song_a'], 'bad cleanup')).toThrow(/selected source/i)
+  })
+
+  it('rates and compares generated versions without changing the selected source', () => {
+    const workflow = selectTrack(
+      submitGenerationBatch(
+        createWorkflow({
+          brief: 'Arabic pop hook',
+          lyrics: 'chorus',
+          style: 'pop',
+          voice: 'persona',
+        }),
+        {
+          providerJobId: 'job_008',
+          tracks: [
+            { id: 'song_a', title: 'Night Lift A', durationSeconds: 154 },
+            { id: 'song_b', title: 'Night Lift B', durationSeconds: 158 },
+          ],
+        },
+      ),
+      'song_a',
+    )
+
+    const rated = rateTrack(
+      rateTrack(workflow, 'song_a', {
+        score: 3,
+        notes: 'good verse, hook lacks lift',
+        tags: ['usable'],
+      }),
+      'song_b',
+      {
+        score: 5,
+        notes: 'stronger hook and better drop',
+        tags: ['winner', 'release-candidate'],
+      },
+    )
+
+    const compared = compareTracks(rated, {
+      leftTrackId: 'song_a',
+      rightTrackId: 'song_b',
+      winnerTrackId: 'song_b',
+      notes: 'B keeps the Gulf percussion but lands the chorus faster',
+    })
+
+    expect(compared.selectedTrack?.id).toBe('song_a')
+    expect(compared.taste.ratings.song_b).toMatchObject({
+      trackId: 'song_b',
+      score: 5,
+      notes: 'stronger hook and better drop',
+      tags: ['winner', 'release-candidate'],
+    })
+    expect(compared.taste.comparisons).toEqual([
+      {
+        id: 'comparison-1',
+        leftTrackId: 'song_a',
+        rightTrackId: 'song_b',
+        winnerTrackId: 'song_b',
+        notes: 'B keeps the Gulf percussion but lands the chorus faster',
+      },
+    ])
+    expect(compared.provenance).toEqual(
+      expect.arrayContaining(['selected-track', 'taste-rating', 'version-comparison']),
+    )
+  })
+
+  it('opens Song Lab with section locks, stems, and queued edit actions from the selected track', () => {
+    const workflow = openSongLab(
+      selectTrack(
+        submitGenerationBatch(
+          createWorkflow({
+            brief: 'Arabic pop hook',
+            lyrics: 'chorus',
+            style: 'pop',
+            voice: 'persona',
+          }),
+          {
+            providerJobId: 'job_009',
+            tracks: [{ id: 'song_a', title: 'Night Lift A', durationSeconds: 154 }],
+          },
+        ),
+        'song_a',
+      ),
+    )
+
+    expect(workflow.songLab).toMatchObject({
+      sourceTrackId: 'song_a',
+      status: 'open',
+    })
+    expect(workflow.songLab?.sections.map((section) => section.id)).toEqual([
+      'intro',
+      'verse',
+      'hook',
+      'outro',
+    ])
+    expect(workflow.songLab?.stems.map((stem) => `${stem.id}:${stem.status}`)).toEqual([
+      'vocals:planned',
+      'instrumental:planned',
+      'full-mix:available',
+    ])
+
+    const locked = lockSongLabRegion(workflow, 'hook')
+    const withEdit = queueSongLabEdit(locked, {
+      sectionId: 'hook',
+      action: 'replaceSection',
+      label: 'Replace hook with cleaner bilingual lift',
+    })
+
+    expect(withEdit.songLab?.sections.find((section) => section.id === 'hook')).toMatchObject({
+      id: 'hook',
+      locked: true,
+    })
+    expect(withEdit.songLab?.editActions).toEqual([
+      {
+        id: 'songlab-edit-1',
+        sectionId: 'hook',
+        action: 'replaceSection',
+        label: 'Replace hook with cleaner bilingual lift',
+        status: 'queued',
+      },
+    ])
+    expect(withEdit.provenance).toEqual(
+      expect.arrayContaining(['song-lab-opened', 'song-lab-region-locked', 'song-lab-edit-queued']),
+    )
+  })
+
+  it('records provider action results as queue jobs without discarding workflow evidence', () => {
+    const workflow = openMusicVideoLane(
+      selectTrack(
+        submitGenerationBatch(
+          createWorkflow({
+            brief: 'Arabic pop hook',
+            lyrics: 'chorus',
+            style: 'pop',
+            voice: 'persona',
+          }),
+          {
+            providerJobId: 'job_010',
+            tracks: [{ id: 'song_a', title: 'Night Lift A', durationSeconds: 154 }],
+          },
+        ),
+        'song_a',
+      ),
+    )
+
+    const withBlockedJob = recordProviderJobResult(workflow, {
+      action: 'replaceSection',
+      capability: 'Replace section',
+      outcome: 'blocked',
+      message: 'Server adapter offline',
+      authBoundary: 'server',
+      endpoint: '/api/v1/generate/replace-section',
+      receiptId: 'provider-action-replace-section',
+    })
+
+    const withCompletedJob = recordProviderJobResult(withBlockedJob, {
+      action: 'generateBatch',
+      capability: 'Create song',
+      outcome: 'succeeded',
+      message: 'Mock provider completed',
+      authBoundary: 'server',
+      endpoint: '/api/v1/generate',
+      providerTaskId: 'mock_suno_hook',
+      receiptId: 'provider-action-create-song',
+    })
+
+    expect(withCompletedJob.musicVideoLane?.sourceTrackId).toBe('song_a')
+    expect(withCompletedJob.selectedTrack?.id).toBe('song_a')
+    expect(withCompletedJob.jobQueue.map((job) => `${job.capability}:${job.status}`)).toEqual([
+      'Replace section:blocked',
+      'Create song:completed',
+    ])
+    expect(withCompletedJob.jobQueue[1]).toMatchObject({
+      id: 'job-2',
+      providerTaskId: 'mock_suno_hook',
+      receiptId: 'provider-action-create-song',
+    })
+  })
+
+  it('saves selected tracks to a local library while keeping provider library unsupported', () => {
+    const workflow = saveSelectedTrackToLocalLibrary(
+      rateTrack(
+        selectTrack(
+          submitGenerationBatch(
+            createWorkflow({
+              brief: 'Arabic pop hook',
+              lyrics: 'chorus',
+              style: 'pop',
+              voice: 'persona',
+            }),
+            {
+              providerJobId: 'job_011',
+              tracks: [{ id: 'song_a', title: 'Night Lift A', durationSeconds: 154 }],
+            },
+          ),
+          'song_a',
+        ),
+        'song_a',
+        {
+          score: 5,
+          notes: 'release keeper',
+          tags: ['keeper'],
+        },
+      ),
+      {
+        notes: 'local project keeper, not provider library sync',
+        tags: ['library', 'keeper'],
+      },
+    )
+
+    expect(workflow.localLibrary.providerLibraryStatus).toBe('unsupported')
+    expect(workflow.localLibrary.items).toEqual([
+      {
+        id: 'local-library-song_a',
+        scope: 'local-project',
+        track: { id: 'song_a', title: 'Night Lift A', durationSeconds: 154 },
+        notes: 'local project keeper, not provider library sync',
+        tags: ['library', 'keeper'],
+        ratingScore: 5,
+      },
+    ])
+    expect(workflow.provenance).toEqual(expect.arrayContaining(['local-library-save']))
   })
 
   it('refuses to apply cleanup when archive entries are missing', () => {

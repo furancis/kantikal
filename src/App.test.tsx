@@ -168,6 +168,53 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByRole('status')).not.toHaveTextContent(/secret/i)
   })
 
+  it('surfaces comparison, Song Lab, queue, and local library workflow state', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon khaliji club hook')
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /neon khaliji club hook v2/i }))
+
+    await user.click(screen.getByRole('button', { name: /version comparison/i }))
+    await user.click(screen.getByRole('button', { name: /rate mock-track-2 as taste match/i }))
+    await user.click(screen.getByRole('button', { name: /compare mock-track-1 vs mock-track-2/i }))
+
+    expect(screen.getByText(/taste score: 5/i)).toBeInTheDocument()
+    expect(screen.getByText(/winner mock-track-2/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /song lab/i }))
+    await user.click(screen.getByRole('button', { name: /open song lab/i }))
+
+    expect(screen.getByRole('heading', { name: /song lab/i })).toBeInTheDocument()
+    expect(screen.getByText(/source track: mock-track-2/i)).toBeInTheDocument()
+    expect(screen.getByText(/full mix source/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /lock hook region/i }))
+    await user.click(screen.getByRole('button', { name: /queue replace section/i }))
+
+    expect(screen.getByText(/hook locked/i)).toBeInTheDocument()
+    expect(screen.getByText(/songlab-edit-1 queued/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /save selected to local library/i }))
+
+    expect(screen.getByRole('heading', { name: /local library/i })).toBeInTheDocument()
+    expect(screen.getAllByText(/provider library api unsupported/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/mock-track-2 saved locally/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /run api action create song/i }))
+    expect(await screen.findByRole('status')).toHaveTextContent(/create song/i)
+    await user.click(screen.getByRole('button', { name: /run api action library list\/search/i }))
+    expect(await screen.findByRole('status')).toHaveTextContent(/library list\/search/i)
+
+    await user.click(screen.getByRole('button', { name: /job queue/i }))
+
+    expect(screen.getByRole('heading', { name: /job queue/i })).toBeInTheDocument()
+    expect(screen.getAllByText(/create song completed/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/library list\/search unsupported/i).length).toBeGreaterThan(0)
+  })
+
   it('shows unsupported provider capabilities as explicit action results', async () => {
     const user = userEvent.setup()
     render(<App />)

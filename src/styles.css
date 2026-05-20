@@ -341,7 +341,8 @@ textarea {
 
 .lipsync-gate,
 .api-box,
-.action-box {
+.action-box,
+.workflow-section {
   display: grid;
   gap: 10px;
   padding: 14px;
@@ -456,18 +457,27 @@ textarea {
 }
 
 .release-section,
-.archive-list {
+.archive-list,
+.comparison-list,
+.song-section-list,
+.job-list,
+.library-list {
   display: grid;
   gap: 8px;
 }
 
-.release-section h3 {
+.release-section h3,
+.workflow-section h3 {
   margin: 0;
   font-size: 14px;
 }
 
 .release-section div,
-.archive-list div {
+.archive-list div,
+.comparison-list div,
+.song-section-list div,
+.job-list div,
+.library-list div {
   display: grid;
   gap: 3px;
   padding: 9px 10px;
@@ -477,8 +487,22 @@ textarea {
 }
 
 .release-section small,
-.archive-list small {
+.archive-list small,
+.comparison-list small,
+.song-section-list small,
+.job-list small,
+.library-list small {
   color: #b7b1a6;
+}
+
+.comparison-list button {
+  width: fit-content;
+  margin-top: 6px;
+}
+
+.song-section-list div.locked {
+  border-color: rgba(107, 218, 132, 0.42);
+  background: rgba(107, 218, 132, 0.1);
 }
 
 .api-box div {

@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real Suno Visual Studio"
-active_task: T080
+active_task: T090
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
@@ -455,7 +455,7 @@ tasks:
   - id: T080
     type: worker
     assignee: Worker
-    status: active
+    status: done
     objective: "Implement Song Lab, comparison, queue/job state, and library/taste workflow surfaces so the visual app moves beyond generation-only canvas interactions."
     inputs:
       - docs/prd.md
@@ -492,4 +492,77 @@ tasks:
     stop_if:
       - "A real provider/library capability is assumed without current docs or explicit unsupported state."
       - "A UI action would discard user workflow evidence without archive/provenance."
+    receipt:
+      result: done
+      changed_files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: credential literal rg scan
+          status: pass
+        - cmd: static chat surface wording rg scan
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Added first-class workflow state and visual app surfaces for version comparison, taste ratings, Song Lab sections/locks/stems/edit actions, provider-result job queue entries, and local project library saves. Provider library actions remain explicitly unsupported rather than implied as upstream sync, and provider action failures are persisted as queue evidence without discarding selected song, Music Video Lane, or release-pack state."
+  - id: T090
+    type: worker
+    assignee: Worker
+    status: active
+    objective: "Implement Music Video Lane scene planning, ComfyUI render graph state, worker queue health, and exact lipsync failure ranges while keeping video subordinate to the selected song."
+    inputs:
+      - docs/prd.md
+      - docs/api-coverage.md
+      - src/domain/workflow.ts
+      - src/App.tsx
+      - src/api/actionCatalog.ts
+    constraints:
+      - "Music Video Lane remains a subfeature opened from a selected track/version."
+      - "Original audio stays source-of-truth unless an explicit branch action exists."
+      - "ComfyUI/render workers must be modeled as worker jobs, not client-side secret or local-path assumptions."
+      - "Perfect lipsync cannot pass from a generic confidence score; it needs named checks and exact failure ranges."
+    expected_output:
+      - "Scene cards tied to selected song sections and timestamps."
+      - "ComfyUI render plan state with model, seed, references, asset routing, and worker job status."
+      - "Worker health/queue surfaces for render, stitch, and QA jobs."
+      - "Lipsync QA failure ranges and repair actions visible before video release export."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - package.json
+      - package-lock.json
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+    stop_if:
+      - "A ComfyUI provider or local worker capability is assumed without explicit mocked/planned/blocked state."
+      - "A video export path can bypass perfect lipsync range-level QA."
     receipt: null

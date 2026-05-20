@@ -30,13 +30,20 @@ import { createMockSunoProvider, executeProviderAction } from './api/provider'
 import type { ProviderActionResult, SunoProvider } from './api/provider'
 import {
   applyArchiveFirstCleanup,
+  compareTracks,
   createWorkflow,
   evaluateLipsync,
   failedLipsyncChecks,
+  lockSongLabRegion,
+  openSongLab,
   openMusicVideoLane,
   planArchiveFirstCleanup,
+  queueSongLabEdit,
   queueLipsyncRepair,
+  rateTrack,
+  recordProviderJobResult,
   restoreArchivedTracks,
+  saveSelectedTrackToLocalLibrary,
   selectTrack,
   submitGenerationBatch,
   toReleasePack,
@@ -58,6 +65,10 @@ type NodeKind =
   | 'generated'
   | 'track'
   | 'stem'
+  | 'compare'
+  | 'songlab'
+  | 'queue'
+  | 'library'
   | 'video'
   | 'export'
 
@@ -138,6 +149,10 @@ const iconByKind: Record<NodeKind, ComponentType<{ size?: number }>> = {
   generated: FileAudio,
   track: FileAudio,
   stem: Waves,
+  compare: GitBranch,
+  songlab: Waves,
+  queue: Activity,
+  library: Library,
   video: Video,
   export: Download,
 }
@@ -226,9 +241,9 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
           title: briefInput.brief,
         },
       })
-      setApiActionResult(result)
+      handleProviderActionResult(result)
     } catch (error) {
-      setApiActionResult({
+      handleProviderActionResult({
         action: entry.adapterAction,
         capability: entry.capability,
         outcome: 'blocked',
@@ -238,6 +253,11 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
         receiptId: `provider-action-error-${entry.adapterAction}`,
       })
     }
+  }
+
+  function handleProviderActionResult(result: ProviderActionResult) {
+    setApiActionResult(result)
+    setWorkflow((current) => recordProviderJobResult(current, result))
   }
 
   function handleFieldChange(field: keyof BriefInput) {
@@ -281,6 +301,69 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
     setWorkflow((current) => openMusicVideoLane(current))
     setVideoExportError(null)
     setSelectedId('video')
+  }
+
+  function handleRateTrack(track: GeneratedTrack) {
+    setWorkflow((current) =>
+      rateTrack(current, track.id, {
+        score: 5,
+        notes: `${track.title} marked as a taste match`,
+        tags: ['taste-match', 'release-candidate'],
+      }),
+    )
+    setSelectedId('version-comparison')
+  }
+
+  function handleCompareGeneratedTracks() {
+    const tracks = workflow.generationBatch?.tracks ?? []
+    if (tracks.length < 2) {
+      return
+    }
+    const [leftTrack, rightTrack] = tracks
+    const winnerTrackId =
+      workflow.selectedTrack && [leftTrack.id, rightTrack.id].includes(workflow.selectedTrack.id)
+        ? workflow.selectedTrack.id
+        : rightTrack.id
+    setWorkflow((current) =>
+      compareTracks(current, {
+        leftTrackId: leftTrack.id,
+        rightTrackId: rightTrack.id,
+        winnerTrackId,
+        notes: `${winnerTrackId} is the stronger release candidate from this batch`,
+      }),
+    )
+    setSelectedId('version-comparison')
+  }
+
+  function handleOpenSongLab() {
+    setWorkflow((current) => openSongLab(current))
+    setSelectedId('song-lab')
+  }
+
+  function handleLockHookRegion() {
+    setWorkflow((current) => lockSongLabRegion(current, 'hook'))
+    setSelectedId('song-lab')
+  }
+
+  function handleQueueReplaceSection() {
+    setWorkflow((current) =>
+      queueSongLabEdit(current, {
+        sectionId: 'hook',
+        action: 'replaceSection',
+        label: 'Replace hook with cleaner bilingual lift',
+      }),
+    )
+    setSelectedId('song-lab')
+  }
+
+  function handleSaveSelectedToLocalLibrary() {
+    setWorkflow((current) =>
+      saveSelectedTrackToLocalLibrary(current, {
+        notes: 'Selected source saved to local project library',
+        tags: ['local-library', 'keeper'],
+      }),
+    )
+    setSelectedId('local-library')
   }
 
   function handleCreateReleasePack() {
@@ -479,6 +562,168 @@ export function App({ provider: injectedProvider }: AppProps = {}) {
                 <Download size={16} />
                 Create audio release pack
               </button>
+              <button type="button" onClick={handleOpenSongLab}>
+                <Waves size={16} />
+                Open Song Lab
+              </button>
+              <button type="button" onClick={handleSaveSelectedToLocalLibrary}>
+                <Library size={16} />
+                Save selected to local library
+              </button>
+            </div>
+          )}
+          {selected.kind === 'compare' && workflow.generationBatch && (
+            <div className="workflow-section">
+              <h3>Version comparison</h3>
+              <p>Rate candidates, record taste notes, and lock a winner without changing the selected source.</p>
+              <div className="comparison-list" aria-label="Track taste ratings">
+                {workflow.generationBatch.tracks.map((track) => {
+                  const rating = workflow.taste.ratings[track.id]
+                  return (
+                    <div key={track.id}>
+                      <strong>{track.id}</strong>
+                      <small>
+                        {rating
+                          ? `Taste score: ${rating.score} - ${rating.notes}`
+                          : `${track.title} is unrated`}
+                      </small>
+                      <button type="button" onClick={() => handleRateTrack(track)}>
+                        <Sparkles size={16} />
+                        Rate {track.id} as taste match
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+              {workflow.generationBatch.tracks.length > 1 && (
+                <button type="button" onClick={handleCompareGeneratedTracks}>
+                  <GitBranch size={16} />
+                  Compare {workflow.generationBatch.tracks[0].id} vs {workflow.generationBatch.tracks[1].id}
+                </button>
+              )}
+              {workflow.taste.comparisons.length > 0 && (
+                <div className="comparison-list" aria-label="Version comparison results">
+                  {workflow.taste.comparisons.map((comparison) => (
+                    <div key={comparison.id}>
+                      <strong>
+                        winner {comparison.winnerTrackId}
+                      </strong>
+                      <small>{comparison.notes}</small>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {selected.kind === 'songlab' && (
+            <div className="workflow-section">
+              {workflow.songLab ? (
+                <>
+                  <p>Source track: {workflow.songLab.sourceTrackId}</p>
+                  <div className="song-section-list" aria-label="Song Lab sections">
+                    {workflow.songLab.sections.map((section) => (
+                      <div className={section.locked ? 'locked' : ''} key={section.id}>
+                        <strong>
+                          {section.label} {section.locked ? 'locked' : 'editable'}
+                        </strong>
+                        <small>
+                          {section.startSeconds}s-{section.endSeconds}s
+                        </small>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="song-section-list" aria-label="Song Lab stems">
+                    {workflow.songLab.stems.map((stem) => (
+                      <div key={stem.id}>
+                        <strong>{stem.label}</strong>
+                        <small>{stem.status}</small>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="gate-actions">
+                    <button type="button" onClick={handleLockHookRegion}>
+                      <ShieldCheck size={16} />
+                      Lock hook region
+                    </button>
+                    <button type="button" onClick={handleQueueReplaceSection}>
+                      <WandSparkles size={16} />
+                      Queue replace section
+                    </button>
+                    <button type="button" onClick={handleSaveSelectedToLocalLibrary}>
+                      <Library size={16} />
+                      Save selected to local library
+                    </button>
+                  </div>
+                  {workflow.songLab.editActions.length > 0 && (
+                    <div className="song-section-list" aria-label="Song Lab edit actions">
+                      {workflow.songLab.editActions.map((action) => (
+                        <div key={action.id}>
+                          <strong>
+                            {action.id} {action.status}
+                          </strong>
+                          <small>
+                            {action.sectionId}: {action.label}
+                          </small>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p>Open Song Lab from the selected track to manage sections, locks, stems, and edits.</p>
+                  <button type="button" disabled={!workflow.selectedTrack} onClick={handleOpenSongLab}>
+                    <Waves size={16} />
+                    Open Song Lab
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {selected.kind === 'queue' && (
+            <div className="workflow-section">
+              <h3>Provider action results</h3>
+              <p>Queue entries are persisted from provider action results, including blocked and unsupported actions.</p>
+              <div className="job-list" aria-label="Provider job queue">
+                {workflow.jobQueue.map((job) => (
+                  <div key={job.id}>
+                    <strong>
+                      {job.capability} {job.status}
+                    </strong>
+                    <small>
+                      {job.message}
+                      {job.providerTaskId ? ` Task ${job.providerTaskId}.` : ''}
+                    </small>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {selected.kind === 'library' && (
+            <div className="workflow-section">
+              <p>Provider library API unsupported. Local project saves remain available without pretending to sync upstream.</p>
+              <button type="button" disabled={!workflow.selectedTrack} onClick={handleSaveSelectedToLocalLibrary}>
+                <Library size={16} />
+                Save selected to local library
+              </button>
+              <div className="library-list" aria-label="Local project library">
+                {workflow.localLibrary.items.length === 0 ? (
+                  <div>
+                    <strong>No local saves yet</strong>
+                    <small>Select a generated track to save it locally.</small>
+                  </div>
+                ) : (
+                  workflow.localLibrary.items.map((item) => (
+                    <div key={item.id}>
+                      <strong>{item.track.id} saved locally</strong>
+                      <small>
+                        {item.track.title}
+                        {item.ratingScore ? ` - taste score ${item.ratingScore}` : ''}
+                      </small>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
           <div className="action-box">
@@ -744,6 +989,16 @@ function buildWorkflowNodes(workflow: SunoWorkflow, releasePack: ReleasePack | n
       y: 17,
       meta: ['persona', 'voice', 'consent'],
     },
+    {
+      id: 'local-library',
+      kind: 'library',
+      title: 'Local library',
+      summary: `${workflow.localLibrary.items.length} local saves; provider library API ${workflow.localLibrary.providerLibraryStatus}`,
+      status: workflow.localLibrary.items.length > 0 ? 'ready' : 'draft',
+      x: 12,
+      y: 62,
+      meta: ['local project state', `provider library ${workflow.localLibrary.providerLibraryStatus}`, 'taste memory'],
+    },
   ]
 
   if (workflow.generationBatch) {
@@ -756,6 +1011,17 @@ function buildWorkflowNodes(workflow: SunoWorkflow, releasePack: ReleasePack | n
       x: 49,
       y: 45,
       meta: ['mock create', 'version candidates', workflow.generationBatch.providerJobId],
+    })
+
+    nodes.push({
+      id: 'version-comparison',
+      kind: 'compare',
+      title: 'Version comparison',
+      summary: `${Object.keys(workflow.taste.ratings).length} ratings and ${workflow.taste.comparisons.length} comparison receipts`,
+      status: workflow.taste.comparisons.length > 0 ? 'ready' : 'needs-review',
+      x: 39,
+      y: 68,
+      meta: ['A/B compare', 'taste score', 'version lineage'],
     })
 
     workflow.generationBatch.tracks.forEach((track, index) => {
@@ -776,14 +1042,16 @@ function buildWorkflowNodes(workflow: SunoWorkflow, releasePack: ReleasePack | n
         meta: ['audio source of truth', workflow.selectedTrack.id, 'version lineage'],
       },
       {
-        id: 'stem',
-        kind: 'stem',
-        title: 'Stems / edit regions',
-        summary: 'Stem and region cards are ready to derive from the selected track.',
-        status: 'draft',
+        id: 'song-lab',
+        kind: 'songlab',
+        title: 'Song Lab',
+        summary: workflow.songLab
+          ? `${workflow.songLab.sections.length} sections, ${workflow.songLab.stems.length} stems, ${workflow.songLab.editActions.length} edit actions`
+          : 'Timeline, sections, stems, region locks, and edit actions derive from the selected track.',
+        status: workflow.songLab ? 'ready' : 'draft',
         x: 69,
         y: 53,
-        meta: ['stems', 'replace section', 'arrangement'],
+        meta: ['sections', 'stems', 'replace section', 'arrangement locks'],
       },
       {
         id: 'video',
@@ -803,6 +1071,21 @@ function buildWorkflowNodes(workflow: SunoWorkflow, releasePack: ReleasePack | n
         ],
       },
     )
+  }
+
+  if (workflow.jobQueue.length > 0) {
+    nodes.push({
+      id: 'job-queue',
+      kind: 'queue',
+      title: 'Job queue',
+      summary: `${workflow.jobQueue.length} provider action result${workflow.jobQueue.length === 1 ? '' : 's'} captured`,
+      status: workflow.jobQueue.some((job) => job.status === 'blocked' || job.status === 'unsupported')
+        ? 'needs-review'
+        : 'ready',
+      x: releasePack ? 74 : 88,
+      y: releasePack ? 70 : 68,
+      meta: workflow.jobQueue.slice(-3).map((job) => `${job.capability} ${job.status}`),
+    })
   }
 
   if (releasePack) {
