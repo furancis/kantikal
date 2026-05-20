@@ -70,7 +70,7 @@ export const providerActionDefinitions: ProviderActionDefinition[] = [
   unsupported('downloadAudioAndStems', 'Download audio/stems', '/suno-api/index'),
   unsupported('exportLyricsAndCaptions', 'Lyrics/captions export', '/suno-api/index'),
   local('buildReleasePack', 'Build release pack'),
-  local('handleProviderCallback', 'Handle provider callback'),
+  server('handleProviderCallback', 'Handle provider callback', 'POST', '/api/provider/callback', '/suno-api/index'),
   external('renderMusicVideo', 'Render music video', '/suno-api/create-music-video'),
   server('createProviderMusicVideo', 'Provider music video creation', 'POST', '/api/v1/mp4/generate', '/suno-api/create-music-video'),
   external('evaluateLipsync', 'Evaluate lipsync QA', '/suno-api/create-music-video'),

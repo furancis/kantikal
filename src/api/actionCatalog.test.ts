@@ -47,4 +47,12 @@ describe('provider action catalog', () => {
       buttonLabel: 'Show unsupported state',
     })
   })
+
+  it('keeps action ownership aligned with the coverage map', () => {
+    const mismatched = apiCoverageEntries
+      .map((entry) => ({ entry, definition: actionStateForEntry(entry) }))
+      .filter(({ entry, definition }) => entry.authBoundary !== definition.authBoundary)
+
+    expect(mismatched).toEqual([])
+  })
 })
