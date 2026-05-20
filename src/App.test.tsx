@@ -396,6 +396,55 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByText(/Hydrated master audio/i)).toBeInTheDocument()
   })
 
+  it('surfaces provider export hydrate failures as visible runtime errors', async () => {
+    const exportRuntime: ProviderExportRuntimeClient = {
+      async hydrate() {
+        throw new Error('Export hydrate route down')
+      },
+      async pollGenerationTask() {
+        throw new Error('poll not used')
+      },
+      async receiveFailedCallback() {
+        throw new Error('callback not used')
+      },
+      async recordProviderVideoOutput() {
+        throw new Error('video not used')
+      },
+    }
+
+    render(<App exportRuntime={exportRuntime} />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/export hydrate route down/i)
+  })
+
+  it('surfaces provider export action failures without dropping the user on a silent button click', async () => {
+    const exportRuntime: ProviderExportRuntimeClient = {
+      async hydrate() {
+        return null
+      },
+      async pollGenerationTask() {
+        throw new Error('Export poll route down')
+      },
+      async receiveFailedCallback() {
+        throw new Error('callback not used')
+      },
+      async recordProviderVideoOutput() {
+        throw new Error('video not used')
+      },
+    }
+    const user = userEvent.setup()
+
+    render(<App exportRuntime={exportRuntime} />)
+
+    await user.click(screen.getByRole('button', { name: /generate mock suno batch/i }))
+    await user.click(await screen.findByRole('button', { name: /dark cinematic lift v2/i }))
+    await user.click(screen.getByRole('button', { name: /downloads \/ exports/i }))
+    await user.click(screen.getByRole('button', { name: /poll selected generation job/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/export poll route down/i)
+    expect(screen.getByRole('heading', { name: /provider export manager/i })).toBeInTheDocument()
+  })
+
   it('shows unsupported provider capabilities as explicit action results', async () => {
     const user = userEvent.setup()
     render(<App />)

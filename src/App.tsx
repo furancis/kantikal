@@ -30,7 +30,7 @@ import {
   createLocalProviderExportRuntimeClient,
   type ProviderExportRuntimeClient,
 } from './api/exportRuntime'
-import { mergeProviderExportSnapshot } from './api/exportState'
+import { mergeProviderExportSnapshot, type ProviderExportSnapshot } from './api/exportState'
 import { createMockSunoProvider, executeProviderAction } from './api/provider'
 import type { ProviderActionResult, SunoProvider } from './api/provider'
 import {
@@ -201,6 +201,10 @@ type ProjectAssetAction = {
 
 const defaultProjectId = 'default-project'
 
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
+
 export function App({ provider: injectedProvider, exportRuntime: injectedExportRuntime, projectId = defaultProjectId }: AppProps = {}) {
   const mockProvider = useMemo(() => createMockSunoProvider(), [])
   const localExportRuntime = useMemo(() => createLocalProviderExportRuntimeClient(), [])
@@ -214,6 +218,7 @@ export function App({ provider: injectedProvider, exportRuntime: injectedExportR
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [videoExportError, setVideoExportError] = useState<string | null>(null)
+  const [exportRuntimeError, setExportRuntimeError] = useState<string | null>(null)
   const [apiActionResult, setApiActionResult] = useState<ProviderActionResult | null>(null)
 
   const workflowNodes = useMemo(
@@ -224,11 +229,22 @@ export function App({ provider: injectedProvider, exportRuntime: injectedExportR
 
   useEffect(() => {
     let cancelled = false
-    void exportRuntime.hydrate(projectId).then((snapshot) => {
-      if (!cancelled && snapshot) {
-        setWorkflow((current) => mergeProviderExportSnapshot(current, snapshot))
-      }
-    })
+    void exportRuntime
+      .hydrate(projectId)
+      .then((snapshot) => {
+        if (cancelled) {
+          return
+        }
+        setExportRuntimeError(null)
+        if (snapshot) {
+          setWorkflow((current) => mergeProviderExportSnapshot(current, snapshot))
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setExportRuntimeError(errorMessage(error, 'Provider export hydration failed'))
+        }
+      })
     return () => {
       cancelled = true
     }
@@ -370,21 +386,27 @@ export function App({ provider: injectedProvider, exportRuntime: injectedExportR
   }
 
   async function handlePollSelectedGenerationJob() {
-    const snapshot = await exportRuntime.pollGenerationTask({ projectId, workflow })
-    setWorkflow((current) => mergeProviderExportSnapshot(current, snapshot))
-    setSelectedId('downloads')
+    await handleProviderExportAction(() => exportRuntime.pollGenerationTask({ projectId, workflow }))
   }
 
   async function handleReceiveFailedCallback() {
-    const snapshot = await exportRuntime.receiveFailedCallback({ projectId, workflow })
-    setWorkflow((current) => mergeProviderExportSnapshot(current, snapshot))
-    setSelectedId('downloads')
+    await handleProviderExportAction(() => exportRuntime.receiveFailedCallback({ projectId, workflow }))
   }
 
   async function handleRecordProviderVideoOutput() {
-    const snapshot = await exportRuntime.recordProviderVideoOutput({ projectId, workflow })
-    setWorkflow((current) => mergeProviderExportSnapshot(current, snapshot))
-    setSelectedId('downloads')
+    await handleProviderExportAction(() => exportRuntime.recordProviderVideoOutput({ projectId, workflow }))
+  }
+
+  async function handleProviderExportAction(action: () => Promise<ProviderExportSnapshot>) {
+    setExportRuntimeError(null)
+    try {
+      const snapshot = await action()
+      setWorkflow((current) => mergeProviderExportSnapshot(current, snapshot))
+    } catch (error) {
+      setExportRuntimeError(errorMessage(error, 'Provider export action failed'))
+    } finally {
+      setSelectedId('downloads')
+    }
   }
 
   function handleFieldChange(field: keyof BriefInput) {
@@ -581,6 +603,11 @@ export function App({ provider: injectedProvider, exportRuntime: injectedExportR
           </button>
         </div>
       </header>
+      {exportRuntimeError && (
+        <p className="form-error" role="alert">
+          {exportRuntimeError}
+        </p>
+      )}
 
       <section className="workspace" aria-label="Suno workflow workspace">
         <aside className="prompt-rail">

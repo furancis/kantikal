@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, expect, it } from 'vitest'
@@ -163,6 +163,64 @@ describe('provider export route handlers', () => {
       expect(reloaded).toEqual(state)
       expect(JSON.stringify(reloaded)).not.toContain('server-secret')
       expect(JSON.stringify(reloaded)).not.toContain('apiKey')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('serializes concurrent file-backed saves so projects do not overwrite each other', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'suno-export-store-'))
+    const filePath = join(dir, 'exports.json')
+    const store = createFileProviderExportStore(filePath)
+    const workflow = workflowWithProviderTask()
+    const projectA = {
+      projectId: 'project-a',
+      projectAssets: workflow.projectAssets,
+      exports: workflow.exports,
+      jobQueue: workflow.jobQueue,
+      provenance: [...workflow.provenance, 'provider-download-assets'],
+    }
+    const projectB = {
+      ...projectA,
+      projectId: 'project-b',
+      provenance: [...projectA.provenance, 'project-b-export'],
+    }
+
+    try {
+      await Promise.all([store.save('project-a', projectA), store.save('project-b', projectB)])
+
+      await expect(store.load('project-a')).resolves.toEqual(projectA)
+      await expect(store.load('project-b')).resolves.toEqual(projectB)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('ignores malformed persisted snapshots instead of hydrating partial export state', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'suno-export-store-'))
+    const filePath = join(dir, 'exports.json')
+    const store = createFileProviderExportStore(filePath)
+    const workflow = workflowWithProviderTask()
+    const validState = {
+      projectId: 'project-good',
+      projectAssets: workflow.projectAssets,
+      exports: workflow.exports,
+      jobQueue: workflow.jobQueue,
+      provenance: workflow.provenance,
+    }
+
+    try {
+      await writeFile(
+        filePath,
+        JSON.stringify({
+          'project-bad': { projectId: 'project-bad', exports: {} },
+          'project-good': validState,
+        }),
+        'utf8',
+      )
+
+      await expect(store.load('project-bad')).resolves.toBeNull()
+      await expect(store.load('project-good')).resolves.toEqual(validState)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

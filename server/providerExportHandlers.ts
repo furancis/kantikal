@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import {
   recordProviderCallback,
@@ -67,18 +67,33 @@ export function createMemoryProviderExportStore(
 }
 
 export function createFileProviderExportStore(filePath: string): ProviderExportStore {
+  let writeQueue: Promise<unknown> = Promise.resolve()
+  let writeId = 0
+
+  function enqueueWrite<T>(operation: () => Promise<T>): Promise<T> {
+    const next = writeQueue.then(operation, operation)
+    writeQueue = next.then(
+      () => undefined,
+      () => undefined,
+    )
+    return next
+  }
+
   return {
     async load(projectId) {
+      await writeQueue
       const records = await readFileRecords(filePath)
       return records[projectId] ? cloneSnapshot(records[projectId]) : null
     },
     async save(projectId, state) {
-      const records = await readFileRecords(filePath)
-      const saved = cloneSnapshot({ ...state, projectId })
-      records[projectId] = saved
-      await mkdir(dirname(filePath), { recursive: true })
-      await writeFile(filePath, `${JSON.stringify(records, null, 2)}\n`, 'utf8')
-      return cloneSnapshot(saved)
+      return enqueueWrite(async () => {
+        const records = await readFileRecords(filePath)
+        const saved = cloneSnapshot({ ...state, projectId })
+        records[projectId] = saved
+        await writeFileRecords(filePath, records, writeId)
+        writeId += 1
+        return cloneSnapshot(saved)
+      })
     },
   }
 }
@@ -130,7 +145,17 @@ async function readFileRecords(filePath: string): Promise<Record<string, Provide
   try {
     const text = await readFile(filePath, 'utf8')
     const parsed = JSON.parse(text) as unknown
-    return isSnapshotRecord(parsed) ? parsed : {}
+    if (!isPlainObject(parsed)) {
+      return {}
+    }
+
+    const records: Record<string, ProviderExportSnapshot> = {}
+    for (const [projectId, snapshot] of Object.entries(parsed)) {
+      if (isProviderExportSnapshot(snapshot)) {
+        records[projectId] = cloneSnapshot(snapshot)
+      }
+    }
+    return records
   } catch (error) {
     if (isNodeError(error) && error.code === 'ENOENT') {
       return {}
@@ -139,11 +164,47 @@ async function readFileRecords(filePath: string): Promise<Record<string, Provide
   }
 }
 
+async function writeFileRecords(
+  filePath: string,
+  records: Record<string, ProviderExportSnapshot>,
+  writeId: number,
+): Promise<void> {
+  await mkdir(dirname(filePath), { recursive: true })
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.${writeId}.tmp`
+  await writeFile(tempPath, `${JSON.stringify(records, null, 2)}\n`, 'utf8')
+  await rename(tempPath, filePath)
+}
+
 function cloneSnapshot(state: ProviderExportSnapshot): ProviderExportSnapshot {
   return JSON.parse(JSON.stringify(state)) as ProviderExportSnapshot
 }
 
-function isSnapshotRecord(value: unknown): value is Record<string, ProviderExportSnapshot> {
+function isProviderExportSnapshot(value: unknown): value is ProviderExportSnapshot {
+  return (
+    isPlainObject(value) &&
+    typeof value.projectId === 'string' &&
+    isProjectAssets(value.projectAssets) &&
+    isExportState(value.exports) &&
+    Array.isArray(value.jobQueue) &&
+    Array.isArray(value.provenance) &&
+    value.provenance.every((entry) => typeof entry === 'string')
+  )
+}
+
+function isProjectAssets(value: unknown): value is ProviderExportSnapshot['projectAssets'] {
+  return isPlainObject(value) && Array.isArray(value.items) && Array.isArray(value.imports)
+}
+
+function isExportState(value: unknown): value is ProviderExportSnapshot['exports'] {
+  return (
+    isPlainObject(value) &&
+    Array.isArray(value.tasks) &&
+    Array.isArray(value.downloads) &&
+    Array.isArray(value.callbacks)
+  )
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

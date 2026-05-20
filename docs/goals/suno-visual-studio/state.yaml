@@ -831,7 +831,7 @@ tasks:
           status: pass
         - cmd: git diff --check
           status: pass
-      summary: "Added server-owned provider export handlers and local export persistence: provider record-info polling now normalizes and persists export task/download state without secrets, provider callbacks are idempotent by task/type, and file-backed export state reloads across store instances. Added shared export snapshots, app hydration from a runtime boundary, and a local runtime client that preserves the offline visual workflow while keeping the server route-handler boundary ready for HTTP mounting."
+      summary: "Added server-owned provider export handlers and local export persistence: provider record-info polling now normalizes and persists export task/download state without secrets, provider callbacks are idempotent by task/type, and file-backed export state reloads across store instances. Added shared export snapshots, app hydration from a runtime boundary, and a local runtime client that preserves the offline visual workflow while keeping the server route-handler boundary ready for HTTP mounting. Greptile follow-up serialized file-backed saves, rejects malformed persisted snapshots, and surfaces export hydration/action failures as visible app errors."
   - id: T130
     type: worker
     assignee: Worker
