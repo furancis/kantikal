@@ -51,6 +51,15 @@ export function createSunoApiServerAdapter(input: SunoApiServerAdapterInput): Su
         })
       }
 
+      if (definition.execution === 'inbound-handler') {
+        return resultFor(request, {
+          outcome: 'blocked',
+          message: `${request.capability} is an inbound server handler and is not dispatched to the external provider API.`,
+          authBoundary: definition.authBoundary,
+          endpoint: definition.path,
+        })
+      }
+
       if (definition.execution === 'local-only') {
         return resultFor(request, {
           outcome: 'succeeded',

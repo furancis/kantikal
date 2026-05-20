@@ -11,7 +11,7 @@ const ignoredDirectories = new Set([
   'test-results',
 ])
 const credentialPattern =
-  /sk-[A-Za-z0-9]|ghp_[A-Za-z0-9]|github_pat_[A-Za-z0-9]|GREPTILE_API_KEY\s*=|SUNO_API_KEY\s*=|Bearer\s+[A-Za-z0-9._-]{20,}/
+  /sk-[A-Za-z0-9]|ghp_[A-Za-z0-9]|github_pat_[A-Za-z0-9]|(?:GREPTILE_API_KEY|SUNO_API_KEY)\s*[:=]\s*(?!\$\{\{|\$\w|\$env:|process\.env|import\.meta\.env|undefined|null)[^\s#]+|Bearer\s+[A-Za-z0-9._-]{20,}/
 const textFileExtensions = new Set([
   '.css',
   '.html',
@@ -22,6 +22,7 @@ const textFileExtensions = new Set([
   '.ts',
   '.tsx',
   '.txt',
+  '.toml',
   '.yml',
   '.yaml',
 ])

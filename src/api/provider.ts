@@ -145,6 +145,15 @@ export function createMockSunoProvider(): SunoProvider {
         })
       }
 
+      if (definition.execution === 'inbound-handler') {
+        return providerResult(request, {
+          outcome: 'blocked',
+          message: `${request.capability} is an inbound server handler and cannot be dispatched to the external provider.`,
+          authBoundary: definition.authBoundary,
+          endpoint: definition.path,
+        })
+      }
+
       if (definition.execution === 'local-only') {
         return providerResult(request, {
           outcome: 'succeeded',

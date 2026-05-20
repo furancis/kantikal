@@ -95,4 +95,30 @@ describe('server Suno API adapter', () => {
       action: 'listLibrary',
     })
   })
+
+  it('does not dispatch inbound provider callbacks to the external provider API', async () => {
+    let fetchCalls = 0
+    const adapter = createSunoApiServerAdapter({
+      runtime: 'server',
+      apiKey: 'server-secret',
+      fetchImpl: async () => {
+        fetchCalls += 1
+        throw new Error('inbound handlers must not fetch')
+      },
+    })
+
+    const result = await adapter.executeProviderAction({
+      action: 'handleProviderCallback',
+      capability: 'Webhooks/retries',
+      payload: { providerTaskId: 'task_123' },
+    })
+
+    expect(fetchCalls).toBe(0)
+    expect(result).toMatchObject({
+      action: 'handleProviderCallback',
+      outcome: 'blocked',
+      authBoundary: 'server',
+      endpoint: '/api/provider/callback',
+    })
+  })
 })

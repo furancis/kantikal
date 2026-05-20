@@ -55,4 +55,15 @@ describe('provider action catalog', () => {
 
     expect(mismatched).toEqual([])
   })
+
+  it('models webhooks as inbound server handlers instead of outgoing provider calls', () => {
+    const webhooks = apiCoverageEntries.find((entry) => entry.capability === 'Webhooks/retries')
+
+    expect(webhooks && actionStateForEntry(webhooks)).toMatchObject({
+      execution: 'inbound-handler',
+      authBoundary: 'server',
+      path: '/api/provider/callback',
+      buttonLabel: 'Show inbound handler',
+    })
+  })
 })

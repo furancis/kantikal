@@ -4,6 +4,7 @@ export type ProviderActionExecution =
   | 'mock-live'
   | 'server-ready'
   | 'server-parameter'
+  | 'inbound-handler'
   | 'local-only'
   | 'external-worker'
   | 'unsupported'
@@ -70,7 +71,7 @@ export const providerActionDefinitions: ProviderActionDefinition[] = [
   unsupported('downloadAudioAndStems', 'Download audio/stems', '/suno-api/index'),
   unsupported('exportLyricsAndCaptions', 'Lyrics/captions export', '/suno-api/index'),
   local('buildReleasePack', 'Build release pack'),
-  server('handleProviderCallback', 'Handle provider callback', 'POST', '/api/provider/callback', '/suno-api/index'),
+  inbound('handleProviderCallback', 'Handle provider callback', '/api/provider/callback'),
   external('renderMusicVideo', 'Render music video', '/suno-api/create-music-video'),
   server('createProviderMusicVideo', 'Provider music video creation', 'POST', '/api/v1/mp4/generate', '/suno-api/create-music-video'),
   external('evaluateLipsync', 'Evaluate lipsync QA', '/suno-api/create-music-video'),
@@ -148,6 +149,19 @@ function local(action: string, label: string): ProviderActionDefinition {
     authBoundary: 'none',
     docsUrl: `${docsBase}/suno-api/index`,
     buttonLabel: 'Run local action',
+  }
+}
+
+function inbound(action: string, label: string, path: string): ProviderActionDefinition {
+  return {
+    action,
+    label,
+    execution: 'inbound-handler',
+    authBoundary: 'server',
+    method: 'POST',
+    path,
+    docsUrl: `${docsBase}/suno-api/index`,
+    buttonLabel: 'Show inbound handler',
   }
 }
 

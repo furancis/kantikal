@@ -315,6 +315,7 @@ tasks:
         - docs/goals/suno-visual-studio/state.yaml
         - eslint.config.js
         - package.json
+        - src/api/scanCredentialsScript.test.ts
       commands:
         - cmd: node --check .github/scripts/greptile-review.mjs; node --check .github/scripts/scan-credentials.mjs; node --check .github/scripts/scan-wording.mjs
           status: pass
@@ -340,7 +341,7 @@ tasks:
           status: pass
         - cmd: git diff --check
           status: pass
-      summary: "Added PR-gated GitHub Actions verification, repo-local scan scripts, and a Greptile PR-head runner that triggers review when the key is exposed, waits for completion, fails on unaddressed Greptile comments, and falls back to enforcing the live Greptile app check when PR secrets are withheld. Documented CI, branch-protection requirements, and updated Greptile scope/rules to preserve CI and review gates."
+      summary: "Added PR-gated GitHub Actions verification, repo-local scan scripts, and a Greptile PR-head runner that triggers review when the key is exposed, waits for completion, fails on unaddressed Greptile comments, and falls back to enforcing the live Greptile app check when PR secrets are withheld. Documented CI, branch-protection requirements, and updated Greptile scope/rules to preserve CI and review gates. Greptile P1 follow-up extends credential scanning to TOML and colon-style key assignments while allowing GitHub secret references."
   - id: T999
     type: judge
     assignee: Judge
@@ -450,7 +451,7 @@ tasks:
           status: pass
         - cmd: git diff --check
           status: pass
-      summary: "Added an endpoint-backed provider action catalog sourced from live SunoAPI OpenAPI specs, a server-only Suno API adapter that blocks without server credentials and never returns keys, client API-console action dispatch through the provider lane, explicit unsupported states for capabilities absent from current provider docs, and server tests included in Vitest. Greptile P1 follow-ups catch provider action rejections, preserve the current release pack when replacement generation fails or returns a rejected empty batch, and enforce action-catalog ownership alignment with the API coverage map."
+      summary: "Added an endpoint-backed provider action catalog sourced from live SunoAPI OpenAPI specs, a server-only Suno API adapter that blocks without server credentials and never returns keys, client API-console action dispatch through the provider lane, explicit unsupported states for capabilities absent from current provider docs, and server tests included in Vitest. Greptile P1 follow-ups catch provider action rejections, preserve the current release pack when replacement generation fails or returns a rejected empty batch, enforce action-catalog ownership alignment with the API coverage map, and model provider callbacks as inbound server handlers that never dispatch to the external provider API."
   - id: T080
     type: worker
     assignee: Worker
