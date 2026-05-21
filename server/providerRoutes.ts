@@ -7,6 +7,7 @@ import type {
 } from '../src/api/provider'
 import type { GenerationBatch } from '../src/domain/workflow'
 import type { SunoApiServerAdapter } from './sunoApiAdapter'
+import { assertLocalBrowserWrite, LocalAccessError } from './localAccess'
 
 type ProviderRoutePayload = {
   request?: unknown
@@ -66,6 +67,7 @@ export function createProviderRequestHandler(input: { provider: SunoProvider }) 
         return jsonError('Provider route method not allowed', 405)
       }
 
+      assertLocalBrowserWrite(request)
       const payload = await readRoutePayload(request)
 
       if (route.action === 'generate-batch') {
@@ -78,7 +80,7 @@ export function createProviderRequestHandler(input: { provider: SunoProvider }) 
 
       return jsonError('Provider route not found', 404)
     } catch (error) {
-      return jsonError(errorMessage(error, 'Provider route failed'), error instanceof RouteError ? error.status : 500)
+      return jsonError(errorMessage(error, 'Provider route failed'), errorStatus(error))
     }
   }
 }
@@ -106,7 +108,7 @@ export function createProviderNodeMiddleware(input: { provider: SunoProvider }) 
     } catch (error) {
       await writeNodeResponse(
         response,
-        jsonError(errorMessage(error, 'Provider route failed'), error instanceof RouteError ? error.status : 500),
+        jsonError(errorMessage(error, 'Provider route failed'), errorStatus(error)),
       )
     }
   }
@@ -167,7 +169,7 @@ function providerActionRequest(payload: ProviderRoutePayload): ExecuteProviderAc
 function providerGenerationBatch(request: GenerateBatchRequest, providerTaskId: string | undefined): GenerationBatch {
   const providerJobId = providerTaskId ?? `provider-${slugify(request.brief) || 'generation'}`
   const trackPrefix = providerTrackPrefix(providerJobId)
-  const titleBase = request.brief.trim() || 'Suno generation'
+  const titleBase = displayBriefTitle(request.brief)
 
   return {
     providerJobId,
@@ -281,12 +283,20 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
 
+function errorStatus(error: unknown): number {
+  return error instanceof RouteError || error instanceof LocalAccessError ? error.status : 500
+}
+
 function slugify(value: string): string {
   return value
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
+}
+
+function displayBriefTitle(brief: string): string {
+  return brief.split('\n')[0]?.trim() || 'Suno generation'
 }
 
 function providerTrackPrefix(value: string): string {

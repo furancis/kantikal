@@ -3,6 +3,7 @@ import type { ProviderExportSnapshot } from '../src/api/exportState'
 import { exportSnapshotFromWorkflow } from '../src/api/exportState'
 import type { SunoWorkflow } from '../src/domain/workflow'
 import type { ProviderExportHandlers } from './providerExportHandlers'
+import { assertLocalBrowserWrite, LocalAccessError } from './localAccess'
 
 type RoutePayload = {
   workflow?: SunoWorkflow
@@ -13,10 +14,17 @@ type JsonResponseBody = {
   state: ProviderExportSnapshot | null
 }
 
+type ProviderExportRouteOptions = {
+  loadWorkflow?: (projectId: string) => Promise<SunoWorkflow | null>
+}
+
 const routePrefix = '/api/provider-exports'
 const maxProviderExportBodyBytes = 1_048_576
 
-export function createProviderExportRequestHandler(handlers: ProviderExportHandlers) {
+export function createProviderExportRequestHandler(
+  handlers: ProviderExportHandlers,
+  options: ProviderExportRouteOptions = {},
+) {
   return async function handleProviderExportRequest(request: Request): Promise<Response> {
     try {
       const route = parseProviderExportRoute(request)
@@ -32,8 +40,9 @@ export function createProviderExportRequestHandler(handlers: ProviderExportHandl
         return jsonError('Provider export route method not allowed', 405)
       }
 
+      assertLocalBrowserWrite(request)
       const payload = await readRoutePayload(request)
-      const workflow = routeWorkflow(payload)
+      const workflow = await routeWorkflow(route.projectId, payload, options)
 
       if (route.action === 'poll-generation-task') {
         const providerTaskId = workflow.generationBatch?.providerJobId
@@ -74,13 +83,16 @@ export function createProviderExportRequestHandler(handlers: ProviderExportHandl
 
       return jsonError('Provider export route not found', 404)
     } catch (error) {
-      return jsonError(errorMessage(error, 'Provider export route failed'), error instanceof RouteError ? error.status : 500)
+      return jsonError(errorMessage(error, 'Provider export route failed'), errorStatus(error))
     }
   }
 }
 
-export function createProviderExportNodeMiddleware(handlers: ProviderExportHandlers) {
-  const requestHandler = createProviderExportRequestHandler(handlers)
+export function createProviderExportNodeMiddleware(
+  handlers: ProviderExportHandlers,
+  options: ProviderExportRouteOptions = {},
+) {
+  const requestHandler = createProviderExportRequestHandler(handlers, options)
 
   return async function providerExportNodeMiddleware(
     request: IncomingMessage,
@@ -102,7 +114,7 @@ export function createProviderExportNodeMiddleware(handlers: ProviderExportHandl
     } catch (error) {
       await writeNodeResponse(
         response,
-        jsonError(errorMessage(error, 'Provider export route failed'), error instanceof RouteError ? error.status : 500),
+        jsonError(errorMessage(error, 'Provider export route failed'), errorStatus(error)),
       )
     }
   }
@@ -132,7 +144,18 @@ async function readRoutePayload(request: Request): Promise<RoutePayload> {
   }
 }
 
-function routeWorkflow(payload: RoutePayload): SunoWorkflow {
+async function routeWorkflow(
+  projectId: string,
+  payload: RoutePayload,
+  options: ProviderExportRouteOptions,
+): Promise<SunoWorkflow> {
+  if (options.loadWorkflow) {
+    const workflow = await options.loadWorkflow(projectId)
+    if (!workflow) {
+      throw new RouteError('Provider export route requires a persisted server workflow', 409)
+    }
+    return workflow
+  }
   if (!isRecord(payload.workflow)) {
     throw new RouteError('Provider export route requires workflow state', 400)
   }
@@ -220,6 +243,10 @@ async function writeNodeResponse(response: ServerResponse, webResponse: Response
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
+}
+
+function errorStatus(error: unknown): number {
+  return error instanceof RouteError || error instanceof LocalAccessError ? error.status : 500
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

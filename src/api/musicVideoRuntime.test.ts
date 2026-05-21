@@ -121,7 +121,7 @@ describe('music video runtime client', () => {
     ).rejects.toThrow(/music video worker database unavailable/i)
   })
 
-  it('falls back to local QA when a dev-server rewrite returns non-runtime HTML with HTTP 200', async () => {
+  it('surfaces non-runtime HTML instead of approving local QA without an explicit fixture fallback', async () => {
     const client = createFetchMusicVideoRuntimeClient({
       fetchImpl: async () =>
         new Response('<!doctype html><title>Vite app</title>', {
@@ -130,13 +130,12 @@ describe('music video runtime client', () => {
         }),
     })
 
-    const workflow = await client.evaluateLipsync({ projectId: 'project-a', workflow: workflowWithVideoLane() })
-
-    expect(workflow.musicVideoLane?.exportStatus).toBe('blocked')
-    expect(workflow.musicVideoLane?.lipsyncEvidence?.evaluator).toBe('local-worker')
+    await expect(
+      client.evaluateLipsync({ projectId: 'project-a', workflow: workflowWithVideoLane() }),
+    ).rejects.toThrow(/music video runtime failed/i)
   })
 
-  it('falls back to local QA when the HTTP route returns JSON without a workflow payload', async () => {
+  it('surfaces missing workflow payloads unless a test fixture fallback is explicit', async () => {
     const client = createFetchMusicVideoRuntimeClient({
       fetchImpl: async () =>
         new Response(JSON.stringify({ route: 'app-shell' }), {
@@ -145,8 +144,22 @@ describe('music video runtime client', () => {
         }),
     })
 
-    const workflow = await client.evaluateLipsync({ projectId: 'project-a', workflow: workflowWithVideoLane() })
+    await expect(
+      client.evaluateLipsync({ projectId: 'project-a', workflow: workflowWithVideoLane() }),
+    ).rejects.toThrow(/returned no workflow/i)
+  })
 
+  it('allows local QA only when a caller explicitly injects the fixture fallback', async () => {
+    const client = createFetchMusicVideoRuntimeClient({
+      fallback: createLocalMusicVideoRuntimeClient(),
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ route: 'app-shell' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    })
+
+    const workflow = await client.evaluateLipsync({ projectId: 'project-a', workflow: workflowWithVideoLane() })
     expect(workflow.musicVideoLane?.exportStatus).toBe('blocked')
     expect(workflow.musicVideoLane?.lipsyncEvidence?.evaluator).toBe('local-worker')
   })

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { analyzeWaveformSamples, createLikedStyleWaveformFixture } from './audioAnalysis'
 import {
   applyArchiveFirstCleanup,
   analyzeTrackGenealogy,
@@ -16,6 +17,7 @@ import {
   recordProviderCallback,
   recordProjectAssetImport,
   recordProviderTaskUpdate,
+  recordTrackAudioAnalysis,
   queueSongLabEdit,
   queueLipsyncRepair,
   queueMusicVideoRender,
@@ -1037,6 +1039,47 @@ describe('Suno workflow state machine', () => {
     const lineageBrief = createLineageGenerationBrief(archived, genealogy.breedingSuggestions[0])
     expect(lineageBrief.brief).toMatch(/combine song_b with song_c/i)
     expect(lineageBrief.style).toMatch(/lineage-guided/i)
+  })
+
+  it('feeds waveform analysis into Track Genealogy mutations, inherited traits and branch fit', () => {
+    const selected = selectTrack(
+      submitGenerationBatch(
+        createWorkflow({
+          brief: 'RT-style hard rhythmic hybrid with bilingual hook',
+          lyrics: 'Verse pre chorus with hook lift',
+          style: 'dynamic bass, melodic metalcore, cinematic synthpop',
+          voice: 'warm custom vocal identity',
+        }),
+        {
+          providerJobId: 'job_audio_genealogy',
+          tracks: [
+            { id: 'song_a', title: 'RT Signal A', durationSeconds: 154 },
+            { id: 'song_b', title: 'RT Signal B', durationSeconds: 156 },
+          ],
+        },
+      ),
+      'song_a',
+    )
+    const analyzed = recordTrackAudioAnalysis(
+      selected,
+      'song_a',
+      analyzeWaveformSamples(createLikedStyleWaveformFixture('song_a')),
+    )
+
+    const genealogy = analyzeTrackGenealogy(analyzed)
+
+    expect(analyzed.audioIntelligence.tracks.song_a.fit.score).toBeGreaterThanOrEqual(4)
+    expect(genealogy.ancestors.map((ancestor) => ancestor.id)).toContain('audio-intelligence-song_a')
+    expect(genealogy.inheritedTraits.map((trait) => trait.trait)).toEqual(
+      expect.arrayContaining(['waveform contour', 'rhythmic transient identity']),
+    )
+    expect(genealogy.mutations.find((mutation) => mutation.trackId === 'song_a')?.changes).toEqual(
+      expect.arrayContaining([expect.stringMatching(/waveform peak .* transients/i)]),
+    )
+    expect(genealogy.fitLineage[0]).toMatchObject({
+      trackId: 'song_a',
+      why: expect.arrayContaining([expect.stringMatching(/audio: clear rhythmic transients/i)]),
+    })
   })
 
   it('refuses to clean up the selected source track', () => {

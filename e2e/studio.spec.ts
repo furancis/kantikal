@@ -1,14 +1,23 @@
 import { expect, test } from '@playwright/test'
+import type { TestInfo } from '@playwright/test'
 
-test.beforeEach(async ({ page }) => {
-  await page.goto('/')
+function projectIdFor(testInfo: TestInfo): string {
+  return `e2e-${testInfo.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()}`
+}
+
+function projectUrl(testInfo: TestInfo): string {
+  return `/?projectId=${encodeURIComponent(projectIdFor(testInfo))}`
+}
+
+test.beforeEach(async ({ page }, testInfo) => {
+  await page.goto(projectUrl(testInfo))
   await page.evaluate(() => localStorage.clear())
 })
 
 test.setTimeout(120_000)
 
-test('renders the visual Suno workflow shell', async ({ page }) => {
-  await page.goto('/')
+test('renders the visual Suno workflow shell', async ({ page }, testInfo) => {
+  await page.goto(projectUrl(testInfo))
   await expect(page.getByRole('heading', { name: 'Track-first visual music studio' })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Track-first command room' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'No selected source track' })).toBeVisible()
@@ -43,12 +52,18 @@ test('renders the visual Suno workflow shell', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Choose source track' })).toBeVisible()
   await page.getByRole('button', { name: /Neon khaliji club hook provider take 2/i }).click()
   await expect(page.getByRole('heading', { name: /Neon khaliji club hook provider take 2/i })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Analyze waveform' })).toBeVisible()
+  await expect(page.getByLabel('Waveform detection envelope')).toContainText(/No waveform analysis/)
+  await page.getByRole('button', { name: 'Analyze waveform' }).first().click()
+  await expect(page.getByRole('heading', { name: 'Audio Intelligence' }).last()).toBeVisible()
+  await expect(page.getByLabel('Audio Intelligence waveform metrics')).toContainText(/transients/i)
+  await expect(page.getByLabel('Audio Intelligence section energy')).toContainText(/hook/i)
   await expect(page.getByRole('heading', { name: 'Open Song Lab' })).toBeVisible()
   await page.getByRole('button', { name: /Downloads \/ exports/i }).click()
   await expect(page.getByRole('heading', { name: 'Provider export manager' })).toBeVisible()
   await page.getByRole('button', { name: /Poll selected generation job/i }).click()
   await expect(page.getByText(/Get music generation details ready/i)).toBeVisible()
-  await expect(page.getByText(/HTTP provider export route produced local downloadable outputs/i).first()).toBeVisible()
+  await expect(page.getByText(/HTTP provider export route produced fixture downloadable outputs/i).first()).toBeVisible()
   await expect(page.getByText(/audio ready/i)).toBeVisible()
   await expect(page.getByText(/cover-art ready/i)).toBeVisible()
   await expect(page.getByText(/stem ready/i)).toBeVisible()
@@ -134,8 +149,9 @@ test('renders the visual Suno workflow shell', async ({ page }) => {
   await expect(page.getByRole('button', { name: /Neon khaliji club hook provider take 1/i })).toBeVisible()
 })
 
-test('persists project workflow state across reload', async ({ page }) => {
-  await page.goto('/')
+test('persists project workflow state across reload', async ({ page }, testInfo) => {
+  const projectId = projectIdFor(testInfo)
+  await page.goto(projectUrl(testInfo))
   await page.getByRole('textbox', { name: 'Brief' }).fill('Neon khaliji club hook')
   await page.getByRole('textbox', { name: 'Lyrics' }).fill('Verse pre chorus')
   await page.getByRole('textbox', { name: 'Style' }).fill('Gulf percussion and electro-pop')
@@ -156,10 +172,11 @@ test('persists project workflow state across reload', async ({ page }) => {
   await page.getByRole('button', { name: /Downloads \/ exports/i }).click()
   await page.getByRole('button', { name: /Poll selected generation job/i }).click()
 
-  await page.waitForFunction(() => {
-    const text = localStorage.getItem('suno-visual-studio.projects.v1') ?? ''
+  await page.waitForFunction(async (id) => {
+    const response = await fetch(`/api/projects/${encodeURIComponent(id)}`)
+    const text = await response.text()
     return text.includes('"includesVideo":true') && text.includes('"status":"applied"') && text.includes('poll-task_generate')
-  })
+  }, projectId)
 
   await page.reload()
 
@@ -178,7 +195,7 @@ test('persists project workflow state across reload', async ({ page }) => {
   await expect(page.getByText(/task_generate-track-2 saved locally/i)).toBeVisible()
 
   await page.getByRole('button', { name: /Downloads \/ exports:/i }).click()
-  await expect(page.getByText(/HTTP provider export route produced local downloadable outputs/i).first()).toBeVisible()
+  await expect(page.getByText(/HTTP provider export route produced fixture downloadable outputs/i).first()).toBeVisible()
   await expect(page.getByText(/audio ready/i)).toBeVisible()
 
   await page.getByRole('button', { name: /Release pack: Audio, video/i }).click()
@@ -187,8 +204,8 @@ test('persists project workflow state across reload', async ({ page }) => {
   await expect(page.locator('body')).not.toContainText(/apiKey|secret-key|bearer [A-Za-z0-9]/i)
 })
 
-test('opens Track Genealogy under the selected track workflow', async ({ page }) => {
-  await page.goto('/')
+test('opens Track Genealogy under the selected track workflow', async ({ page }, testInfo) => {
+  await page.goto(projectUrl(testInfo))
   await page.getByRole('textbox', { name: 'Brief' }).fill('Neon khaliji club hook')
   await page.getByRole('textbox', { name: 'Lyrics' }).fill('Verse pre chorus with bilingual hook')
   await page.getByRole('textbox', { name: 'Style' }).fill('Gulf percussion and electro-pop')

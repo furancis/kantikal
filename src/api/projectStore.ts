@@ -36,6 +36,13 @@ type BrowserStorageLike = {
   setItem(key: string, value: string): void
 }
 
+type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
+
+export type FetchProjectStoreInput = {
+  baseUrl?: string
+  fetchImpl?: FetchLike
+}
+
 const projectStorageKey = 'suno-visual-studio.projects.v1'
 const credentialKeyPattern = /(api.?key|secret|token|authorization|bearer|password|credential)/i
 const credentialValuePattern = /(bearer\s+[a-z0-9+/=._-]+|sk-[a-z0-9]{20,}|ghp_[a-z0-9]{20,}|github_pat_[a-z0-9_]{20,}|server-secret|provider-token)/i
@@ -156,6 +163,52 @@ export function createBrowserProjectStore(
   }
 }
 
+export function createFetchProjectStore(input: FetchProjectStoreInput = {}): ProjectStore {
+  const fetchImpl = input.fetchImpl ?? fetch
+
+  async function fetchProjectRoute<T>(path: string, init?: RequestInit): Promise<T> {
+    let response: Response
+    try {
+      response = await fetchImpl(projectRoute(input.baseUrl, path), init)
+    } catch (error) {
+      throw new Error(`Project database route unavailable: ${errorMessage(error)}`, { cause: error })
+    }
+
+    const payload = await readProjectRoutePayload(response)
+    if (!response.ok) {
+      throw new Error(stringFrom(payload.error) ?? `Project database route failed with HTTP ${response.status}`)
+    }
+    return payload as T
+  }
+
+  return {
+    async loadProject(projectId) {
+      const payload = await fetchProjectRoute<{ snapshot?: ProjectWorkflowSnapshot | null }>(
+        encodeURIComponent(projectId),
+      )
+      return payload.snapshot ?? null
+    },
+    async saveProject(snapshot) {
+      const payload = await fetchProjectRoute<{ summary?: ProjectSummary }>(
+        encodeURIComponent(snapshot.projectId),
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ snapshot: sanitizeProjectSnapshot(snapshot) }),
+        },
+      )
+      if (!payload.summary) {
+        throw new Error('Project database route returned no summary')
+      }
+      return payload.summary
+    },
+    async listProjects() {
+      const payload = await fetchProjectRoute<{ projects?: ProjectSummary[] }>('')
+      return payload.projects ?? []
+    },
+  }
+}
+
 function sanitizeProjectSnapshot(snapshot: ProjectWorkflowSnapshot): ProjectWorkflowSnapshot {
   const safeSnapshot = clone(stripCredentialMaterial(snapshot)) as ProjectWorkflowSnapshot
   if (safeSnapshot.workflow.musicVideoLane && !isPerfectLipsyncApproved(safeSnapshot.workflow.musicVideoLane)) {
@@ -221,6 +274,32 @@ function browserLocalStorage(): BrowserStorageLike | null {
     return null
   }
   return window.localStorage
+}
+
+function projectRoute(baseUrl: string | undefined, path: string): string {
+  const prefix = `${(baseUrl ?? '').replace(/\/$/, '')}/api/projects`
+  return path ? `${prefix}/${path}` : prefix
+}
+
+async function readProjectRoutePayload(response: Response): Promise<Record<string, unknown>> {
+  const text = await response.text()
+  if (!text) {
+    return {}
+  }
+  try {
+    const parsed = JSON.parse(text) as unknown
+    return isRecord(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function stringFrom(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'fetch failed'
 }
 
 function isProjectWorkflowSnapshot(value: unknown): value is ProjectWorkflowSnapshot {

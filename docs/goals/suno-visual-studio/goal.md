@@ -1,8 +1,10 @@
-# Goal: Real Suno Visual Studio
+# Goal: Real The Kantikal
 
 ## Original Ask
 
-Build the real Suno Visual Studio: a functional, TDD-built, Greptile-reviewed visual app for the full Suno music generation workflow.
+Build the real The Kantikal: sealf'salve's functional, TDD-built, Greptile-reviewed visual app for the full lyric-first Suno music generation workflow.
+
+`Suno Visual Studio` remains the repo/internal implementation name only.
 
 ## Correction
 

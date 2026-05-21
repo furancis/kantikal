@@ -36,7 +36,8 @@ import {
   type MusicVideoRuntimeClient,
 } from './api/musicVideoRuntime'
 import {
-  createBrowserProjectStore,
+  createFetchProjectStore,
+  createMemoryProjectStore,
   projectSnapshotFromState,
   type ProjectStore,
   type ProjectSummary,
@@ -48,6 +49,13 @@ import {
   type RuntimeStatus,
   type RuntimeStatusClient,
 } from './api/runtimeStatus'
+import {
+  analyzeWaveformSamples,
+  createLikedStyleWaveformFixture,
+  type AudioWaveformInput,
+  type WaveformAnalysisReport,
+} from './domain/audioAnalysis'
+import { evaluateGenerationTaste, prepareTasteLockedBrief } from './domain/tasteProfile'
 import {
   applyArchiveFirstCleanup,
   analyzeTrackGenealogy,
@@ -62,6 +70,8 @@ import {
   planComfyRenderGraph,
   planArchiveFirstCleanup,
   recordProjectAssetImport,
+  recordGenerationTasteGate,
+  recordTrackAudioAnalysis,
   queueSongLabEdit,
   queueLipsyncRepair,
   queueMusicVideoRender,
@@ -91,6 +101,7 @@ type NodeKind =
   | 'batch'
   | 'generated'
   | 'track'
+  | 'intelligence'
   | 'stem'
   | 'compare'
   | 'genealogy'
@@ -114,7 +125,7 @@ type WorkflowNode = {
 }
 
 type PrimaryAction = {
-  id: 'generate' | 'choose-track' | 'song-lab' | 'video' | 'lipsync' | 'release' | 'done'
+  id: 'generate' | 'choose-track' | 'analyze-audio' | 'song-lab' | 'video' | 'lipsync' | 'release' | 'done'
   label: string
   detail: string
   disabled?: boolean
@@ -170,6 +181,7 @@ const iconByKind: Record<NodeKind, ComponentType<{ size?: number }>> = {
   batch: Sparkles,
   generated: FileAudio,
   track: FileAudio,
+  intelligence: Gauge,
   stem: Waves,
   compare: GitBranch,
   genealogy: GitBranch,
@@ -186,6 +198,8 @@ const featureList = [
   'Prompt, lyrics, style, voice and persona workbenches',
   'Full Suno capability map with unsupported endpoints explicitly flagged',
   'Batch generation, version lineage, A/B comparison and taste scoring',
+  'Liked-track taste gate with anti-cliche provider prompt lock',
+  'Waveform, transient, silence and section-energy analysis for each selected track',
   'Track Genealogy family tree with traits, mutations, dead branches and breeding suggestions',
   'Song Lab timeline with regions, sections, stems and arrangement locks',
   'Music video lane as a subfeature, not the main product',
@@ -271,9 +285,21 @@ export function App({
 }: AppProps = {}) {
   const mockProvider = useMemo(() => createMockSunoProvider(), [])
   const localExportRuntime = useMemo(() => createLocalProviderExportRuntimeClient(), [])
-  const localMusicVideoRuntime = useMemo(() => createLocalMusicVideoRuntimeClient(), [])
+  const localMusicVideoRuntime = useMemo(
+    () => (import.meta.env.MODE === 'test'
+      ? createLocalMusicVideoRuntimeClient()
+      : {
+          async evaluateLipsync() {
+            throw new Error('Music video runtime route is required before lipsync QA can run')
+          },
+        }),
+    [],
+  )
   const localRuntimeStatusClient = useMemo(() => createLocalRuntimeStatusClient(), [])
-  const localProjectStore = useMemo(() => createBrowserProjectStore(), [])
+  const localProjectStore = useMemo(
+    () => (import.meta.env.MODE === 'test' ? createMemoryProjectStore() : createFetchProjectStore()),
+    [],
+  )
   const provider = injectedProvider ?? mockProvider
   const exportRuntime = injectedExportRuntime ?? localExportRuntime
   const musicVideoRuntime = injectedMusicVideoRuntime ?? localMusicVideoRuntime
@@ -290,6 +316,7 @@ export function App({
   const [selectedId, setSelectedId] = useState('project-lobby')
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
+  const [audioAnalysisError, setAudioAnalysisError] = useState<string | null>(null)
   const [videoExportError, setVideoExportError] = useState<string | null>(null)
   const [exportRuntimeError, setExportRuntimeError] = useState<string | null>(null)
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null)
@@ -335,6 +362,7 @@ export function App({
     setProjectStoreError(null)
     setIsGenerating(false)
     setGenerateError(null)
+    setAudioAnalysisError(null)
     setVideoExportError(null)
     setExportRuntimeError(null)
     setApiActionResult(null)
@@ -435,6 +463,11 @@ export function App({
   const promptLocked = isGenerating || Boolean(workflow.musicVideoLane)
   const primaryAction = nextActionForWorkflow(workflow, releasePack, videoExportReady)
   const trackGenealogy = useMemo(() => analyzeTrackGenealogy(workflow), [workflow])
+  const generationTasteGate = useMemo(() => evaluateGenerationTaste(briefInput), [briefInput])
+  const selectedAudioIntelligence = workflow.selectedTrack
+    ? workflow.audioIntelligence.tracks[workflow.selectedTrack.id] ?? null
+    : null
+  const waveformBars = selectedAudioIntelligence?.waveform.envelope ?? []
   const genealogyDeadBranchTargets = trackGenealogy.deadBranches
     .map((branch) => branch.trackId)
     .filter((trackId) =>
@@ -452,10 +485,13 @@ export function App({
   async function generateFromBrief(input: BriefInput) {
     setIsGenerating(true)
     setGenerateError(null)
+    setAudioAnalysisError(null)
     setVideoExportError(null)
     try {
+      const generationGate = evaluateGenerationTaste(input)
+      const tasteLockedInput = prepareTasteLockedBrief(input, generationGate)
       const generationBatch = await provider.generateBatch({
-        ...input,
+        ...tasteLockedInput,
         count: 2,
       })
       if (generationBatch.tracks.length === 0) {
@@ -471,7 +507,7 @@ export function App({
           jobQueue: current.jobQueue,
           provenance: current.provenance,
         }
-        return submitGenerationBatch(baseWorkflow, generationBatch)
+        return recordGenerationTasteGate(submitGenerationBatch(baseWorkflow, generationBatch), generationGate)
       })
       setSelectedId('batch')
     } catch (error) {
@@ -649,6 +685,58 @@ export function App({
     )?.url
   }
 
+  async function handleAnalyzeSelectedTrackAudio() {
+    const track = workflow.selectedTrack
+    if (!track) {
+      return
+    }
+
+    setAudioAnalysisError(null)
+    try {
+      const waveform = await loadSelectedTrackWaveform(track)
+      setWorkflow((current) => recordTrackAudioAnalysis(current, track.id, waveform))
+      setSelectedId('audio-intelligence')
+    } catch (error) {
+      setAudioAnalysisError(errorMessage(error, 'Waveform analysis failed'))
+      setSelectedId('audio-intelligence')
+    }
+  }
+
+  async function loadSelectedTrackWaveform(track: GeneratedTrack): Promise<WaveformAnalysisReport> {
+    const audioUrl = selectedTrackAudioUrl()
+    if (audioUrl && typeof AudioContext !== 'undefined') {
+      return analyzeWaveformSamples(await decodeBrowserAudio(audioUrl, track.id))
+    }
+
+    if (import.meta.env.MODE !== 'test' && import.meta.env.VITE_ALLOW_FIXTURE_AUDIO !== '1') {
+      throw new Error('Audio analysis requires a real fetched audio asset for this track')
+    }
+
+    return analyzeWaveformSamples(createLikedStyleWaveformFixture(track.id))
+  }
+
+  async function decodeBrowserAudio(url: string, trackId: string): Promise<AudioWaveformInput> {
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`Audio fetch failed with ${response.status}`)
+    }
+
+    const audioContext = new AudioContext()
+    try {
+      const decoded = await audioContext.decodeAudioData(await response.arrayBuffer())
+      const channels = Array.from({ length: decoded.numberOfChannels }, (_, index) =>
+        decoded.getChannelData(index),
+      )
+      return {
+        trackId,
+        sampleRate: decoded.sampleRate,
+        channels,
+      }
+    } finally {
+      await audioContext.close()
+    }
+  }
+
   async function handlePollSelectedGenerationJob() {
     await handleProviderExportAction(() => exportRuntime.pollGenerationTask({ projectId: activeProjectId, workflow }))
   }
@@ -691,6 +779,7 @@ export function App({
       }))
       setReleasePack(null)
       setGenerateError(null)
+      setAudioAnalysisError(null)
       setVideoExportError(null)
       setSelectedId('brief')
     }
@@ -702,6 +791,7 @@ export function App({
       const isSameSelectedTrack = workflow.selectedTrack?.id === trackId
       setWorkflow((current) => (current.selectedTrack?.id === trackId ? current : selectTrack(current, trackId)))
       setReleasePack((current) => (isSameSelectedTrack ? current : null))
+      setAudioAnalysisError(null)
       setVideoExportError(null)
       setSelectedId('track')
       return
@@ -837,6 +927,10 @@ export function App({
       } else {
         setSelectedId('batch')
       }
+      return
+    }
+    if (primaryAction.id === 'analyze-audio') {
+      void handleAnalyzeSelectedTrackAudio()
       return
     }
     if (primaryAction.id === 'song-lab') {
@@ -1028,6 +1122,16 @@ export function App({
                 {generateError}
               </p>
             )}
+            <div className="taste-gate" aria-label="Liked-track taste gate">
+              <strong>
+                Taste fit {generationTasteGate.score}/7 {generationTasteGate.passed ? 'ready' : 'needs lock'}
+              </strong>
+              <small>Matched: {generationTasteGate.matchedSignals.join(', ') || 'none'}</small>
+              <small>Missing: {generationTasteGate.missingSignals.join(', ') || 'none'}</small>
+              {generationTasteGate.blockers.length > 0 && (
+                <small>Blockers: {generationTasteGate.blockers.join(', ')}</small>
+              )}
+            </div>
           </form>
           <div className="rail-block">
             <Library size={18} />
@@ -1157,9 +1261,79 @@ export function App({
                 <Library size={16} />
                 Save selected to local library
               </button>
+              <button type="button" onClick={() => void handleAnalyzeSelectedTrackAudio()}>
+                <Gauge size={16} />
+                Analyze waveform
+              </button>
               <button type="button" onClick={() => setSelectedId('track-genealogy')}>
                 <GitBranch size={16} />
                 Open Track Genealogy
+              </button>
+            </div>
+          )}
+          {selected.kind === 'intelligence' && (
+            <div className="workflow-section">
+              <h3>Audio Intelligence</h3>
+              {audioAnalysisError && (
+                <p className="form-error" role="alert">
+                  {audioAnalysisError}
+                </p>
+              )}
+              {selectedAudioIntelligence ? (
+                <>
+                  <div className="genealogy-list" aria-label="Audio Intelligence waveform metrics">
+                    <div>
+                      <strong>Peak {selectedAudioIntelligence.waveform.peakAmplitude}</strong>
+                      <small>
+                        RMS {selectedAudioIntelligence.waveform.rmsAmplitude}; crest{' '}
+                        {selectedAudioIntelligence.waveform.crestFactor}; DC{' '}
+                        {selectedAudioIntelligence.waveform.dcOffset}; clipping samples{' '}
+                        {selectedAudioIntelligence.waveform.clippingSamples}
+                      </small>
+                    </div>
+                    <div>
+                      <strong>Fit {selectedAudioIntelligence.fit.score}/5</strong>
+                      <small>
+                        {selectedAudioIntelligence.fit.reasons.join(' | ')}
+                        {selectedAudioIntelligence.fit.blockers.length > 0
+                          ? ` | blockers ${selectedAudioIntelligence.fit.blockers.join(', ')}`
+                          : ''}
+                      </small>
+                    </div>
+                    <div>
+                      <strong>{selectedAudioIntelligence.waveform.transientPeaks.length} transients</strong>
+                      <small>
+                        tempo candidates{' '}
+                        {selectedAudioIntelligence.waveform.tempoCandidatesBpm.join('/') || 'none'} bpm; silence ranges{' '}
+                        {selectedAudioIntelligence.waveform.silenceRanges.length}
+                      </small>
+                    </div>
+                  </div>
+                  <div className="genealogy-list" aria-label="Audio Intelligence section energy">
+                    {selectedAudioIntelligence.waveform.sections.map((section) => (
+                      <div key={section.label}>
+                        <strong>{section.label}</strong>
+                        <small>
+                          {section.startSeconds}s-{section.endSeconds}s; peak {section.peak}; rms {section.rms}
+                        </small>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="genealogy-list" aria-label="Audio Intelligence quality flags">
+                    {selectedAudioIntelligence.waveform.qualityFlags.map((flag) => (
+                      <div key={flag}>
+                        <strong>{flag}</strong>
+                        <small>{selectedAudioIntelligence.evidenceId}</small>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p>No waveform analysis recorded for the selected source track.</p>
+              )}
+              <button type="button" disabled={!workflow.selectedTrack} onClick={() => void handleAnalyzeSelectedTrackAudio()}>
+                <Gauge size={16} />
+                Analyze waveform
               </button>
             </div>
           )}
@@ -1926,8 +2100,8 @@ export function App({
                 >
                   <Activity size={14} />
                   {actionStateForEntry(entry).buttonLabel}
-                </button>
-              </div>
+              </button>
+            </div>
             ))}
           </div>
         </aside>
@@ -1938,10 +2112,14 @@ export function App({
           <button aria-label="Play preview">
             <Play size={18} />
           </button>
-          <div className="waveform" aria-hidden="true">
-            {Array.from({ length: 52 }, (_, index) => (
-              <span key={index} style={{ height: `${18 + ((index * 11) % 44)}px` }} />
-            ))}
+          <div className={waveformBars.length > 0 ? 'waveform' : 'waveform empty'} aria-label="Waveform detection envelope">
+            {waveformBars.length > 0 ? (
+              waveformBars.map((bucket) => (
+                <span key={bucket.index} style={{ height: `${Math.max(6, Math.round(bucket.peak * 62))}px` }} />
+              ))
+            ) : (
+              <strong>No waveform analysis</strong>
+            )}
           </div>
           <button aria-label="Cut region">
             <Scissors size={18} />
@@ -2096,6 +2274,7 @@ function buildWorkflowNodes(
   }
 
   if (workflow.selectedTrack) {
+    const selectedIntelligence = workflow.audioIntelligence.tracks[workflow.selectedTrack.id]
     nodes.push(
       {
         id: 'track',
@@ -2106,6 +2285,24 @@ function buildWorkflowNodes(
         x: 70,
         y: 24,
         meta: ['audio source of truth', workflow.selectedTrack.id, 'version lineage'],
+      },
+      {
+        id: 'audio-intelligence',
+        kind: 'intelligence',
+        title: 'Audio Intelligence',
+        summary: selectedIntelligence
+          ? `Peak ${selectedIntelligence.waveform.peakAmplitude}, rms ${selectedIntelligence.waveform.rmsAmplitude}, ${selectedIntelligence.waveform.transientPeaks.length} transients.`
+          : 'Waveform, silence, transient and section-energy analysis for the selected source.',
+        status: selectedIntelligence ? 'ready' : 'needs-review',
+        x: 72,
+        y: 39,
+        meta: selectedIntelligence
+          ? [
+              `fit ${selectedIntelligence.fit.score}/5`,
+              `${selectedIntelligence.waveform.transientPeaks.length} transients`,
+              selectedIntelligence.waveform.qualityFlags.join(', '),
+            ]
+          : ['waveform analysis', 'transient detection', 'section energy'],
       },
       {
         id: 'song-lab',
@@ -2212,6 +2409,14 @@ function nextActionForWorkflow(
       id: 'choose-track',
       label: 'Choose source track',
       detail: 'Pick one generated version. Song Lab, exports, and MV stay locked until this exists.',
+    }
+  }
+
+  if (!workflow.audioIntelligence.tracks[workflow.selectedTrack.id]) {
+    return {
+      id: 'analyze-audio',
+      label: 'Analyze waveform',
+      detail: 'Measure waveform, transients, silence, section energy, and fit before editing downstream.',
     }
   }
 

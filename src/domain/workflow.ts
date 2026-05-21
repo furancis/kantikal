@@ -1,3 +1,10 @@
+import {
+  scoreWaveformFit,
+  type WaveformAnalysisReport,
+  type WaveformFitScore,
+} from './audioAnalysis'
+import type { GenerationTasteEvaluation } from './tasteProfile'
+
 export type WorkflowStage =
   | 'brief-ready'
   | 'batch-ready'
@@ -40,6 +47,7 @@ export type VersionComparison = {
 export type TasteState = {
   ratings: Record<string, TrackTasteRating>
   comparisons: VersionComparison[]
+  generationGate: GenerationTasteEvaluation | null
 }
 
 export type SongLabSection = {
@@ -390,7 +398,7 @@ export type CleanupPlan = {
 export type TrackGenealogyAncestor = {
   id: string
   label: string
-  kind: 'prompt' | 'lyrics' | 'style' | 'voice' | 'asset' | 'job'
+  kind: 'prompt' | 'lyrics' | 'style' | 'voice' | 'asset' | 'job' | 'analysis'
   evidence: string[]
 }
 
@@ -460,10 +468,23 @@ export type TrackGenealogy = {
   }
 }
 
+export type TrackAudioIntelligence = {
+  trackId: string
+  evidenceId: string
+  analyzedAt: string
+  waveform: WaveformAnalysisReport
+  fit: WaveformFitScore
+}
+
+export type AudioIntelligenceState = {
+  tracks: Record<string, TrackAudioIntelligence>
+}
+
 export type SunoWorkflow = BriefInput & {
   stage: WorkflowStage
   generationBatch: GenerationBatch | null
   selectedTrack: GeneratedTrack | null
+  audioIntelligence: AudioIntelligenceState
   musicVideoLane: MusicVideoLane | null
   taste: TasteState
   songLab: SongLab | null
@@ -492,6 +513,7 @@ export function createWorkflow(input: BriefInput): SunoWorkflow {
     stage: 'brief-ready',
     generationBatch: null,
     selectedTrack: null,
+    audioIntelligence: emptyAudioIntelligenceState(),
     musicVideoLane: null,
     taste: emptyTasteState(),
     songLab: null,
@@ -520,6 +542,7 @@ export function submitGenerationBatch(
     stage: 'batch-ready',
     generationBatch,
     selectedTrack: null,
+    audioIntelligence: emptyAudioIntelligenceState(),
     musicVideoLane: null,
     taste: emptyTasteState(),
     songLab: null,
@@ -542,6 +565,50 @@ export function selectTrack(workflow: SunoWorkflow, trackId: string): SunoWorkfl
     songLab: null,
     cleanupPlan: null,
     provenance: appendOnce(workflow.provenance, 'selected-track'),
+  }
+}
+
+export function recordTrackAudioAnalysis(
+  workflow: SunoWorkflow,
+  trackId: string,
+  waveform: WaveformAnalysisReport,
+): SunoWorkflow {
+  ensureTrackInActiveBatch(workflow, trackId)
+  if (waveform.trackId !== trackId) {
+    throw new Error(`Waveform report ${waveform.trackId} does not match track ${trackId}`)
+  }
+
+  const analysis: TrackAudioIntelligence = {
+    trackId,
+    evidenceId: `audio-intelligence-${trackId}`,
+    analyzedAt: '1970-01-01T00:00:00.000Z',
+    waveform,
+    fit: scoreWaveformFit(waveform),
+  }
+
+  return {
+    ...workflow,
+    audioIntelligence: {
+      tracks: {
+        ...workflow.audioIntelligence.tracks,
+        [trackId]: analysis,
+      },
+    },
+    provenance: appendOnce(workflow.provenance, 'audio-intelligence'),
+  }
+}
+
+export function recordGenerationTasteGate(
+  workflow: SunoWorkflow,
+  generationGate: GenerationTasteEvaluation,
+): SunoWorkflow {
+  return {
+    ...workflow,
+    taste: {
+      ...workflow.taste,
+      generationGate,
+    },
+    provenance: appendOnce(workflow.provenance, 'taste-generation-gate'),
   }
 }
 
@@ -1387,6 +1454,13 @@ function emptyTasteState(): TasteState {
   return {
     ratings: {},
     comparisons: [],
+    generationGate: null,
+  }
+}
+
+function emptyAudioIntelligenceState(): AudioIntelligenceState {
+  return {
+    tracks: {},
   }
 }
 
@@ -1447,6 +1521,29 @@ function trackGenealogyAncestors(workflow: SunoWorkflow): TrackGenealogyAncestor
       kind: 'asset' as const,
       evidence: [asset.kind, asset.status, ...asset.tags],
     })),
+    ...Object.values(workflow.audioIntelligence.tracks).map((analysis) => ({
+      id: analysis.evidenceId,
+      label: `${analysis.trackId} waveform DNA`,
+      kind: 'analysis' as const,
+      evidence: [
+        `peak ${analysis.waveform.peakAmplitude}`,
+        `rms ${analysis.waveform.rmsAmplitude}`,
+        `${analysis.waveform.transientPeaks.length} transients`,
+      ],
+    })),
+    ...(workflow.taste.generationGate
+      ? [
+          {
+            id: `taste-gate-${workflow.taste.generationGate.profileId}`,
+            label: 'Liked-track taste gate',
+            kind: 'analysis' as const,
+            evidence: [
+              `score ${workflow.taste.generationGate.score}`,
+              ...workflow.taste.generationGate.matchedSignals,
+            ],
+          },
+        ]
+      : []),
   ]
 }
 
@@ -1498,7 +1595,10 @@ function trackGenealogyDescendants(workflow: SunoWorkflow): TrackGenealogyDescen
 }
 
 function trackGenealogyInheritedTraits(workflow: SunoWorkflow): InheritedTrait[] {
-  return [
+  const selectedAnalysis = workflow.selectedTrack
+    ? workflow.audioIntelligence.tracks[workflow.selectedTrack.id]
+    : undefined
+  const traits: InheritedTrait[] = [
     {
       trait: 'chorus shape',
       value: workflow.lyrics.match(/chorus|hook/i) ? 'hook/chorus-led structure' : 'lyric structure from prompt',
@@ -1527,6 +1627,28 @@ function trackGenealogyInheritedTraits(workflow: SunoWorkflow): InheritedTrait[]
       evidence: ['brief', 'lyrics'],
     },
   ]
+
+  if (selectedAnalysis) {
+    const hook = selectedAnalysis.waveform.sections.find((section) => section.label === 'hook')
+    traits.push(
+      {
+        trait: 'waveform contour',
+        value: hook
+          ? `hook rms ${hook.rms}; peak ${selectedAnalysis.waveform.peakAmplitude}`
+          : `peak ${selectedAnalysis.waveform.peakAmplitude}; rms ${selectedAnalysis.waveform.rmsAmplitude}`,
+        evidence: [selectedAnalysis.evidenceId],
+      },
+      {
+        trait: 'rhythmic transient identity',
+        value: `${selectedAnalysis.waveform.transientPeaks.length} detected transients; tempo candidates ${
+          selectedAnalysis.waveform.tempoCandidatesBpm.join('/') || 'none'
+        } bpm`,
+        evidence: [selectedAnalysis.evidenceId],
+      },
+    )
+  }
+
+  return traits
 }
 
 function trackMutationDiff(
@@ -1541,6 +1663,8 @@ function trackMutationDiff(
     (candidate) => candidate.leftTrackId === track.id || candidate.rightTrackId === track.id,
   )
   const archived = workflow.archiveEntries.find((entry) => entry.track.id === track.id)
+  const analysis = workflow.audioIntelligence.tracks[track.id]
+  const selectedAnalysis = selectedTrack ? workflow.audioIntelligence.tracks[selectedTrack.id] : undefined
 
   if (selectedTrack && track.id !== selectedTrack.id) {
     const durationDelta = track.durationSeconds - selectedTrack.durationSeconds
@@ -1564,6 +1688,19 @@ function trackMutationDiff(
   if (archived) {
     changes.push(`archived: ${archived.reason}`)
   }
+  if (analysis) {
+    changes.push(
+      `waveform peak ${analysis.waveform.peakAmplitude}, rms ${analysis.waveform.rmsAmplitude}, ${analysis.waveform.transientPeaks.length} transients`,
+    )
+    if (selectedAnalysis && track.id !== selectedTrack?.id) {
+      const rmsDelta = analysis.waveform.rmsAmplitude - selectedAnalysis.waveform.rmsAmplitude
+      const transientDelta = analysis.waveform.transientPeaks.length - selectedAnalysis.waveform.transientPeaks.length
+      changes.push(`audio delta rms ${formatSignedNumber(rmsDelta, 3)}, transients ${formatSignedInteger(transientDelta)}`)
+    }
+    if (analysis.fit.blockers.length > 0) {
+      changes.push(`audio blockers: ${analysis.fit.blockers.join(', ')}`)
+    }
+  }
   if (changes.length === 0) {
     changes.push('metadata-only variant; no tracked mutation note yet')
   }
@@ -1581,10 +1718,14 @@ function branchFitScore(workflow: SunoWorkflow, track: GeneratedTrack): BranchFi
   const wonComparisons = workflow.taste.comparisons.filter((comparison) => comparison.winnerTrackId === track.id)
   const isSelected = workflow.selectedTrack?.id === track.id
   const archived = workflow.archiveEntries.find((entry) => entry.track.id === track.id)
-  const score = rating?.score ?? (isSelected ? 4 : archived ? 1 : 3)
+  const analysis = workflow.audioIntelligence.tracks[track.id]
+  const baseScore = rating?.score ?? (isSelected ? 4 : archived ? 1 : 3)
+  const score = analysis ? clampScore(Math.round((baseScore + analysis.fit.score) / 2)) : baseScore
   const why = [
     ...(isSelected ? ['selected source track'] : []),
     ...(rating ? [rating.notes] : ['no taste rating yet']),
+    ...(analysis ? analysis.fit.reasons.map((reason) => `audio: ${reason}`) : ['no waveform analysis yet']),
+    ...(analysis ? analysis.fit.blockers.map((blocker) => `audio blocker: ${blocker}`) : []),
     ...wonComparisons.map((comparison) => comparison.notes),
     ...(archived ? [`archived: ${archived.reason}`] : []),
   ]
@@ -1609,6 +1750,13 @@ function deadBranchForTrack(workflow: SunoWorkflow, trackId: string): DeadBranch
     return {
       trackId,
       reason: rating.notes,
+    }
+  }
+  const analysis = workflow.audioIntelligence.tracks[trackId]
+  if (analysis && analysis.fit.score <= 2) {
+    return {
+      trackId,
+      reason: analysis.fit.blockers.join(', ') || 'low waveform fit score',
     }
   }
   return null
@@ -2187,6 +2335,19 @@ function sanitizeId(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
+}
+
+function formatSignedNumber(value: number, digits: number): string {
+  const rounded = Number(value.toFixed(digits))
+  return `${rounded >= 0 ? '+' : ''}${rounded}`
+}
+
+function formatSignedInteger(value: number): string {
+  return `${value >= 0 ? '+' : ''}${value}`
+}
+
+function clampScore(score: number): number {
+  return Math.min(5, Math.max(1, score))
 }
 
 function appendOnce(values: string[], value: string): string[] {

@@ -130,6 +130,7 @@ describe('Suno Visual Studio shell', () => {
     expect(screen.getByText(/54 mapped capabilities/i)).toBeInTheDocument()
     expect(screen.getByText(/custom voice creation/i)).toBeInTheDocument()
     expect(screen.getByText(/^WAV conversion$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/liked-track taste gate/i)).toHaveTextContent(/taste fit/i)
   })
 
   it('creates editable workflow objects from the visual app', async () => {
@@ -157,9 +158,19 @@ describe('Suno Visual Studio shell', () => {
 
     expect(screen.getByRole('heading', { name: /chosen track/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /neon khaliji club hook v2 \(mock-track-2\)/i })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /open song lab/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /analyze waveform/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/waveform detection envelope/i)).toHaveTextContent(/no waveform analysis/i)
     expect(screen.getByText(/selected source: mock-track-2/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /open music video lane/i })).toBeEnabled()
+
+    await user.click(screen.getAllByRole('button', { name: /analyze waveform/i })[0])
+
+    expect(screen.getAllByRole('heading', { name: /audio intelligence/i }).length).toBeGreaterThan(0)
+    expect(screen.getByLabelText(/audio intelligence waveform metrics/i)).toHaveTextContent(/peak/i)
+    expect(screen.getByLabelText(/audio intelligence waveform metrics/i)).toHaveTextContent(/transients/i)
+    expect(screen.getByLabelText(/audio intelligence section energy/i)).toHaveTextContent(/hook/i)
+    expect(screen.getByRole('heading', { name: /open song lab/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/waveform detection envelope/i)).not.toHaveTextContent(/no waveform analysis/i)
 
     await user.click(screen.getByRole('button', { name: /open music video lane/i }))
 
@@ -258,6 +269,33 @@ describe('Suno Visual Studio shell', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/provider rate limit/i)
     expect(screen.queryByRole('button', { name: /gulf chorus engine v1/i })).not.toBeInTheDocument()
+  })
+
+  it('sends a liked-track taste lock to the provider before generation', async () => {
+    const user = userEvent.setup()
+    const requests: Array<Parameters<SunoProvider['generateBatch']>[0]> = []
+    const provider: SunoProvider = {
+      async generateBatch(request) {
+        requests.push(request)
+        return {
+          providerJobId: 'taste_locked_job',
+          tracks: [{ id: 'taste-track-1', title: 'Taste locked take', durationSeconds: 150 }],
+        }
+      },
+    }
+
+    render(<App provider={provider} />)
+
+    await user.clear(screen.getByLabelText(/brief/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/brief/i, { selector: 'textarea' }), 'Neon wire machine choir')
+    await user.clear(screen.getByLabelText(/lyrics/i, { selector: 'textarea' }))
+    await user.type(screen.getByLabelText(/lyrics/i, { selector: 'textarea' }), 'Empty line, numbered sky')
+    await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
+
+    expect(await screen.findByRole('button', { name: /taste locked take/i })).toBeInTheDocument()
+    expect(requests[0].brief).toMatch(/Taste lock: match liked-track-hybrid/i)
+    expect(requests[0].lyrics).toMatch(/direct, adult, non-novelty writing/i)
+    expect(requests[0].style).toMatch(/dynamic bass, hard rhythmic punch/i)
   })
 
   it('keeps the current release pack when a replacement generation fails', async () => {

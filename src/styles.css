@@ -291,6 +291,26 @@ textarea {
   padding: 0 11px;
 }
 
+.taste-gate {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid rgba(58, 205, 196, 0.28);
+  border-radius: 8px;
+  background: rgba(58, 205, 196, 0.07);
+}
+
+.taste-gate strong {
+  color: #a8ece6;
+  font-size: 12px;
+}
+
+.taste-gate small {
+  color: #b7b1a6;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
 .form-error {
   margin: 0;
   padding: 9px 10px;
@@ -798,6 +818,12 @@ textarea {
   background: rgba(240, 181, 76, 0.06);
 }
 
+.waveform.empty {
+  justify-content: center;
+  color: #b7b1a6;
+  font-size: 12px;
+}
+
 .waveform span {
   flex: 1;
   max-width: 12px;
@@ -862,14 +888,14 @@ textarea {
 
   .prompt-rail {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: 1fr;
     gap: 8px;
     border-right: 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .rail-block {
-    justify-content: center;
+    justify-content: flex-start;
     margin: 0;
   }
 

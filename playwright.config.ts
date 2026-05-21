@@ -7,7 +7,7 @@ export default defineConfig({
     timeout: 15_000,
   },
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 4174',
+    command: 'node scripts/e2e-dev-server.mjs',
     url: 'http://127.0.0.1:4174',
     reuseExistingServer: !process.env.CI,
   },

@@ -33,8 +33,24 @@
     "vitest": "^4.1.6"
   },
   "dependencies": {
+    "@liquid-dom/core": "^0.1.0",
+    "@liquid-dom/layout": "^0.1.0",
+    "@liquid-dom/r3f": "^0.1.0",
+    "@liquid-dom/react": "^0.1.0",
+    "@liquid-dom/three": "^0.1.0",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
+    "@theatre/core": "^0.7.2",
+    "@theatre/studio": "^0.7.2",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.10.0",
+    "framer-motion": "^12.39.0",
+    "framer-motion-theatre": "^0.3.0",
+    "hypercomp": "^0.4.1",
     "lucide-react": "^1.16.0",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "three": "^0.184.0",
+    "vecui": "^3.3.1"
   }
 }

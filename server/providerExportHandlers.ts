@@ -165,24 +165,15 @@ export function createProviderExportHandlers(input: {
         )
       }
 
-      const outputs: ProviderTaskOutput[] = [
-        {
-          kind: 'video',
-          label: `${lane.sourceTrackId} provider video`,
-          url: `local-export://${lane.sourceTrackId}/video.mp4`,
-          sourceTrackId: lane.sourceTrackId,
-        },
-      ]
-
       return persist(
         request.projectId,
         recordProviderTaskUpdate(workflow, {
           providerTaskId: `video-${lane.sourceTrackId}`,
           action: 'createProviderMusicVideo',
           capability: 'Provider music video creation',
-          providerStatus: 'SUCCESS',
-          message: 'Provider video output received through HTTP route',
-          outputs,
+          providerStatus: 'FAILED',
+          message: 'Provider video output requires a real provider callback or worker output URL',
+          outputs: [] satisfies ProviderTaskOutput[],
           receiptId: `video-${lane.sourceTrackId}`,
         }),
       )

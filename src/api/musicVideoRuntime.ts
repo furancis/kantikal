@@ -38,7 +38,7 @@ export function createFetchMusicVideoRuntimeClient(
   input: MusicVideoFetchRuntimeInput = {},
 ): MusicVideoRuntimeClient {
   const fetchImpl = input.fetchImpl ?? fetch
-  const fallback = input.fallback ?? createLocalMusicVideoRuntimeClient()
+  const fallback = input.fallback
 
   return {
     async evaluateLipsync(request) {
@@ -49,17 +49,23 @@ export function createFetchMusicVideoRuntimeClient(
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ workflow: request.workflow }),
         })
-      } catch {
-        return fallback.evaluateLipsync(request)
+      } catch (error) {
+        if (fallback) {
+          return fallback.evaluateLipsync(request)
+        }
+        throw new Error(`Music video runtime route unavailable: ${errorMessage(error)}`, { cause: error })
       }
 
       if (response.status === 404) {
-        return fallback.evaluateLipsync(request)
+        if (fallback) {
+          return fallback.evaluateLipsync(request)
+        }
+        throw new Error('Music video runtime route is not mounted')
       }
 
       const payload = await readRuntimePayload(response)
       if (!payload) {
-        if (response.ok) {
+        if (response.ok && fallback) {
           return fallback.evaluateLipsync(request)
         }
         throw new Error(`Music video runtime failed with HTTP ${response.status}`)
@@ -68,7 +74,10 @@ export function createFetchMusicVideoRuntimeClient(
         throw new Error(stringFrom(payload.error) ?? `Music video runtime failed with HTTP ${response.status}`)
       }
       if (!isRecord(payload.workflow)) {
-        return fallback.evaluateLipsync(request)
+        if (fallback) {
+          return fallback.evaluateLipsync(request)
+        }
+        throw new Error('Music video runtime returned no workflow')
       }
       return payload.workflow as SunoWorkflow
     },
@@ -180,6 +189,10 @@ function sanitizeId(value: string): string {
 
 function stringFrom(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'fetch failed'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

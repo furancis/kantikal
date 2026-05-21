@@ -54,6 +54,42 @@ describe('provider request routes', () => {
     expect(JSON.stringify(payload)).not.toContain('server-secret')
   })
 
+  it('keeps taste-lock directives out of provider display titles', async () => {
+    const route = createProviderRequestHandler({
+      provider: createServerSunoProvider({
+        adapter: createSunoApiServerAdapter({
+          runtime: 'server',
+          apiKey: 'server-secret',
+          callbackUrl: 'http://local.test/api/provider-exports/project-a/callback',
+          fetchImpl: async () =>
+            new Response(JSON.stringify({ code: 200, msg: 'success', data: { taskId: 'task_http_generate' } }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        }),
+      }),
+    })
+
+    const response = await route(
+      new Request('http://local.test/api/provider/generate-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          request: {
+            brief: 'HTTP route hook\nTaste lock: match liked track',
+            lyrics: 'Verse chorus',
+            style: 'cinematic pop',
+            voice: 'consented lead',
+            count: 1,
+          },
+        }),
+      }),
+    )
+    const payload = await response.json()
+
+    expect(payload.batch.tracks[0].title).toBe('HTTP route hook provider take 1')
+  })
+
   it('dispatches provider actions through the HTTP route without returning the key', async () => {
     const calls: Array<{ url: string; init: RequestInit }> = []
     const route = createProviderRequestHandler({
@@ -122,6 +158,33 @@ describe('provider request routes', () => {
 
     expect(response.status).toBe(400)
     expect(payload.error).toMatch(/requires provider action request/i)
+  })
+
+  it('rejects cross-origin browser posts before provider execution', async () => {
+    const route = createProviderRequestHandler({
+      provider: createMockSunoProvider(),
+    })
+
+    const response = await route(
+      new Request('http://local.test/api/provider/actions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://attacker.example',
+        },
+        body: JSON.stringify({
+          request: {
+            action: 'generateLyrics',
+            capability: 'Lyrics generation',
+            payload: { prompt: 'hook' },
+          },
+        }),
+      }),
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(payload.error).toMatch(/local browser origin/i)
   })
 
   it('rejects malformed generation requests before provider execution', async () => {

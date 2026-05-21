@@ -14,6 +14,7 @@ import {
   type SunoWorkflow,
 } from '../domain/workflow'
 import {
+  createFetchProjectStore,
   createMemoryProjectStore,
   projectSnapshotFromState,
   summarizeProject,
@@ -151,5 +152,47 @@ describe('project workflow store', () => {
       },
     })
     await expect(store.listProjects()).resolves.toEqual([summarizeProject((await store.loadProject('project-persist'))!)])
+  })
+
+  it('uses HTTP project database routes when mounted', async () => {
+    const workflow = fullWorkflow()
+    const snapshot = projectSnapshotFromState({
+      projectId: 'project-http',
+      briefInput,
+      workflow,
+      releasePack: toReleasePack(workflow, { includeVideo: true }),
+      savedAt: '2026-05-21T00:00:00.000Z',
+    })
+    const calls: Array<{ url: string; method: string }> = []
+    const store = createFetchProjectStore({
+      fetchImpl: async (url, init) => {
+        calls.push({ url: String(url), method: init?.method ?? 'GET' })
+        if (init?.method === 'PUT') {
+          return new Response(JSON.stringify({ summary: summarizeProject(snapshot) }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        if (String(url).endsWith('/api/projects')) {
+          return new Response(JSON.stringify({ projects: [summarizeProject(snapshot)] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        return new Response(JSON.stringify({ snapshot }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      },
+    })
+
+    await expect(store.saveProject(snapshot)).resolves.toMatchObject({ projectId: 'project-http' })
+    await expect(store.loadProject('project-http')).resolves.toMatchObject({ projectId: 'project-http' })
+    await expect(store.listProjects()).resolves.toEqual([expect.objectContaining({ projectId: 'project-http' })])
+    expect(calls).toEqual([
+      { url: '/api/projects/project-http', method: 'PUT' },
+      { url: '/api/projects/project-http', method: 'GET' },
+      { url: '/api/projects', method: 'GET' },
+    ])
   })
 })

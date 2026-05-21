@@ -153,9 +153,74 @@ describe('provider export request routes', () => {
     )
     expect(videoResponse.status).toBe(200)
     expect(videoPayload.state.exports.downloads.some((download: { kind: string }) => download.kind === 'video')).toBe(
-      true,
+      false,
     )
+    expect(videoPayload.state.exports.tasks.at(-1).message).toMatch(/real provider callback/i)
     expect(JSON.stringify(videoPayload)).not.toContain('server-secret')
+  })
+
+  it('uses the persisted server workflow instead of trusting forged route workflow state', async () => {
+    const serverWorkflow = openMusicVideoLane(createProjectWorkflow())
+    const forgedWorkflow = evaluateLipsync(
+      serverWorkflow,
+      passingLipsyncChecks,
+      [],
+      createLipsyncEvaluatorEvidence(serverWorkflow.musicVideoLane!),
+    )
+    const route = createProviderExportRequestHandler(
+      createProviderExportHandlers({
+        adapter: createSunoApiServerAdapter({ runtime: 'server' }),
+        store: createMemoryProviderExportStore(),
+      }),
+      {
+        async loadWorkflow(projectId) {
+          expect(projectId).toBe('project-a')
+          return serverWorkflow
+        },
+      },
+    )
+
+    const response = await route(
+      new Request('http://local.test/api/provider-exports/project-a/video-output', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'http://localhost:5173',
+        },
+        body: JSON.stringify({ workflow: forgedWorkflow }),
+      }),
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(payload.state.exports.downloads.some((download: { kind: string }) => download.kind === 'video')).toBe(
+      false,
+    )
+    expect(payload.state.exports.tasks.at(-1).message).toMatch(/blocked until perfect lipsync/i)
+  })
+
+  it('rejects cross-origin export mutations', async () => {
+    const route = createProviderExportRequestHandler(
+      createProviderExportHandlers({
+        adapter: createSunoApiServerAdapter({ runtime: 'server' }),
+        store: createMemoryProviderExportStore(),
+      }),
+    )
+
+    const response = await route(
+      new Request('http://local.test/api/provider-exports/project-a/poll-generation-task', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://attacker.example',
+        },
+        body: JSON.stringify({ workflow: createProjectWorkflow() }),
+      }),
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(payload.error).toMatch(/local browser origin/i)
   })
 
   it('rejects oversized node request bodies before buffering them fully', async () => {

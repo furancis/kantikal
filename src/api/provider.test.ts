@@ -66,6 +66,20 @@ describe('Suno provider boundary', () => {
     })
   })
 
+  it('keeps provider taste-lock directives out of mock display titles', async () => {
+    const provider = createMockSunoProvider()
+
+    const batch = await provider.generateBatch({
+      brief: 'Precision hook\nTaste lock: match liked-track-hybrid',
+      lyrics: 'direct hook',
+      style: 'dynamic bass',
+      voice: 'warm vocal',
+      count: 1,
+    })
+
+    expect(batch.tracks[0].title).toBe('Precision hook v1')
+  })
+
   it('uses HTTP provider routes when they are mounted', async () => {
     const calls: Array<{ url: string; body: string }> = []
     const provider = createFetchSunoProvider({

@@ -158,7 +158,7 @@ export function createMockSunoProvider(): SunoProvider {
         providerJobId: `mock_suno_${slugify(request.brief)}`,
         tracks: Array.from({ length: request.count }, (_, index) => ({
           id: `mock-track-${index + 1}`,
-          title: `${request.brief} v${index + 1}`,
+          title: `${displayBriefTitle(request.brief)} v${index + 1}`,
           durationSeconds: 150 + index * 4,
         })),
       }
@@ -263,6 +263,10 @@ export async function executeProviderAction(
 
 function providerRoute(baseUrl: string | undefined, path: string): string {
   return `${(baseUrl ?? '').replace(/\/$/, '')}/api/provider/${path}`
+}
+
+function displayBriefTitle(brief: string): string {
+  return brief.split('\n')[0]?.trim() || 'Untitled Suno track'
 }
 
 function jsonRequest(body: unknown): RequestInit {

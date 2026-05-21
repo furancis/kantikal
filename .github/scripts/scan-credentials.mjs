@@ -11,8 +11,16 @@ const ignoredDirectories = new Set([
   'test-results',
 ])
 const credentialPattern =
-  /sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|(?:GREPTILE_API_KEY|SUNO_API_KEY)\s*[:=]\s*(?!\$\{\{|\$\w|\$env:|process\.env|import\.meta\.env|undefined|null)[^\s#]+|Bearer\s+[A-Za-z0-9._-]{20,}/
+  /sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|xox[baprs]-[0-9A-Za-z-]{20,}|hfp_[A-Za-z0-9]{20,}|(?:GREPTILE_API_KEY|SUNO_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|HF_TOKEN)\s*[:=]\s*(?!\$\{\{|\$\w|\$env:|process\.env|import\.meta\.env|undefined|null)[^\s#]+|Bearer\s+[A-Za-z0-9._-]{20,}/
+const credentialFileNames = new Set([
+  '.env',
+  '.env.local',
+  '.env.development',
+  '.env.production',
+  '.env.test',
+])
 const textFileExtensions = new Set([
+  '.cjs',
   '.css',
   '.html',
   '.js',
@@ -39,7 +47,7 @@ async function scanDirectory(directory) {
       continue
     }
 
-    if (!entry.isFile() || !textFileExtensions.has(path.extname(entry.name))) {
+    if (!entry.isFile() || (!textFileExtensions.has(path.extname(entry.name)) && !credentialFileNames.has(entry.name))) {
       continue
     }
 

@@ -78,13 +78,17 @@ function newestForHead(reviews, sha) {
     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0]
 }
 
+function isGreptileName(value) {
+  return typeof value === 'string' && value.toLowerCase().includes('greptile')
+}
+
 async function waitForGreptileStatusCheck() {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     const encodedRef = encodeURIComponent(headSha)
     const checkRuns = await githubGet(`/repos/${repository}/commits/${encodedRef}/check-runs`)
     const statusRollup = await githubGet(`/repos/${repository}/commits/${encodedRef}/status`)
-    const greptileCheck = (checkRuns.check_runs ?? []).find((check) => check.name === 'Greptile Review')
-    const greptileStatus = (statusRollup.statuses ?? []).find((status) => status.context === 'Greptile Review')
+    const greptileCheck = (checkRuns.check_runs ?? []).find((check) => isGreptileName(check.name))
+    const greptileStatus = (statusRollup.statuses ?? []).find((status) => isGreptileName(status.context))
 
     if (greptileCheck) {
       console.log(`Greptile app check is ${greptileCheck.status}/${greptileCheck.conclusion ?? 'pending'}`)

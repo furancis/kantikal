@@ -25,3 +25,8 @@ test-results
 *.njsproj
 *.sln
 *.sw?
+.gstack/
+.kantikal/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

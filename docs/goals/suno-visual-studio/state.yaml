@@ -4,11 +4,11 @@ updated: 2026-05-21
 mode: specific
 goal:
   status: active
-  title: "Real Suno Visual Studio"
-active_task: T220
+  title: "Real The Kantikal"
+active_task: T260
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
-  interpreted_outcome: "Build the real full Suno Visual Studio, not just a PRD or scaffold."
+  interpreted_outcome: "Build the real full The Kantikal, sealf'salve's lyric-first music-generation machine; Suno Visual Studio remains the internal repo name."
   likely_misfire: "Mistaking a static shell, PRD, or mocked-only demo for the requested working app."
   authority: requested
   proof_type:
@@ -18,7 +18,7 @@ intake:
     - deliverable
   completion_proof: "Final PM/Judge audit proves the functional app satisfies the full workflow, TDD, CI, and Greptile requirements."
 guardrails:
-  - claude_design_reference_only
+  - liquid_dom_primary
   - visual_app_first
   - cli_hidden_engine_only
   - music_video_subfeature
@@ -1643,3 +1643,366 @@ tasks:
         - "Authenticated Printing Press browser capture is still blocked until Chrome remote debugging is allowed for the signed-in profile."
         - "The optional sunoapi.org adapter is not proven live because no accepted SUNO_API_KEY is present."
       summary: "Reframed runtime, UI, tests, and docs around Printing Press / logged-in Suno web as the primary Suno execution lane. The SunoAPI-compatible provider remains an optional adapter only after live key proof."
+  - id: T230
+    type: worker
+    assignee: Codex
+    status: in_progress
+    objective: "Capture authenticated Suno web behavior through the restored logged-in browser, run Printing Press browser-sniff, and generate the primary Suno web execution spec without leaking credentials."
+    inputs:
+      - "User instruction: use Printing Press first and keep the full Suno Visual Studio product shape."
+      - "Verified Printing Press binary at C:\\Users\\Issa\\go\\bin\\printing-press.exe."
+      - "Verified Printing Press source at C:\\Users\\Issa\\go\\pkg\\mod\\github.com\\mvanhorn\\cli-printing-press\\v4@v4.9.0."
+      - "Restored authenticated Chrome/CDP access for suno.com."
+      - docs/goals/suno-visual-studio/goal.md
+      - docs/api-coverage.md
+    constraints:
+      - "Never print, persist, commit, or surface cookies, session URLs, Clerk handshakes, API tokens, or authorization headers."
+      - "Raw HAR/enriched captures stay out of git; only redacted specs, analysis summaries, and safe samples may be committed after scanning."
+      - "Suno credits may be spent only after explicit user approval, with a bounded generation purpose and receipt."
+      - "Suno web / Printing Press remains the primary execution lane; optional Suno-compatible provider remains disabled until independently proven live."
+      - "Music Video Lane remains subordinate to selected track/version."
+    expected_output:
+      - "Credential-safe Suno web capture plan and sanitized browser-sniff outputs."
+      - "Printing Press browser-sniff spec and traffic analysis for the logged-in Suno web lane."
+      - "Generated or integrated Suno web CLI/runtime contract using browser-chrome transport where supported."
+      - "UI/runtime status updated to distinguish captured, generated, blocked, and executable Suno web states."
+      - "Fresh local QA gate plus credential/wording scans before any completion claim."
+    allowed_files:
+      - src/**
+      - server/**
+      - docs/**
+      - e2e/**
+      - scripts/**
+      - vite.config.ts
+      - package.json
+      - package-lock.json
+      - .omx/**
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+      - git diff --check
+    stop_if:
+      - "The next capture step requires printing or saving credential material into the repo."
+      - "The only way to capture generation endpoints would spend credits without explicit disposable-test approval."
+      - "Logged-in Suno web access is no longer reachable from the restored CDP/browser path."
+    receipt:
+      result: in_progress
+      full_outcome_complete: false
+      current_evidence:
+        - "OpenSRC package lookup for printing-press resolves to unrelated github.com/impadalko/printing-press 0.4.2, so the authoritative source for the installed tool is the verified Go module."
+        - "Installed binary reports printing-press 4.9.0 from C:\\Users\\Issa\\go\\bin\\printing-press.exe."
+        - "go list shows github.com/mvanhorn/cli-printing-press/v4 latest available version includes v4.9.0."
+        - "Go module source for v4.9.0 is cached at C:\\Users\\Issa\\go\\pkg\\mod\\github.com\\mvanhorn\\cli-printing-press\\v4@v4.9.0 with origin hash 1dfbf79506100bcc2a830ca49191fbdc72e2b1f6."
+        - "Printing Press browser-sniff supports HAR/enriched capture input, redacted per-endpoint samples, traffic analysis output, include filters, auth import, and min-samples gating."
+        - "Authenticated Suno create page was reached through restored CDP without printing credential material."
+        - "Non-write create-page capture produced temporary Printing Press outputs outside git: full min-samples 1 capture found 171 endpoints, min-samples 2 reduced the emitted spec to 13 endpoints."
+        - "User explicitly authorized sensible credit spend; one liked-style test generation spent 10 credits and produced a write-flow HAR outside git."
+        - "Write-flow Printing Press browser-sniff hit an OPTIONS HTML validation bug on the full HAR; a filtered studio-api non-OPTIONS HAR produced a temporary 8-endpoint spec including POST /api/generate/v2-web/, POST /api/feed/v3, POST /api/c/check, and billing/notification GET calls."
+      remaining_evidence:
+        - "No generated Suno web CLI/runtime contract is integrated into the app yet."
+        - "Captured temporary browser-sniff outputs still need a secret-safe promotion path before any generated CLI contract can enter the repo."
+        - "Live generated audio retrieval/listening QA is still not integrated into the app path."
+      summary: "T230 proved authenticated Suno web capture, verified current Printing Press source/binary, spent one approved 10-credit liked-style generation, and identified the real generate endpoint path while keeping raw captures outside git."
+  - id: T240
+    type: worker
+    assignee: Codex
+    status: done
+    objective: "Add real Audio Intelligence so Suno Visual Studio analyzes waveform evidence instead of behaving like a thin wrapper around the Suno site."
+    inputs:
+      - "User correction: test everything so actual waveform detection works."
+      - "User correction: this is intelligent Suno work, not a wrapper for actions available on the site."
+      - src/domain/workflow.ts
+      - src/App.tsx
+    constraints:
+      - "Keep Suno music generation as the main app and Music Video Lane as a subfeature."
+      - "Do not fake the transport waveform with decorative bars."
+      - "Waveform results must feed Track Genealogy, branch fit, and downstream editing gates."
+      - "No new dependency unless the existing browser/runtime path cannot support a tested baseline."
+    expected_output:
+      - "PCM waveform analyzer with peak, RMS, crest, clipping, silence, transient, tempo-candidate, envelope, and section-energy detection."
+      - "Workflow state for per-track audio intelligence and fit scoring."
+      - "Track Genealogy receives waveform DNA, mutation evidence, inherited traits, dead-branch signals, and fit reasons."
+      - "Visual app exposes Audio Intelligence node and measured waveform envelope before Song Lab."
+      - "Targeted, full unit, build, e2e, audit, and scan verification."
+    receipt:
+      result: implemented_verified
+      full_outcome_complete: false
+      files:
+        - src/domain/audioAnalysis.ts
+        - src/domain/audioAnalysis.test.ts
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+        - docs/goals/suno-visual-studio/state.yaml
+      commands:
+        - cmd: npm test -- --run src/domain/audioAnalysis.test.ts src/domain/workflow.test.ts src/App.test.tsx
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: git diff --check
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: Playwright desktop/mobile visual QA screenshots plus overflow scan
+          status: pass
+      summary: "Audio Intelligence is now a first-class workflow gate. It analyzes real PCM buffers or browser-decoded audio URLs when available, renders measured envelope buckets, records per-track waveform DNA, and feeds Track Genealogy mutation, inherited-trait, dead-branch, and branch-fit logic."
+      visual_qa:
+        - "Desktop screenshot: D:\\Dev\\_tmp\\suno-visual-studio\\visual-qa-20260521-0355\\desktop-audio-intelligence.png; overflowX 0; no detected viewport/text overflow."
+        - "Mobile screenshot: D:\\Dev\\_tmp\\suno-visual-studio\\visual-qa-20260521-0355\\mobile-audio-intelligence.png; overflowX 0; no detected viewport/text overflow after fixing the compressed prompt rail."
+        - "All Playwright visual QA launched headless/hidden; no foreground browser or app popup."
+  - id: T250
+    type: pm
+    assignee: Codex
+    status: done
+    objective: "Lock the lyric-first, DB-first UI/UX approval package and codify additive-message runtime behavior before the next implementation push."
+    inputs:
+      - "User correction: new messages are FYI/additive by default, not steering."
+      - "User correction: no placeholder coding; database-first final product architecture."
+      - "User request: produce a Claude Design prompt pack to finalize UI/UX quickly."
+      - "User naming decision: product/tool name is The Kantikal by/for sealf'salve; Suno Visual Studio is internal only."
+      - DESIGN.md
+      - UX_MODEL.md
+      - TASTE_SYSTEM.md
+      - BUILD_PLAN.md
+    constraints:
+      - "Do not begin UI implementation until the review/approval surface is available."
+      - "No local JSON/localStorage source of truth; SQLite DB first."
+      - "Authenticated browser automation is allowed by default unless user states otherwise."
+      - "No Suno credit cap; every spend/action needs receipts."
+      - "Keep Music Video Lane subordinate to song fit."
+    expected_output:
+      - "Claude Design prompt pack on Desktop."
+      - "DB-first build plan and taste docs aligned."
+      - "Executable FYI/additive Codex hook behavior verified."
+      - "Current UI contradictions captured for review."
+    receipt:
+      result: done
+      full_outcome_complete: false
+      files:
+        - BUILD_PLAN.md
+        - DESIGN.md
+        - UX_MODEL.md
+        - TASTE_SYSTEM.md
+        - "C:\\Users\\Issa\\Desktop\\The Kantikal - Claude Design Prompt Pack.md"
+        - "C:\\Users\\Issa\\Desktop\\The Kantikal - Claude Design Pack"
+        - "C:\\Users\\Issa\\Desktop\\The Kantikal - Claude Design Pack.zip"
+        - docs/design/the-kantikal-claude-design-pack/**
+        - "C:\\Users\\Issa\\.codex\\hooks\\codex-hook-router.cjs"
+        - "D:\\Dev\\context-layer\\recent-user-context-worker.py"
+      evidence:
+        - "FYI/additive runtime rule is implemented in codex-hook-router.cjs: every new message is additive by default; only explicit STOP/INTERRUPT/workflow/status/blocking question/replacement steers."
+        - "Router self-test passed with classificationCases=10, including typo/FYI context and queued direct-command cases."
+        - "recent-user-context-worker.py now summarizes as an additive user queue and says not to treat newer messages as steering unless marked STEER."
+        - "Claude Design prompt pack was saved on Desktop and includes current implementation contradictions from UI audit."
+        - "Product-facing name changed to The Kantikal across active design/UX/taste/build docs and prompt pack; Suno Visual Studio remains internal repo name only."
+        - "Claude Design handoff is packaged durably as a Desktop folder, Desktop zip, and repo mirror under docs/design/the-kantikal-claude-design-pack."
+        - "Liquid DOM was initially packaged as a reference; superseded by T255, which makes it the primary material system."
+        - "BUILD_PLAN.md and UX_MODEL.md now require SQLite DB-first persistence and reject localStorage/ad hoc JSON as source of truth."
+        - "TASTE_SYSTEM.md now reflects no credit cap with receipt requirement."
+      commands:
+        - cmd: node --check C:\\Users\\Issa\\.codex\\hooks\\codex-hook-router.cjs
+          status: pass
+        - cmd: node C:\\Users\\Issa\\.codex\\hooks\\codex-hook-router.cjs --self-test
+          status: pass
+        - cmd: python -m py_compile D:\\Dev\\context-layer\\recent-user-context-worker.py
+          status: pass
+        - cmd: rg stale FYI override/steering wording across active Codex hook, worker, prompts, agents, AGENTS.md
+          status: pass
+      summary: "Approval lane is ready: Claude Design has a thorough prompt pack, docs are DB-first/no-placeholder aligned, stale credit-cap text is fixed, and Codex runtime FYI behavior is executable and tested."
+  - id: T255
+    type: worker
+    assignee: Codex
+    status: done
+    objective: "Prepare The Kantikal for full Liquid DOM as the primary UI material system."
+    inputs:
+      - "User correction: get everything ready for full Liquid DOM."
+      - "https://github.com/AndrewPrifer/liquid-dom"
+      - "C:\\Users\\Issa\\Desktop\\The Kantikal - Claude Design Pack"
+      - "D:\\Dev\\suno-visual-studio\\docs\\design\\the-kantikal-claude-design-pack"
+    constraints:
+      - "Liquid DOM is primary, not optional and not a maybe."
+      - "Fallback exists only as a runtime/review guard for missing WebGPU or Canvas Draw Element."
+      - "Lyrics remain readable and central."
+      - "No foreground popups."
+    expected_output:
+      - "@liquid-dom/react installed and package-lock updated."
+      - "Runtime/export readiness guard for Liquid DOM."
+      - "Claude Design pack rewritten to treat Liquid DOM as the primary material system."
+      - "Desktop pack and zip refreshed."
+      - "Verification evidence recorded."
+    receipt:
+      result: done
+      files:
+        - package.json
+        - package-lock.json
+        - src/ui/liquidDomCapability.ts
+        - src/ui/liquidDomCapability.test.ts
+        - BUILD_PLAN.md
+        - DESIGN.md
+        - UX_MODEL.md
+        - docs/design/the-kantikal-claude-design-pack/**
+        - "C:\\Users\\Issa\\Desktop\\The Kantikal - Claude Design Prompt Pack.md"
+        - "C:\\Users\\Issa\\Desktop\\The Kantikal - Claude Design Pack"
+        - "C:\\Users\\Issa\\Desktop\\The Kantikal - Claude Design Pack.zip"
+      evidence:
+        - "npm install completed with zero npm audit vulnerabilities and no force/legacy peer override."
+        - "Full Liquid DOM package set is installed: @liquid-dom/core, @liquid-dom/layout, @liquid-dom/react, @liquid-dom/three, and @liquid-dom/r3f at 0.1.0."
+        - "A React-18-only blur helper was excluded because this app uses React 19.2.6."
+        - "Live import of @liquid-dom/react exposes LiquidCanvas, GlassContainer, Glass, Html, layout components, spring/easing, and animation hooks."
+        - "Package README confirms React 19 bindings, WebGPU rendering, and Canvas Draw Element requirement for DOM-backed Html."
+        - "detectLiquidDomRuntime tests prove full support and fallback-guard states."
+      commands:
+        - cmd: npm install @liquid-dom/react@0.1.0
+          status: pass
+        - cmd: npm install
+          status: pass
+        - cmd: pnpm install --lockfile-only
+          status: pass
+        - cmd: node -e "import('@liquid-dom/react')..."
+          status: pass
+        - cmd: npm test -- --run src/ui/liquidDomCapability.test.ts
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "The repo and handoff pack now target full Liquid DOM as the primary material system, with fallback constrained to browser capability guard behavior."
+  - id: T257
+    type: worker
+    assignee: Codex
+    status: done
+    objective: "Fix surfaced Greptile/code-review blockers around skill loading, DB-first persistence, provider route trust, fixture-only intelligence, and CI review wiring."
+    inputs:
+      - "User request: fix invalid SKILL.md frontmatter warnings."
+      - "User request: find GREPTILE_API_KEY without printing it."
+      - "Subagent code/security review findings for DB-first source of truth, provider route auth, forged provider-export workflow state, fake provider/local outputs, fixture audio/lipsync, and scanner blind spots."
+    constraints:
+      - "Do not print or persist secret values."
+      - "No production localStorage/JSON source of truth."
+      - "No fake provider, audio, or lipsync intelligence in normal production paths."
+      - "E2E mock behavior must be explicitly fixture-gated."
+      - "No foreground popups."
+    receipt:
+      result: done
+      files:
+        - "D:\\Dev\\Control Plane\\skills\\verify-before-claim\\SKILL.md"
+        - "D:\\Dev\\Control Plane\\skills\\subagent\\SKILL.md"
+        - server/localAccess.ts
+        - server/projectStoreRoutes.ts
+        - server/sqliteProjectStore.ts
+        - server/providerRoutes.ts
+        - server/providerExportRoutes.ts
+        - server/providerExportHandlers.ts
+        - src/api/projectStore.ts
+        - src/api/musicVideoRuntime.ts
+        - src/App.tsx
+        - src/main.tsx
+        - vite.config.ts
+        - playwright.config.ts
+        - scripts/e2e-dev-server.mjs
+        - e2e/studio.spec.ts
+        - .github/scripts/greptile-review.mjs
+        - .github/scripts/scan-credentials.mjs
+        - .gitignore
+        - package.json
+        - package-lock.json
+      evidence:
+        - "Removed UTF-8 BOM from the two skipped skill files; first bytes are now --- so YAML frontmatter starts at byte 0."
+        - "Local/user/machine GREPTILE_API_KEY env and Windows Credential Manager did not contain a local key; GitHub repo secret GREPTILE_API_KEY exists and was last updated 2026-05-20T06:01:28Z."
+        - "Provider and provider-export write routes now reject cross-origin browser posts before server-side credentialed dispatch."
+        - "Provider-export mutation routes can load server-persisted workflow state and ignore forgeable request-body workflow state."
+        - "Default app persistence now uses HTTP project routes backed by SQLite; browser localStorage remains only as an explicit test/legacy helper."
+        - "Normal provider routes no longer fabricate local successful Suno outputs without a key; Playwright uses explicit SUNO_PROVIDER_MODE=fixture."
+        - "Audio and lipsync fixture fallbacks are explicit test/E2E fixture paths, not production defaults."
+        - "Greptile fallback check matching now accepts any Greptile-named check/status, and credential scanner covers more key formats plus env files."
+      commands:
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "Closed the highest-risk trust and persistence blockers without exposing credentials. UI redesign remains T260."
+  - id: T260
+    type: worker
+    assignee: Codex
+    status: pending
+    objective: "After UI/UX approval, implement the final-product DB-first lyric console redesign and remove track-first/card-wall drift."
+    inputs:
+      - "Approved Claude Design output"
+      - "C:\\Users\\Issa\\Desktop\\The Kantikal - Claude Design Prompt Pack.md"
+      - "C:\\Users\\Issa\\Desktop\\The Kantikal - Claude Design Pack"
+      - "D:\\Dev\\suno-visual-studio\\docs\\design\\the-kantikal-claude-design-pack"
+      - BUILD_PLAN.md
+      - DESIGN.md
+      - UX_MODEL.md
+      - TASTE_SYSTEM.md
+      - src/ui/liquidDomCapability.ts
+      - "DB/runtime map from read-only subagent: projectStore currently localStorage, provider export store memory/file, Vite wires memory export store, no DB dependency yet."
+      - "UI audit: current track-first graph/card-wall/localStorage/visual-system drift must be corrected."
+    constraints:
+      - "No placeholder local JSON/localStorage source of truth."
+      - "Add real SQLite dependency, schema, migrations, and server repository layer before using persisted app state."
+      - "Keep explicit user taste judgments above computed analysis."
+      - "No hidden scoring; label evidence source."
+      - "Liquid DOM is the primary material system; fallback is only a WebGPU/Canvas Draw Element runtime guard."
+      - "No foreground popups; use hidden/headless paths for proof."
+    expected_output:
+      - "SQLite-backed project and provider-export repositories with migration tests."
+      - "HTTP-backed project routes replacing browser localStorage source of truth."
+      - "Liquid DOM lyric-first app shell replacing track-first graph/card-wall framing."
+      - "Granular TasteSignal/Remix Picker/Sound DNA surfaces aligned to the approved UI/UX."
+      - "Verification: lint, typecheck, unit, build, e2e, audit, scans, browser screenshots."
+    verify:
+      - npm run lint
+      - npm run typecheck
+      - npm test -- --run
+      - npm run build
+      - npm run test:e2e
+      - npm audit --audit-level=moderate
+      - npm run scan:credentials
+      - npm run scan:wording
+      - git diff --check
+    stop_if:
+      - "Approved UI/UX output changes the app frame materially."
+      - "Chosen DB dependency cannot install or run on this Windows/Vite runtime."
+      - "A step would expose or persist credential material."
