@@ -85,6 +85,7 @@ jobs:
           PR_HEAD_REF: ${{ github.head_ref || github.ref_name }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           PR_BASE_REF: ${{ github.base_ref || 'main' }}
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           PR_IS_CROSS_REPO: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: node .github/scripts/greptile-review.mjs

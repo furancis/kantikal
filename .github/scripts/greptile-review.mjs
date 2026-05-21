@@ -4,7 +4,8 @@ const githubToken = process.env.GITHUB_TOKEN
 const githubApiUrl = process.env.GITHUB_API_URL || 'https://api.github.com'
 const repository = process.env.GITHUB_REPOSITORY
 const eventName = process.env.GITHUB_EVENT_NAME
-const isCrossRepository = process.env.PR_IS_CROSS_REPO === 'true'
+const prHeadRepository = process.env.PR_HEAD_REPOSITORY
+const isCrossRepository = prHeadRepository ? prHeadRepository !== repository : process.env.PR_IS_CROSS_REPO === 'true'
 let prNumber = Number(process.env.PR_NUMBER)
 let branch = process.env.PR_HEAD_REF
 let headSha = process.env.PR_HEAD_SHA
@@ -139,6 +140,10 @@ async function waitForGreptileStatusCheck() {
 }
 
 if (!apiKey) {
+  if (eventName === 'push') {
+    console.log('GREPTILE_API_KEY is unavailable in this push context; skipping keyed Greptile review')
+    process.exit(0)
+  }
   if (eventName === 'pull_request' && !isCrossRepository) {
     console.log('GREPTILE_API_KEY is unavailable in this same-repo PR context; keyed push workflow enforces Greptile review')
     process.exit(0)
