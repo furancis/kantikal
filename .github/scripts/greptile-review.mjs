@@ -3,13 +3,15 @@ const apiKey = process.env.GREPTILE_API_KEY
 const githubToken = process.env.GITHUB_TOKEN
 const githubApiUrl = process.env.GITHUB_API_URL || 'https://api.github.com'
 const repository = process.env.GITHUB_REPOSITORY
-const prNumber = Number(process.env.PR_NUMBER)
-const branch = process.env.PR_HEAD_REF
-const headSha = process.env.PR_HEAD_SHA
-const defaultBranch = process.env.PR_BASE_REF || 'main'
+const eventName = process.env.GITHUB_EVENT_NAME
+const isCrossRepository = process.env.PR_IS_CROSS_REPO === 'true'
+let prNumber = Number(process.env.PR_NUMBER)
+let branch = process.env.PR_HEAD_REF
+let headSha = process.env.PR_HEAD_SHA
+let defaultBranch = process.env.PR_BASE_REF || 'main'
 
-if (!repository || !prNumber || !branch || !headSha) {
-  console.error('::error::Missing pull request metadata for Greptile review')
+if (!repository || !branch || !headSha) {
+  console.error('::error::Missing repository or head metadata for Greptile review')
   process.exit(1)
 }
 
@@ -78,8 +80,28 @@ function newestForHead(reviews, sha) {
     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0]
 }
 
-function isGreptileName(value) {
-  return typeof value === 'string' && value.toLowerCase().includes('greptile')
+function isExternalGreptileName(value) {
+  const normalized = typeof value === 'string' ? value.toLowerCase() : ''
+  return normalized.includes('greptile') && !normalized.includes('greptile-review')
+}
+
+async function resolvePullRequestMetadataForBranch() {
+  if (prNumber) {
+    return
+  }
+
+  const [owner] = repository.split('/')
+  const pulls = await githubGet(`/repos/${repository}/pulls?head=${owner}:${encodeURIComponent(branch)}&state=open`)
+  const pull = pulls.find((candidate) => candidate.head?.sha === headSha) ?? pulls[0]
+  if (!pull) {
+    console.log(`No open pull request found for ${branch}; skipping Greptile PR review`)
+    process.exit(0)
+  }
+
+  prNumber = pull.number
+  branch = pull.head.ref
+  headSha = pull.head.sha
+  defaultBranch = pull.base.ref || defaultBranch
 }
 
 async function waitForGreptileStatusCheck() {
@@ -87,8 +109,8 @@ async function waitForGreptileStatusCheck() {
     const encodedRef = encodeURIComponent(headSha)
     const checkRuns = await githubGet(`/repos/${repository}/commits/${encodedRef}/check-runs`)
     const statusRollup = await githubGet(`/repos/${repository}/commits/${encodedRef}/status`)
-    const greptileCheck = (checkRuns.check_runs ?? []).find((check) => isGreptileName(check.name))
-    const greptileStatus = (statusRollup.statuses ?? []).find((status) => isGreptileName(status.context))
+    const greptileCheck = (checkRuns.check_runs ?? []).find((check) => isExternalGreptileName(check.name))
+    const greptileStatus = (statusRollup.statuses ?? []).find((status) => isExternalGreptileName(status.context))
 
     if (greptileCheck) {
       console.log(`Greptile app check is ${greptileCheck.status}/${greptileCheck.conclusion ?? 'pending'}`)
@@ -117,11 +139,17 @@ async function waitForGreptileStatusCheck() {
 }
 
 if (!apiKey) {
-  console.log('GREPTILE_API_KEY is unavailable in this PR context; enforcing Greptile app status check instead')
+  if (eventName === 'pull_request' && !isCrossRepository) {
+    console.log('GREPTILE_API_KEY is unavailable in this same-repo PR context; keyed push workflow enforces Greptile review')
+    process.exit(0)
+  }
+  console.log('GREPTILE_API_KEY is unavailable in this PR context; enforcing external Greptile app status check instead')
   await waitForGreptileStatusCheck()
   console.log('Greptile app status check passed')
   process.exit(0)
 }
+
+await resolvePullRequestMetadataForBranch()
 
 await callGreptileTool('trigger_code_review', {
   name: repository,

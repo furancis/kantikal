@@ -1,0 +1,733 @@
+/* kantikal.css — The Kantikal app styles built on tokens.css
+ * All vars referenced as var(--kk-*) so theme A/B switch via [data-theme]. */
+
+/* ---------- ARTBOARD ---------- */
+.kk {
+  width: 1480px;
+  height: 940px;
+  background: var(--kk-base);
+  color: var(--kk-text);
+  font-family: var(--kk-f-body);
+  font-size: var(--kk-s-body);
+  line-height: 1.45;
+  font-feature-settings: "ss01", "cv11";
+  overflow: hidden;
+  position: relative;
+  letter-spacing: 0.005em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  --kk-inv: 1; /* placeholder */
+}
+.kk * { box-sizing: border-box; }
+.kk button { font-family: inherit; }
+
+/* Responsive artboard variant — used in labs/Responsive */
+.kk.is-tablet { width: 820px; height: 1100px; }
+.kk.is-phone  { width: 390px;  height: 760px;  }
+
+/* ============================================================
+   TOPBAR
+   ============================================================ */
+.kk-topbar {
+  height: 44px; display: flex; align-items: stretch;
+  border-bottom: var(--kk-border-w) var(--kk-border-style) var(--kk-rule);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--kk-surface) 35%, transparent) 0%, color-mix(in oklab, var(--kk-base) 25%, transparent) 100%);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  position: relative; z-index: 1;
+}
+.kk-brand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 16px; border-right: var(--kk-border-w) var(--kk-border-style) var(--kk-rule);
+  min-width: 240px;
+}
+.kk-brand-mark { width: 18px; height: 18px; display: grid; place-items: center; color: var(--kk-ink); }
+.kk-brand-text { display: flex; flex-direction: column; line-height: 1.1; }
+.kk-brand-name {
+  font-family: var(--kk-f-display); font-weight: 700; font-size: 13.5px;
+  letter-spacing: 0.02em; color: var(--kk-ink);
+}
+.kk-brand-sub {
+  font-family: var(--kk-f-mono); font-size: 9.5px;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--kk-muted-2); margin-top: 2px;
+}
+
+.kk-nav { display: flex; align-items: center; justify-content: center; flex: 1; padding: 0 10px; gap: 1px; overflow: hidden; min-width: 0; }
+.kk-nav-item {
+  font-family: var(--kk-f-display); font-weight: 600;
+  font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--kk-muted);
+  padding: 6px 10px; border-radius: var(--kk-r-2); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid transparent; white-space: nowrap;
+  transition: color var(--kk-d-fast), background var(--kk-d-fast), border-color var(--kk-d-fast);
+}
+.kk-nav-item:hover { color: var(--kk-ink-dim); }
+.kk-nav-item.is-active {
+  color: var(--kk-ink); background: var(--kk-blue-wash);
+  border-color: color-mix(in oklab, var(--kk-blue) 38%, transparent);
+  padding: 6px 12px;
+}
+.kk-nav-item .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--kk-blue); box-shadow: 0 0 8px var(--kk-blue); }
+
+.kk-top-right { display: flex; align-items: center; gap: 10px; padding: 0 14px; border-left: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); }
+.kk-top-meta { font-family: var(--kk-f-mono); font-size: 10.5px; color: var(--kk-muted); letter-spacing: 0.04em; }
+.kk-top-meta b { color: var(--kk-ink-dim); font-weight: 500; }
+.kk-branch .branch-tag {
+  display: inline-block;
+  font-family: var(--kk-f-mono); font-size: 10px; letter-spacing: 0.04em;
+  padding: 3px 8px; border-radius: 999px;
+  border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); color: var(--kk-ink-dim);
+  background: color-mix(in oklab, var(--kk-blue) 6%, transparent);
+}
+.kk-credits { display: inline-flex; align-items: baseline; gap: 3px; }
+.kk-credits b { color: var(--kk-ink); font-family: var(--kk-f-mono); font-size: 12px; font-weight: 600; }
+.kk-credits .cr { font-family: var(--kk-f-mono); font-size: 9.5px; color: var(--kk-muted-2); letter-spacing: 0.1em; }
+.kk-iconbtn-bare {
+  background: transparent; border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); border-radius: var(--kk-r-2);
+  width: 26px; height: 24px; padding: 0; display: grid; place-items: center;
+  cursor: pointer; transition: color var(--kk-d-fast), border-color var(--kk-d-fast);
+}
+.kk-iconbtn-bare:hover { border-color: var(--kk-muted-2); }
+
+.kk-provider-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--kk-f-mono); font-size: 10.5px; letter-spacing: 0.06em;
+  color: var(--kk-muted);
+  padding: 4px 7px; border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); border-radius: 999px;
+}
+.kk-provider-pill .pdot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--kk-green); box-shadow: 0 0 6px color-mix(in oklab, var(--kk-green) 65%, transparent);
+}
+.kk-provider-pill.is-warn .pdot { background: var(--kk-amber); box-shadow: 0 0 6px color-mix(in oklab, var(--kk-amber) 65%, transparent); }
+.kk-provider-pill.is-down .pdot { background: var(--kk-red);   box-shadow: 0 0 6px color-mix(in oklab, var(--kk-red)   65%, transparent); }
+
+/* ============================================================
+   BODY GRID (shell)
+   ============================================================ */
+.kk-body {
+  display: grid;
+  grid-template-columns: 240px 1fr 360px;
+  grid-template-rows: 1fr 240px;
+  height: calc(940px - 44px);
+}
+.kk-rail      { grid-row: 1 / 3; grid-column: 1; background: color-mix(in oklab, var(--kk-surface) 28%, transparent); border-right: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); overflow: hidden; display: flex; flex-direction: column; backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%); position: relative; z-index: 1; }
+.kk-center    { grid-row: 1; grid-column: 2; background: transparent; border-right: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); overflow: hidden; display: flex; flex-direction: column; position: relative; z-index: 1; }
+.kk-inspector { grid-row: 1 / 3; grid-column: 3; background: color-mix(in oklab, var(--kk-surface) 28%, transparent); overflow: hidden; display: flex; flex-direction: column; backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%); position: relative; z-index: 1; }
+.kk-workbench { grid-row: 2; grid-column: 2; background: color-mix(in oklab, var(--kk-surface) 18%, transparent); border-top: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); display: flex; flex-direction: column; overflow: hidden; backdrop-filter: blur(18px) saturate(150%); -webkit-backdrop-filter: blur(18px) saturate(150%); position: relative; z-index: 1; }
+
+/* Variant: no workbench (used for Genealogy / DNA / Release where center owns full height) */
+.kk-body.is-full {
+  grid-template-rows: 1fr;
+}
+.kk-body.is-full .kk-center    { grid-row: 1; }
+.kk-body.is-full .kk-inspector { grid-row: 1; }
+
+/* ============================================================
+   RAIL
+   ============================================================ */
+.kk-rail-section { padding: 14px 14px 12px; border-bottom: var(--kk-border-w) var(--kk-border-style) var(--kk-rule-soft); }
+.kk-rail-section:last-child { border-bottom: none; flex: 1; overflow: hidden; }
+.kk-rail-h {
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--kk-f-mono); font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--kk-muted-2); margin-bottom: 10px;
+}
+.kk-rail-h .count { color: var(--kk-muted); }
+.kk-rail-h .add { color: var(--kk-muted); cursor: pointer; font-size: 12px; line-height: 1; }
+
+.kk-project-card {
+  border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule);
+  border-radius: var(--kk-r-3);
+  padding: 11px 12px;
+  background: linear-gradient(180deg, var(--kk-blue-wash), transparent);
+}
+.kk-project-card .pname {
+  font-family: var(--kk-f-display); font-weight: 700; font-size: 14px;
+  color: var(--kk-ink); letter-spacing: 0.005em;
+}
+.kk-project-card .pmeta {
+  font-family: var(--kk-f-mono); font-size: 10px; color: var(--kk-muted);
+  margin-top: 4px; display: flex; gap: 10px;
+}
+.kk-project-card .pmeta b { color: var(--kk-ink-dim); font-weight: 500; }
+
+.kk-rail-list { display: flex; flex-direction: column; gap: 1px; margin: 0 -6px; }
+.kk-rail-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 8px; border-radius: var(--kk-r-2); cursor: pointer;
+  color: var(--kk-text); font-size: 12.5px;
+  transition: background var(--kk-d-fast);
+}
+.kk-rail-row:hover { background: color-mix(in oklab, var(--kk-ink) 4%, transparent); }
+.kk-rail-row.is-active { background: var(--kk-blue-wash); color: var(--kk-ink); }
+.kk-rail-row .swatch {
+  width: 14px; height: 14px; border-radius: 3px;
+  background: linear-gradient(135deg, var(--kk-raised-2), var(--kk-raised));
+  flex: 0 0 auto; border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule);
+}
+.kk-rail-row .swatch.k-vocal  { background: linear-gradient(135deg, #6b3a4a, #2a1a20); }
+.kk-rail-row .swatch.k-mix    { background: linear-gradient(135deg, #2f4d3a, #14201a); }
+.kk-rail-row .swatch.k-rhythm { background: linear-gradient(135deg, #50432a, #221d12); }
+.kk-rail-row .swatch.k-ref    { background: repeating-linear-gradient(45deg, #3a3530 0 3px, #2a2520 3px 6px); }
+.kk-rail-row .label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kk-rail-row .tag {
+  font-family: var(--kk-f-mono); font-size: 9.5px;
+  color: var(--kk-muted-2); letter-spacing: 0.06em; flex: 0 0 auto;
+}
+
+/* ============================================================
+   INSPECTOR
+   ============================================================ */
+.kk-insp-h { padding: 12px 16px; border-bottom: var(--kk-border-w) var(--kk-border-style) var(--kk-rule-soft); }
+.kk-insp-h .scope {
+  font-family: var(--kk-f-mono); font-size: 9.5px;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--kk-muted-2);
+}
+.kk-insp-h .target {
+  font-family: var(--kk-f-display); font-weight: 600; font-size: 15px;
+  color: var(--kk-ink); margin-top: 4px;
+  display: flex; align-items: center; gap: 8px;
+}
+.kk-insp-h .lyric-quote {
+  font-family: var(--kk-f-lyric); font-size: 14px; font-weight: 450;
+  color: var(--kk-ink-dim); margin-top: 6px; line-height: 1.4;
+  padding-left: 10px; border-left: 2px solid var(--kk-blue);
+}
+.kk-insp-block { padding: 14px 16px; border-bottom: var(--kk-border-w) var(--kk-border-style) var(--kk-rule-soft); }
+.kk-insp-block:last-child { border-bottom: none; }
+.kk-insp-h2 {
+  font-family: var(--kk-f-mono); font-size: 9.5px;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--kk-muted-2);
+  margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;
+}
+.kk-insp-h2 .meta { color: var(--kk-muted); }
+
+/* Evidence: hidden by default, surfaced on hover, in proof mode, or when the
+ * row itself is flagged unverified/warn (kept loud). Provenance lives in
+ * data-ev attributes for audit/debug regardless. */
+.kk-ev-on-demand.kk-evidence { display: none; }
+.kk[data-proof="1"] .kk-ev-on-demand.kk-evidence,
+.kk-fitbar:hover + div .kk-ev-on-demand.kk-evidence,
+.kk-diff:hover .kk-ev-on-demand.kk-evidence,
+.kk-dna-card:hover .kk-ev-on-demand.kk-evidence,
+.kk-cmp .cell:hover .kk-ev-on-demand.kk-evidence { display: inline-flex; }
+.kk-evidence {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--kk-f-mono); font-size: 9.5px;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px;
+  border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); color: var(--kk-muted);
+}
+.kk-evidence::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--kk-muted-2); }
+.kk-evidence.manual::before   { background: var(--kk-ink-dim); }
+.kk-evidence.text::before     { background: #c8b48a; }
+.kk-evidence.provider::before { background: var(--kk-blue); }
+.kk-evidence.computed::before { background: var(--kk-green); }
+.kk-evidence.unverified       { color: var(--kk-amber); border-color: color-mix(in oklab, var(--kk-amber) 40%, transparent); }
+.kk-evidence.unverified::before { background: var(--kk-amber); }
+/* condensed inline dot (used in dense lists) */
+.kk-evdot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--kk-muted-2); vertical-align: middle; margin-right: 6px;
+}
+.kk-evdot.manual   { background: var(--kk-ink-dim); }
+.kk-evdot.text     { background: #c8b48a; }
+.kk-evdot.provider { background: var(--kk-blue); }
+.kk-evdot.computed { background: var(--kk-green); }
+.kk-evdot.unverified { background: var(--kk-amber); }
+
+/* Taste chips */
+.kk-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 999px;
+  background: color-mix(in oklab, var(--kk-ink) 4%, transparent);
+  border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule);
+  font-size: 11.5px; color: var(--kk-text);
+  cursor: pointer; transition: transform var(--kk-d-fast) var(--kk-e-spring), background var(--kk-d-fast);
+  font-family: var(--kk-f-body); font-weight: 500;
+}
+.kk-chip:hover { transform: translateY(-1px); }
+.kk-chip .icon { width: 12px; height: 12px; display: inline-grid; place-items: center; color: var(--kk-muted); }
+.kk-chip.is-like   { color: var(--kk-green); border-color: color-mix(in oklab, var(--kk-green) 35%, transparent); background: var(--kk-green-wash); }
+.kk-chip.is-keep   { color: var(--kk-blue);  border-color: color-mix(in oklab, var(--kk-blue) 35%, transparent);  background: var(--kk-blue-wash); }
+.kk-chip.is-mutate { color: var(--kk-amber); border-color: color-mix(in oklab, var(--kk-amber) 35%, transparent); background: var(--kk-amber-wash); }
+.kk-chip.is-avoid,
+.kk-chip.is-dislike,
+.kk-chip.is-drift  { color: var(--kk-red);   border-color: color-mix(in oklab, var(--kk-red) 35%, transparent);   background: var(--kk-red-wash); }
+.kk-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ============================================================
+   LIQUID SURFACE (fallback when Liquid DOM can't render)
+   ============================================================ */
+.kk-liquid {
+  position: relative;
+  background: linear-gradient(180deg, var(--kk-glass-tint), var(--kk-glass-tint-2));
+  border: 1px solid var(--kk-glass-edge);
+  border-radius: var(--kk-r-3);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 var(--kk-glass-hi),
+    inset 0 -1px 0 var(--kk-glass-lo),
+    var(--kk-glass-shadow);
+  isolation: isolate;
+}
+.kk-liquid::before {
+  /* refraction edge using SVG displacement on the inset border */
+  content: ""; position: absolute; inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 60% at 50% 0%, var(--kk-glass-hi), transparent 50%);
+  opacity: 0.45;
+  mix-blend-mode: screen;
+}
+[data-theme="bone"] .kk-liquid::before { mix-blend-mode: normal; opacity: 0.6; }
+
+/* If Liquid DOM is mounted, the real liquid canvas sits underneath; we mute
+ * the static fallback's blur so we don't double-process the same pixels. */
+.kk[data-liquid="real"] .kk-liquid {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: linear-gradient(180deg,
+    color-mix(in oklab, var(--kk-glass-tint) 40%, transparent),
+    color-mix(in oklab, var(--kk-glass-tint-2) 40%, transparent));
+}
+
+/* ============================================================
+   LYRIC DOCUMENT
+   ============================================================ */
+.kk-doc-h {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 28px 12px; border-bottom: var(--kk-border-w) var(--kk-border-style) var(--kk-rule-soft);
+}
+.kk-doc-title { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.kk-doc-title h1 {
+  font-family: var(--kk-f-lyric); font-weight: 650; font-size: 22px;
+  color: var(--kk-ink); margin: 0; letter-spacing: -0.005em;
+}
+.kk-doc-title .vtag { font-family: var(--kk-f-mono); font-size: 10.5px; color: var(--kk-muted); letter-spacing: 0.06em; }
+.kk-doc-title .by   { font-family: var(--kk-f-display); font-size: 11px; color: var(--kk-muted); }
+.kk-doc-tools { display: flex; gap: 6px; align-items: center; font-family: var(--kk-f-mono); font-size: 10.5px; color: var(--kk-muted); }
+.kk-doc-tool {
+  padding: 4px 9px; border-radius: var(--kk-r-2);
+  border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); cursor: pointer; color: var(--kk-text);
+  transition: color var(--kk-d-fast), background var(--kk-d-fast), border-color var(--kk-d-fast);
+}
+.kk-doc-tool.is-on { color: var(--kk-blue); border-color: color-mix(in oklab, var(--kk-blue) 45%, transparent); background: var(--kk-blue-wash); }
+
+.kk-doc {
+  flex: 1; overflow: hidden;
+  padding: 18px 28px 28px;
+  display: grid; grid-template-columns: 38px 1fr;
+  column-gap: 20px; align-content: start;
+}
+
+.kk-section-mark {
+  grid-column: 1 / 3;
+  display: flex; align-items: center; gap: 12px;
+  margin: 18px 0 8px;
+}
+.kk-section-mark:first-child { margin-top: 0; }
+.kk-section-mark .label {
+  font-family: var(--kk-f-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.22em; color: var(--kk-muted);
+  padding: 3px 8px; border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); border-radius: 3px;
+}
+.kk-section-mark .label.is-hook   { color: var(--kk-blue);  border-color: color-mix(in oklab, var(--kk-blue) 35%, transparent); }
+.kk-section-mark .label.is-bridge { color: var(--kk-amber); border-color: color-mix(in oklab, var(--kk-amber) 35%, transparent); }
+.kk-section-mark .rule { flex: 1; height: 1px; background: var(--kk-rule); }
+.kk-section-mark .meta { font-family: var(--kk-f-mono); font-size: 10px; color: var(--kk-muted-2); letter-spacing: 0.06em; }
+
+.kk-line { display: contents; }
+.kk-lineno {
+  font-family: var(--kk-f-mono); font-size: 10.5px;
+  color: var(--kk-muted-2); text-align: right; padding-top: 6px; user-select: none;
+}
+.kk-linebody {
+  position: relative;
+  padding: 4px 12px;
+  border-radius: var(--kk-r-2);
+  display: flex; align-items: baseline; gap: 14px;
+  transition: background var(--kk-d-med) var(--kk-e-out), box-shadow var(--kk-d-med) var(--kk-e-out);
+}
+.kk-linebody .text {
+  font-family: var(--kk-f-lyric); font-size: var(--kk-s-lyric); font-weight: var(--kk-lyric-weight, 450);
+  color: var(--kk-ink); letter-spacing: -0.005em; line-height: 1.35; flex: 1;
+}
+.kk-line.is-active .kk-linebody {
+  background: linear-gradient(90deg, color-mix(in oklab, var(--kk-blue) 14%, transparent), transparent 75%);
+  box-shadow: inset 2px 0 0 var(--kk-blue);
+}
+.kk-line.is-active .kk-lineno  { color: var(--kk-blue); }
+.kk-line.is-keep   .kk-linebody { box-shadow: inset 2px 0 0 var(--kk-green); }
+.kk-line.is-mutate .kk-linebody { box-shadow: inset 2px 0 0 var(--kk-amber); }
+.kk-line.is-avoid  .kk-linebody { box-shadow: inset 2px 0 0 var(--kk-red); }
+.kk-line.is-active.is-keep   .kk-linebody { box-shadow: inset 2px 0 0 var(--kk-green), inset 4px 0 0 var(--kk-blue); }
+
+.kk-line .gutter-tags { display: flex; gap: 6px; flex-shrink: 0; opacity: 0.85; }
+.kk-tag {
+  font-family: var(--kk-f-mono); font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  padding: 2px 6px; border-radius: 3px;
+  border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); color: var(--kk-muted); white-space: nowrap;
+}
+.kk-tag.role-hook    { color: var(--kk-blue);   border-color: color-mix(in oklab, var(--kk-blue) 35%, transparent); }
+.kk-tag.role-image   { color: var(--kk-ink-dim); }
+.kk-tag.role-turn    { color: var(--kk-amber);  border-color: color-mix(in oklab, var(--kk-amber) 35%, transparent); }
+.kk-tag.role-payoff  { color: var(--kk-green);  border-color: color-mix(in oklab, var(--kk-green) 35%, transparent); }
+.kk-tag.lang         { color: #c8b48a; border-color: rgba(200,180,138,0.3); }
+[data-theme="bone"] .kk-tag.role-image { color: var(--kk-text); }
+[data-theme="bone"] .kk-tag.lang { color: #6e4e1c; border-color: rgba(110,78,28,0.3); }
+
+/* Persistent taste marker (left of line number) — a small ink dot */
+.kk-marker {
+  position: relative; width: 0; height: 0;
+}
+.kk-marker::before {
+  content: ""; position: absolute; left: -10px; top: 12px;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--kk-muted-2);
+  transform-origin: center; animation: kk-mark-in var(--kk-d-slow) var(--kk-e-spring);
+}
+.kk-marker.like::before   { background: var(--kk-green); box-shadow: 0 0 6px color-mix(in oklab, var(--kk-green) 60%, transparent); }
+.kk-marker.keep::before   { background: var(--kk-blue);  box-shadow: 0 0 6px color-mix(in oklab, var(--kk-blue) 60%, transparent); }
+.kk-marker.mutate::before { background: var(--kk-amber); }
+.kk-marker.dislike::before, .kk-marker.avoid::before { background: var(--kk-red); }
+@keyframes kk-mark-in {
+  0%   { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.4); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ============================================================
+   WORKBENCH (takes tray + waveform)
+   ============================================================ */
+.kk-wb-h {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 16px; border-bottom: var(--kk-border-w) var(--kk-border-style) var(--kk-rule-soft);
+}
+.kk-wb-h .title {
+  font-family: var(--kk-f-mono); font-size: 9.5px;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--kk-muted);
+  display: flex; align-items: center; gap: 10px;
+}
+.kk-wb-h .title b { color: var(--kk-ink-dim); font-weight: 500; }
+.kk-wb-h .scope-pill {
+  font-family: var(--kk-f-mono); font-size: 10px; color: var(--kk-blue);
+  padding: 2px 7px; border: 1px solid color-mix(in oklab, var(--kk-blue) 45%, transparent);
+  border-radius: 3px; letter-spacing: 0.06em;
+}
+
+.kk-takes { display: flex; gap: 12px; padding: 12px 16px; overflow-x: auto; flex: 1; }
+.kk-take {
+  flex: 0 0 282px;
+  background: var(--kk-raised);
+  border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule);
+  border-radius: var(--kk-r-3);
+  padding: 11px 12px;
+  display: flex; flex-direction: column; position: relative;
+  transition: border-color var(--kk-d-fast), box-shadow var(--kk-d-fast), transform var(--kk-d-fast);
+}
+.kk-take.is-active { border-color: var(--kk-blue); box-shadow: 0 0 0 1px var(--kk-blue) inset, 0 8px 24px var(--kk-blue-wash); }
+.kk-take.is-archived { opacity: 0.55; border-style: dashed; }
+
+.kk-take-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.kk-take-h .vname { font-family: var(--kk-f-display); font-weight: 600; font-size: 13px; color: var(--kk-ink); }
+.kk-take-h .vid { font-family: var(--kk-f-mono); font-size: 9.5px; color: var(--kk-muted-2); letter-spacing: 0.06em; }
+.kk-take .prov {
+  font-family: var(--kk-f-mono); font-size: 10px; color: var(--kk-muted);
+  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+}
+
+.kk-fitbar {
+  display: grid; grid-template-columns: 56px 1fr auto;
+  align-items: center; gap: 8px;
+  font-family: var(--kk-f-mono); font-size: 10px;
+  color: var(--kk-muted); margin-bottom: 3px;
+}
+.kk-fitbar .lbl { letter-spacing: 0.06em; }
+.kk-fitbar .track { height: 3px; background: var(--kk-rule); border-radius: 2px; overflow: hidden; }
+.kk-fitbar .fill { height: 100%; background: var(--kk-green); }
+.kk-fitbar.is-mid .fill { background: var(--kk-amber); }
+.kk-fitbar.is-low .fill { background: var(--kk-red); }
+.kk-fitbar .val { color: var(--kk-ink-dim); }
+
+.kk-wave { margin-top: 8px; height: 36px; background: color-mix(in oklab, var(--kk-base) 90%, #000); border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); border-radius: var(--kk-r-2); position: relative; overflow: hidden; }
+[data-theme="bone"] .kk-wave { background: color-mix(in oklab, var(--kk-surface) 50%, #fff); }
+.kk-section-strip {
+  display: grid; height: 12px;
+  font-family: var(--kk-f-mono); font-size: 8.5px;
+  text-transform: uppercase; letter-spacing: 0.14em; color: var(--kk-muted-2);
+  border-radius: var(--kk-r-1); margin-top: 6px; overflow: hidden; border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule);
+}
+.kk-section-strip .seg { display: grid; place-items: center; border-right: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); }
+.kk-section-strip .seg:last-child { border-right: none; }
+.kk-section-strip .seg.is-hook { color: var(--kk-blue); background: var(--kk-blue-wash); }
+.kk-section-strip .seg.is-sel  { color: var(--kk-ink);  background: color-mix(in oklab, var(--kk-blue) 18%, transparent); }
+
+.kk-take-actions { display: flex; gap: 4px; margin-top: 10px; align-items: center; }
+.kk-iconbtn {
+  width: 26px; height: 26px; border-radius: var(--kk-r-2);
+  border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); background: transparent;
+  color: var(--kk-muted); cursor: pointer; display: grid; place-items: center;
+  transition: color var(--kk-d-fast), background var(--kk-d-fast), border-color var(--kk-d-fast);
+}
+.kk-iconbtn:hover { color: var(--kk-ink); border-color: var(--kk-muted-2); }
+.kk-iconbtn.is-on.like    { color: var(--kk-green); border-color: color-mix(in oklab, var(--kk-green) 45%, transparent); background: var(--kk-green-wash); }
+.kk-iconbtn.is-on.dislike { color: var(--kk-red);   border-color: color-mix(in oklab, var(--kk-red) 45%, transparent);   background: var(--kk-red-wash); }
+.kk-iconbtn.is-on.keep    { color: var(--kk-blue);  border-color: color-mix(in oklab, var(--kk-blue) 45%, transparent);  background: var(--kk-blue-wash); }
+.kk-take-actions .grow { flex: 1; }
+.kk-take-btn {
+  padding: 0 10px; height: 26px;
+  border-radius: var(--kk-r-2); border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule);
+  background: transparent; color: var(--kk-text);
+  font-family: var(--kk-f-display); font-weight: 500;
+  font-size: 11px; letter-spacing: 0.02em;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.kk-take-btn.primary {
+  background: var(--kk-blue-wash); color: var(--kk-blue);
+  border-color: color-mix(in oklab, var(--kk-blue) 45%, transparent);
+}
+
+/* ============================================================
+   BUTTONS (general)
+   ============================================================ */
+.kk-btn {
+  font-family: var(--kk-f-display); font-weight: 500;
+  font-size: 12px; letter-spacing: 0.01em;
+  padding: 6px 11px; border-radius: var(--kk-r-2);
+  border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); background: var(--kk-raised);
+  color: var(--kk-text); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px;
+  transition: color var(--kk-d-fast), background var(--kk-d-fast), border-color var(--kk-d-fast), transform var(--kk-d-fast);
+}
+.kk-btn:hover { color: var(--kk-ink); border-color: var(--kk-muted-2); transform: translateY(-1px); }
+.kk-btn.primary {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--kk-blue) 22%, transparent), color-mix(in oklab, var(--kk-blue) 8%, transparent));
+  border-color: color-mix(in oklab, var(--kk-blue) 55%, transparent);
+  color: var(--kk-ink);
+  box-shadow: inset 0 1px 0 var(--kk-glass-hi);
+}
+.kk-btn.amber  { color: var(--kk-amber); border-color: color-mix(in oklab, var(--kk-amber) 45%, transparent); background: var(--kk-amber-wash); }
+.kk-btn.danger { color: var(--kk-red);   border-color: color-mix(in oklab, var(--kk-red) 45%, transparent);   background: var(--kk-red-wash); }
+.kk-btn.ghost  { background: transparent; }
+
+.kk-icn { width: 13px; height: 13px; display: inline-block; vertical-align: -2px; }
+
+/* Receipt / status lines */
+.kk-receipt {
+  font-family: var(--kk-f-mono); font-size: 10px;
+  color: var(--kk-muted-2); letter-spacing: 0.06em;
+}
+.kk-receipt b { color: var(--kk-ink-dim); font-weight: 500; }
+.kk-receipt .ok  { color: var(--kk-green); }
+.kk-receipt .sp  { color: var(--kk-amber); }
+.kk-receipt .er  { color: var(--kk-red); }
+
+/* Scrollbar */
+.kk ::-webkit-scrollbar { width: 8px; height: 8px; }
+.kk ::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--kk-rule) 60%, var(--kk-base)); border-radius: 4px; }
+.kk ::-webkit-scrollbar-track { background: transparent; }
+
+/* Empty state */
+.kk-empty {
+  margin: auto; text-align: center;
+  font-family: var(--kk-f-display); color: var(--kk-muted);
+  font-size: 13px; padding: 32px;
+}
+.kk-empty .glyph { font-family: var(--kk-f-lyric); font-size: 56px; color: var(--kk-rule); margin-bottom: 8px; }
+
+/* ============================================================
+   COMPARE GRID
+   ============================================================ */
+.kk-cmp {
+  display: grid; grid-template-columns: 180px repeat(4, 1fr); gap: 0;
+  border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); border-radius: var(--kk-r-3);
+  margin: 14px 20px; overflow: hidden; background: var(--kk-surface);
+}
+.kk-cmp .row { display: contents; }
+.kk-cmp .cell {
+  padding: 11px 12px;
+  border-right: var(--kk-border-w) var(--kk-border-style) var(--kk-rule-soft);
+  border-bottom: var(--kk-border-w) var(--kk-border-style) var(--kk-rule-soft);
+  min-height: 56px;
+}
+.kk-cmp .cell:last-child { border-right: none; }
+.kk-cmp .row.head .cell {
+  background: color-mix(in oklab, var(--kk-surface) 70%, var(--kk-base));
+  font-family: var(--kk-f-display); font-weight: 600;
+  font-size: 12px; color: var(--kk-ink);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.kk-cmp .row.head .cell .vid { font-family: var(--kk-f-mono); font-size: 9.5px; color: var(--kk-muted-2); letter-spacing: 0.06em; }
+.kk-cmp .row .axis {
+  font-family: var(--kk-f-mono); font-size: 10px;
+  color: var(--kk-muted); letter-spacing: 0.12em; text-transform: uppercase;
+  background: color-mix(in oklab, var(--kk-surface) 80%, var(--kk-base));
+  display: flex; align-items: center;
+}
+.kk-cmp .judgment { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kk-cmp .ev-row { display: flex; gap: 6px; align-items: center; font-family: var(--kk-f-mono); font-size: 10px; color: var(--kk-muted); margin-top: 4px; }
+
+/* ============================================================
+   GENEALOGY (calm tree, not node-board)
+   ============================================================ */
+.kk-tree-bg {
+  background:
+    radial-gradient(circle at 20% 30%, color-mix(in oklab, var(--kk-blue) 8%, transparent), transparent 50%),
+    radial-gradient(circle at 80% 70%, color-mix(in oklab, var(--kk-amber) 6%, transparent), transparent 55%),
+    var(--kk-base);
+}
+
+/* ============================================================
+   REMIX PICKER
+   ============================================================ */
+.kk-rp-col {
+  background: var(--kk-surface);
+  border-radius: var(--kk-r-3);
+  border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule);
+  padding: 12px;
+  display: flex; flex-direction: column; gap: 8px;
+  min-height: 0; overflow: hidden;
+}
+.kk-rp-col-h {
+  font-family: var(--kk-f-mono); font-size: 9.5px;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--kk-muted);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 2px 6px; border-bottom: var(--kk-border-w) var(--kk-border-style) var(--kk-rule-soft);
+}
+.kk-rp-col-h .verb { color: var(--kk-ink-dim); }
+.kk-rp-tile {
+  border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule); border-radius: var(--kk-r-2);
+  padding: 9px 10px; background: var(--kk-raised); cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px;
+  transition: border-color var(--kk-d-fast), background var(--kk-d-fast);
+}
+.kk-rp-tile.is-picked {
+  border-color: var(--kk-blue); background: var(--kk-blue-wash);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--kk-blue) 35%, transparent) inset;
+}
+.kk-rp-tile.is-avoid {
+  border-color: color-mix(in oklab, var(--kk-red) 40%, transparent);
+  background: var(--kk-red-wash);
+}
+.kk-rp-tile .src { font-family: var(--kk-f-mono); font-size: 9.5px; color: var(--kk-muted-2); letter-spacing: 0.06em; }
+.kk-rp-tile .what { font-size: 12px; color: var(--kk-ink); font-weight: 500; }
+.kk-rp-tile .why  { font-size: 11px; color: var(--kk-muted); }
+
+/* ============================================================
+   RELEASE GATES
+   ============================================================ */
+.kk-gate {
+  display: grid; grid-template-columns: 28px 1fr auto;
+  gap: 12px; padding: 14px 16px;
+  border-bottom: var(--kk-border-w) var(--kk-border-style) var(--kk-rule-soft); align-items: center;
+}
+.kk-gate .stat {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1.5px solid var(--kk-rule);
+  display: grid; place-items: center; color: var(--kk-muted-2);
+}
+.kk-gate.is-pass .stat { border-color: var(--kk-green); color: var(--kk-green); background: var(--kk-green-wash); }
+.kk-gate.is-warn .stat { border-color: var(--kk-amber); color: var(--kk-amber); background: var(--kk-amber-wash); }
+.kk-gate.is-fail .stat { border-color: var(--kk-red);   color: var(--kk-red);   background: var(--kk-red-wash); }
+.kk-gate .name { font-family: var(--kk-f-display); font-weight: 600; color: var(--kk-ink); font-size: 14px; }
+.kk-gate .why  { font-size: 12px; color: var(--kk-muted); margin-top: 2px; }
+
+/* ============================================================
+   SOUND DNA CARDS
+   ============================================================ */
+.kk-dna-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  padding: 14px 20px; overflow-y: auto;
+}
+.kk-dna-card {
+  background: var(--kk-surface);
+  border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule);
+  border-radius: var(--kk-r-3);
+  padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+  min-height: 132px;
+  transition: transform var(--kk-d-fast), border-color var(--kk-d-fast);
+}
+.kk-dna-card:hover { transform: translateY(-1px); border-color: var(--kk-muted-2); }
+.kk-dna-card.is-anti { border-color: color-mix(in oklab, var(--kk-red) 32%, transparent); background: linear-gradient(180deg, var(--kk-red-wash), transparent); }
+.kk-dna-card .label {
+  font-family: var(--kk-f-mono); font-size: 9.5px;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--kk-muted);
+}
+.kk-dna-card .label.is-anti { color: var(--kk-red); }
+.kk-dna-card .trait {
+  font-family: var(--kk-f-display); font-weight: 600; font-size: 14px; color: var(--kk-ink);
+}
+.kk-dna-card .why { font-size: 12px; color: var(--kk-text); }
+.kk-dna-card .src { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+
+/* ============================================================
+   GENERATION DESK DIFF
+   ============================================================ */
+.kk-diff {
+  display: grid; grid-template-columns: 80px 1fr auto;
+  gap: 12px 16px; padding: 11px 0;
+  border-bottom: var(--kk-border-w) var(--kk-border-style) var(--kk-rule-soft); align-items: start;
+}
+.kk-diff:last-child { border-bottom: none; }
+.kk-diff .verb {
+  font-family: var(--kk-f-mono); font-size: 10.5px;
+  letter-spacing: 0.14em; text-transform: uppercase; padding-top: 2px;
+}
+.kk-diff .verb.preserve { color: var(--kk-green); }
+.kk-diff .verb.mutate   { color: var(--kk-amber); }
+.kk-diff .verb.avoid    { color: var(--kk-red); }
+.kk-diff .verb.add      { color: var(--kk-blue); }
+.kk-diff .what  { color: var(--kk-ink); font-size: 13px; font-weight: 500; }
+.kk-diff .src   { color: var(--kk-muted); font-size: 11.5px; margin-top: 2px; }
+.kk-diff .lyric-q {
+  font-family: var(--kk-f-lyric); font-size: 13.5px;
+  color: var(--kk-ink-dim); font-style: italic;
+}
+
+/* ============================================================
+   FINAL NOTE BANNER (sits above first canvas section)
+   ============================================================ */
+.kk-final {
+  font-family: var(--kk-f-display); color: #2c2520;
+  padding: 20px 24px; max-width: 1100px;
+}
+.kk-final .eyebrow {
+  font-family: var(--kk-f-mono); font-size: 10.5px;
+  letter-spacing: 0.2em; text-transform: uppercase; color: #7a6c5a;
+}
+.kk-final h2 { font-weight: 700; font-size: 24px; margin: 6px 0 12px; }
+.kk-final p { font-size: 13.5px; color: #4a3f33; max-width: 920px; line-height: 1.6; }
+.kk-final ul { padding-left: 18px; margin: 8px 0 0; }
+.kk-final li { font-size: 12.5px; color: #4a3f33; line-height: 1.7; }
+
+/* ============================================================
+   MOTION CELL (for Motion Lab)
+   ============================================================ */
+.kk-mcell {
+  background: var(--kk-surface);
+  border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule);
+  border-radius: var(--kk-r-3);
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+  min-height: 230px; position: relative; overflow: hidden;
+}
+.kk-mcell .m-h {
+  font-family: var(--kk-f-display); font-weight: 600;
+  color: var(--kk-ink); font-size: 13.5px;
+}
+.kk-mcell .m-sub {
+  font-family: var(--kk-f-mono); font-size: 10px;
+  color: var(--kk-muted); letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.kk-mcell .m-stage {
+  flex: 1; background: var(--kk-base); border: var(--kk-border-w) var(--kk-border-style) var(--kk-rule-soft);
+  border-radius: var(--kk-r-2); position: relative; overflow: hidden;
+}

@@ -18,8 +18,9 @@ test.setTimeout(120_000)
 
 test('renders the visual Suno workflow shell', async ({ page }, testInfo) => {
   await page.goto(projectUrl(testInfo))
-  await expect(page.getByRole('heading', { name: 'Track-first visual music studio' })).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Track-first command room' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'The Kantikal' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Lyric command room' })).toBeVisible()
+  await expect(page.getByRole('article', { name: 'Lyric document' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'No selected source track' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Generate Suno batch' })).toBeVisible()
   await expect(page.getByLabel('Runtime status')).toContainText(/Suno web \/ Printing Press/)

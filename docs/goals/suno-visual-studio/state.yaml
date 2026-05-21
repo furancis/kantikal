@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real The Kantikal"
-active_task: T260
+active_task: T999-final-audit
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full The Kantikal, sealf'salve's lyric-first music-generation machine; Suno Visual Studio remains the internal repo name."
@@ -1965,7 +1965,7 @@ tasks:
   - id: T260
     type: worker
     assignee: Codex
-    status: pending
+    status: done
     objective: "After UI/UX approval, implement the final-product DB-first lyric console redesign and remove track-first/card-wall drift."
     inputs:
       - "Approved Claude Design output"
@@ -2006,3 +2006,60 @@ tasks:
       - "Approved UI/UX output changes the app frame materially."
       - "Chosen DB dependency cannot install or run on this Windows/Vite runtime."
       - "A step would expose or persist credential material."
+    receipt:
+      result: done
+      full_outcome_complete: false
+      files:
+        - src/App.tsx
+        - src/styles.css
+        - src/App.test.tsx
+        - e2e/studio.spec.ts
+        - .github/scripts/greptile-review.mjs
+        - .github/workflows/ci.yml
+        - docs/design/the-kantikal-approved-ui/**
+        - docs/goals/suno-visual-studio/state.yaml
+      evidence:
+        - "Integrated The Kantikal.zip as approved UI/UX source: design manifest, tokens, motion/state/wire docs, reusable screen/lib/lab prototypes archived under docs/design/the-kantikal-approved-ui."
+        - "Visible app brand now opens as The Kantikal by sealf'salve; Suno Visual Studio remains internal only."
+        - "First workspace frame is now a lyric command room with a lyric document article as the master object before the generated take tray."
+        - "Track-first graph/card-wall wording was removed from runtime source and E2E tests; generated workflow objects remain functional as a take tray/workbench."
+        - "DB-first runtime from T257 remains in place: default app persistence uses HTTP project routes backed by SQLite, not production localStorage."
+        - "Provider, audio, lipsync, release pack, genealogy, Song Lab, archive-first cleanup, and API coverage logic were preserved while the shell was redesigned."
+        - "Greptile CI no longer self-waits on its own pending greptile-review job; same-repo branch pushes now run the keyed Greptile path and PR fallback skips only when that push gate owns enforcement."
+      commands:
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm test -- --run src/App.test.tsx
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: git diff --check
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: node --check .github/scripts/greptile-review.mjs
+          status: pass
+      summary: "T260 is implemented and locally verified: the approved Claude Design zip is ported into the repo as durable design source, and the live app now uses a dark Faery Vellum lyric-first Kantikal shell over the existing DB/provider workflow."
+  - id: T999-final-audit
+    type: judge
+    assignee: Codex
+    status: pending
+    objective: "Audit PR #8 after T260 push and decide whether the full requested product can be called complete."
+    inputs:
+      - "T260 receipt"
+      - "Latest local validation"
+      - "Latest GitHub PR #8 checks"
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "remaining blockers if not complete"

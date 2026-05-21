@@ -999,12 +999,18 @@ export function App({
     setWorkflow((current) => restoreArchivedTracks(current))
   }
 
+  const lyricDocumentLines = briefInput.lyrics
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const visibleLyricLines = lyricDocumentLines.length > 0 ? lyricDocumentLines : [briefInput.lyrics]
+
   return (
-    <main className="studio-shell">
+    <main className="studio-shell" data-theme="faery">
       <header className="topbar">
         <div>
-          <p className="eyebrow">Suno Visual Studio</p>
-          <h1>Track-first visual music studio</h1>
+          <p className="eyebrow">sealf&apos;salve</p>
+          <h1>The Kantikal</h1>
           <p className="project-current">Current project: {activeProjectId}</p>
         </div>
         <div className="topbar-actions" aria-label="Project controls">
@@ -1042,17 +1048,17 @@ export function App({
         </p>
       )}
 
-      <section className="track-command" aria-label="Track-first command room">
+      <section className="track-command" aria-label="Lyric command room">
         <div className="source-card">
-          <p className="eyebrow">Source of truth</p>
+          <p className="eyebrow">Songbook source</p>
           <h2>{selectedTrackLabel}</h2>
           <p>
-            Make the song first. Versions, Song Lab, exports, and the optional music video lane all hang off this
-            selected track.
+            Lyrics stay as the master object. Versions, Song Lab, exports, and the optional music video lane all
+            answer back to the songbook.
           </p>
         </div>
         <div className="next-action-card">
-          <p className="eyebrow">Next action</p>
+          <p className="eyebrow">Generation desk</p>
           <h2>{primaryAction.label}</h2>
           <p>{primaryAction.detail}</p>
           <button
@@ -1090,11 +1096,11 @@ export function App({
         </div>
       </section>
 
-      <section className="workspace" aria-label="Suno workflow workspace">
+      <section className="workspace" aria-label="The Kantikal workflow workspace">
         <aside className="prompt-rail">
           <div className="rail-block active">
             <WandSparkles size={18} />
-            <span>Prompt board</span>
+            <span>Line intent</span>
           </div>
           <form className="prompt-form" onSubmit={(event) => void handleGenerate(event)}>
             <label>
@@ -1135,7 +1141,7 @@ export function App({
           </form>
           <div className="rail-block">
             <Library size={18} />
-            <span>Library</span>
+            <span>Sound DNA</span>
           </div>
           <div className="rail-block">
             <Clapperboard size={18} />
@@ -1146,10 +1152,10 @@ export function App({
             <span>Archive</span>
           </div>
           <div className="agent-stack" aria-label="Agent lanes">
-            <p>Agent lanes</p>
-            <span>Lyrics</span>
+            <p>Instruments</p>
+            <span>Lyric edits</span>
             <span>Arrangement</span>
-            <span>Visuals</span>
+            <span>Sound DNA</span>
             <span>Release copy</span>
           </div>
         </aside>
@@ -1157,8 +1163,8 @@ export function App({
         <section className="canvas-panel">
           <div className="canvas-header">
             <div>
-              <p className="eyebrow">Project graph</p>
-              <h2>Idea to song to video to release</h2>
+              <p className="eyebrow">Lyric console</p>
+              <h2>The songbook is the machine</h2>
             </div>
             <div className="health-strip">
               <span>
@@ -1167,7 +1173,7 @@ export function App({
               </span>
               <span>
                 <Gauge size={14} />
-                Mock cost guard
+                Receipt-backed spend
               </span>
               <span>
                 <GitBranch size={14} />
@@ -1176,7 +1182,22 @@ export function App({
             </div>
           </div>
 
-          <div className="canvas" role="list" aria-label="Workflow cards">
+          <article className="lyric-document" aria-label="Lyric document">
+            <div>
+              <p className="eyebrow">Almost Love · working draft</p>
+              <h2>{briefInput.brief}</h2>
+            </div>
+            <div className="lyric-lines">
+              {visibleLyricLines.map((line, index) => (
+                <p key={`${line}-${index}`}>
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  {line}
+                </p>
+              ))}
+            </div>
+          </article>
+
+          <div className="canvas" role="list" aria-label="Generated take tray">
             <svg className="edges" aria-hidden="true" viewBox="0 0 100 80" preserveAspectRatio="none">
               <path d="M16 25 C27 11 34 18 45 24 S59 20 70 29 S81 36 88 42" />
               <path d="M36 44 C45 48 52 54 64 58 S79 58 88 68" />

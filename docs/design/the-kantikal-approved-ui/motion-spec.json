@@ -1,0 +1,127 @@
+{
+  "engine": "framer-motion (already installed)",
+  "named_sequences_engine": "Theatre.js · use sparingly only for authored sequences (branch creation pulse, release-gate pass)",
+  "global_easings": {
+    "ease_out": "cubic-bezier(0.2, 0.7, 0.2, 1)",
+    "ease_in":  "cubic-bezier(0.6, 0, 0.8, 0.4)",
+    "spring":   "cubic-bezier(0.34, 1.45, 0.55, 1)"
+  },
+  "durations_ms": { "fast": 120, "med": 220, "slow": 420 },
+
+  "sequences": [
+    {
+      "id": "line_select",
+      "trigger": "click or arrow-nav on a lyric line",
+      "describe": "Active line gets the inset 2px blue/faery bar + a soft horizontal wash from accent → transparent at 75% width.",
+      "from": { "background": "transparent", "boxShadow": "none" },
+      "to":   { "background": "linear-gradient(90deg, var(--kk-blue-wash), transparent 75%)", "boxShadow": "inset 2px 0 0 var(--kk-blue)" },
+      "duration_ms": 220,
+      "easing": "ease_out",
+      "side_effects": [
+        "Inspector contents fade+slide-in (insp_reveal) with selected line/section context",
+        "Workbench takes filter to those whose section overlaps the selection (workbench_filter)"
+      ]
+    },
+    {
+      "id": "insp_reveal",
+      "trigger": "selection change",
+      "describe": "Inspector panel content slides in 8px from right with opacity 0 → 1.",
+      "from": { "x": 8, "opacity": 0 },
+      "to":   { "x": 0, "opacity": 1 },
+      "duration_ms": 220,
+      "easing": "ease_out"
+    },
+    {
+      "id": "workbench_filter",
+      "trigger": "selection change",
+      "describe": "Take cards out of scope fade out and lift; in-scope cards pop in with a slight scale.",
+      "exit":  { "opacity": 0, "y": -4, "scale": 0.96, "duration_ms": 220, "easing": "ease_in" },
+      "enter": { "opacity": [0, 1], "y": [8, 0], "scale": [0.98, 1], "duration_ms": 280, "easing": "ease_out" }
+    },
+    {
+      "id": "taste_marker_persist",
+      "trigger": "user taps like / keep / mutate / avoid on a lyric line or take",
+      "describe": "A tiny ink dot stamps to the left of the line number. Stamp is a spring-overshoot. Marker stays forever.",
+      "from": { "scale": 0, "opacity": 0 },
+      "to":   { "scale": [0, 1.4, 1], "opacity": 1 },
+      "duration_ms": 420,
+      "easing": "spring",
+      "persistence": "marker is a render of TasteSignal in the DB · never disappears unless user removes the signal"
+    },
+    {
+      "id": "branch_creation",
+      "trigger": "Generation Desk submits a run · or fork from a node",
+      "describe": "NOT a generic spinner. A path is drawn along the lineage edge from parent → new node, then the new node glows once.",
+      "edge_draw": { "stroke_dasharray": "80", "stroke_dashoffset": [80, 0], "duration_ms": 600, "easing": "ease_out" },
+      "node_glow": { "scale": [0.85, 1.08, 1], "boxShadow": ["0 0 0 0 transparent", "0 0 0 6px rgba(var(--kk-blue-rgb),0.25)", "0 0 0 2px rgba(var(--kk-blue-rgb),0.15)"], "duration_ms": 420, "easing": "spring", "delay_ms": 300 },
+      "ref_lab_cell": "Motion Studies · cell 04"
+    },
+    {
+      "id": "archive_to_dead_lane",
+      "trigger": "user archives a branch / take",
+      "describe": "Card drops 46px to the archive lane below, scales down to 0.92, desaturates, and switches to dashed border. No animation back; only restore-from-archive.",
+      "to": { "y": 46, "scale": 0.92, "opacity": 0.45, "filter": "saturate(0.3) brightness(0.6)" },
+      "duration_ms": 420,
+      "easing": "ease_out"
+    },
+    {
+      "id": "liquid_surface_hover",
+      "trigger": "cursor enters a glass surface (chip, picker tile, generation diff slab)",
+      "describe": "Surface lifts 2px and the refraction breathes once. Real Liquid DOM picks this up via pointer events on the Glass element.",
+      "to": { "y": -2 },
+      "duration_ms": 220,
+      "easing": "ease_out",
+      "real_liquid_only": "fabric warps under the surface via WebGPU Glass refraction; CSS fallback gets only the lift"
+    },
+    {
+      "id": "generation_receipt_pipeline",
+      "trigger": "submit generation",
+      "describe": "Receipt log fills in step-by-step: brief composed → provider ack'd → takes received → taste indexed → receipt closed. Each step animates in 220ms; total ~1.4s if all green.",
+      "step_in": { "opacity": [0, 1], "x": [8, 0], "duration_ms": 220, "easing": "ease_out", "stagger_ms": 280 },
+      "ref_lab_cell": "Motion Studies · cell 09"
+    },
+    {
+      "id": "fabric_flow",
+      "trigger": "always · the lyric breath",
+      "describe": "Two octaves of fbm noise drift over a static field of song letters. Character index per cell is a function of noise, so chars morph continuously as the field flows. Runs at requestAnimationFrame; pauses when document.hidden or shell offscreen.",
+      "params": { "speed": 0.18, "opacity_base": 0.16, "font_size_px": 13 },
+      "perf_notes": [
+        "bucket fillStyle by 6 alpha tiers to minimise context state changes",
+        "skip cells with density < 0.18 (saves ~35% draws)",
+        "respect prefers-reduced-motion: pause flow, freeze at t=0"
+      ]
+    },
+    {
+      "id": "section_marker_underline",
+      "trigger": "section becomes active",
+      "describe": "Subtle accent underline draws under the section name, 240ms ease-out.",
+      "from": { "scaleX": 0 },
+      "to":   { "scaleX": 1 },
+      "duration_ms": 240,
+      "easing": "ease_out",
+      "transform_origin": "left"
+    },
+    {
+      "id": "chip_apply",
+      "trigger": "user applies a TasteSignal chip in the popover",
+      "describe": "Chip stamps onto its anchor and a marker stamps on the target. Ink stamp, not confetti.",
+      "from": { "scale": 0, "opacity": 0 },
+      "to":   { "scale": [0, 1.2, 1], "opacity": 1 },
+      "duration_ms": 320,
+      "easing": "spring"
+    },
+    {
+      "id": "release_gate_pass",
+      "trigger": "all release gates pass",
+      "describe": "Each stat dot lights up in sequence (lyric → mix → taste → provenance), each 220ms with a 140ms stagger.",
+      "step": { "scale": [0.85, 1.08, 1], "opacity": [0.5, 1], "duration_ms": 220, "easing": "spring", "stagger_ms": 140 },
+      "theatre_authored": true
+    }
+  ],
+
+  "global_rules": [
+    "No playful bounces, no decorative motion. Motion only confirms a state change or shows lineage.",
+    "Respect prefers-reduced-motion: pause fabric flow, replace receipt pipeline with instant-fill, skip release-gate-pass step animation.",
+    "Liquid DOM hover effects are only for surfaces tagged data-liquid; CSS fallback for the rest."
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "name": "The Kantikal",
+  "facing_name": "The Kantikal",
+  "parent": "sealf'salve",
+  "repo_internal_name": "suno-visual-studio",
+  "version": "1.0.0",
+  "design_review_state": "ready_for_implementation",
+  "locked_aesthetic": "faery_vellum",
+  "secondary_aesthetic": "vellum_day",
+
+  "themes": {
+    "faery": {
+      "label": "Faery Vellum · Night",
+      "mood": "cyberpunk year 900 · ink-stained vellum · cream parchment ink",
+      "data_theme": "faery",
+      "is_default": true
+    },
+    "vellum": {
+      "label": "Vellum · Day",
+      "mood": "parchment + sepia · deep indigo accent · same picks warm-light",
+      "data_theme": "vellum",
+      "is_default": false
+    }
+  },
+
+  "locked_picks": {
+    "palette": "faery_vellum",
+    "accent": "faery_cyan / deep_indigo (day)",
+    "borders": "invisible · 0px",
+    "radii": "tight · 2/3/4/6",
+    "surface": "liquid_glass",
+    "lyric_weight": "Fraunces 450",
+    "section_markers": "boxed_caps"
+  },
+
+  "typography": {
+    "lyric_only": "Fraunces, opsz 9..144, weights 400/450/500/650/700 — used inside the lyric document and lyric-derived editorial treatments only",
+    "ui_display": "Cabinet Grotesk, weights 400-800 — app chrome, nav, section titles, command surfaces. Nav is uppercase 0.18em letterspacing.",
+    "body": "Source Sans 3, weights 400-700 — controls, panels, labels, explanations",
+    "data_evidence": "IBM Plex Mono, weights 400-600 — line numbers, scores, IDs, seeds, model names, receipts, evidence pills",
+    "banned": ["Inter"]
+  },
+
+  "color_rules": {
+    "blue_is_only_brand_accent": true,
+    "semantic_state_colors_only": ["amber", "green", "red"],
+    "banned": [
+      "AI purple", "blue-purple gradients", "pure black",
+      "decorative blobs", "fake glows", "neon haze", "rainbow gradients"
+    ]
+  },
+
+  "screens": [
+    { "id": "console", "label": "Lyric Console", "default": true,
+      "component": "LyricConsole.tsx",
+      "layout": "left_rail + lyric_center + right_inspector + bottom_workbench" },
+    { "id": "compare", "label": "Taste Compare",
+      "component": "TasteCompare.tsx",
+      "layout": "comparison_grid · axes_x_takes" },
+    { "id": "picker", "label": "Remix Picker",
+      "component": "RemixPicker.tsx",
+      "layout": "five_source_columns + preview_inspector" },
+    { "id": "dna", "label": "Sound DNA Library",
+      "component": "SoundDnaLibrary.tsx",
+      "layout": "trait_grid · sections_by_role + audit_inspector",
+      "evidence_visibility": "always_on (audit_surface)" },
+    { "id": "desk", "label": "Generation Desk",
+      "component": "GenerationDesk.tsx",
+      "layout": "diff_pane + prompt_pane + alignment_table + receipts_inspector" },
+    { "id": "tree", "label": "Track Genealogy",
+      "component": "TrackGenealogy.tsx",
+      "layout": "time_lane_tree · NOT a free-floating node board" },
+    { "id": "lab", "label": "Song Lab",
+      "component": "SongLab.tsx",
+      "layout": "timeline + operations_grid + queue_inspector" },
+    { "id": "release", "label": "Release Pack",
+      "component": "ReleasePack.tsx",
+      "layout": "tabs: audio · lyrics · metadata · cover · mv(conditional) · receipts",
+      "mv_visibility": "tab_only_when_assets_exist · subordinate_label" }
+  ],
+
+  "components_required": [
+    "KantikalShell",
+    "LyricDocument",
+    "LineIntentRail",
+    "TasteSignalPopover",
+    "SoundDnaLibrary",
+    "GenerationDesk",
+    "GeneratedTakeTray",
+    "TrackGenealogy",
+    "SongLab",
+    "ReleasePackGate",
+    "ProviderStatusLedger",
+    "LyricFabric",
+    "LiquidSurface"
+  ],
+
+  "material_strategy": {
+    "fabric_layer": {
+      "purpose": "depth · the song breathing under every panel",
+      "technique": "canvas at artboard root · two-octave fbm noise + slow swirl wave · alphabet drawn from song's unique characters in first-appearance order · per-cell index = floor((cellular+waves) * rampLen) so characters morph continuously as the wave drifts",
+      "ref": "lib/fabric.jsx",
+      "production_note": "Codex re-implements as canvas behind <KantikalShell>; reads --kk-ink at runtime; pauses when document hidden / shell offscreen"
+    },
+    "glass_surfaces": {
+      "design_preview": "CSS backdrop-filter: blur(22px) saturate(160%) — real GPU compositor but not refraction",
+      "production_target": "Liquid DOM pattern 2: root <GlassContainer> with fabric as <Background>, <Glass> slabs at every panel bound. See wire-map.md.",
+      "package": "@liquid-dom/react (already in package.json)",
+      "fallback": "CSS backdrop-filter when navigator.gpu absent"
+    }
+  },
+
+  "evidence_model": {
+    "provenance_values": ["manual", "text-derived", "provider-derived", "computed-audio"],
+    "stored_on": "every TasteSignal, SoundTrait, score, gate, receipt",
+    "ui_visibility_default": "hidden",
+    "ui_visibility_surface_in": [
+      "hover on score row",
+      "Sound DNA Library cards (the audit surface)",
+      "unverified gate or score (always shown)",
+      "Release Pack gates",
+      "proof mode toggle in top bar (global reveal)"
+    ],
+    "hard_rule": "no claim labelled computed-audio without real audio analysis behind it"
+  },
+
+  "lyric_content": {
+    "demo_song": "Almost Love",
+    "demo_song_writer": "sealf'salve",
+    "demo_song_v": "v3.4 draft",
+    "language_mix": ["en", "ar"],
+    "language_mix_note": "Single arabic phrase ('Al-hamdu lillah') in the outro — used as the canonical 'language pivot audible' demo for the DNA trait and lineage rule"
+  },
+
+  "non_negotiables": [
+    "Lyric document is the master object",
+    "Music video is subordinate to song fit",
+    "Not SaaS",
+    "Not a Suno wrapper",
+    "Not a DAW clone",
+    "Not a node-board toy",
+    "Evidence labelled honestly, never faking computed-audio",
+    "DB-first persistence (SQLite + repository) · no localStorage source of truth"
+  ],
+
+  "deliverable_files": {
+    "design_tokens": "tokens.css",
+    "app_styles": "kantikal.css",
+    "react_components": [
+      "lib/icons.jsx",
+      "lib/lyric.jsx",
+      "lib/fabric.jsx",
+      "lib/liquid.jsx",
+      "lib/chrome.jsx",
+      "screens/Console.jsx",
+      "screens/Compare.jsx",
+      "screens/Picker.jsx",
+      "screens/DNA.jsx",
+      "screens/Desk.jsx",
+      "screens/Genealogy.jsx",
+      "screens/SongLab.jsx",
+      "screens/Release.jsx",
+      "labs/Motion.jsx",
+      "labs/Responsive.jsx"
+    ],
+    "canvas_entry": "canvas.jsx",
+    "html_entry": "index.html",
+    "alternative_entries": {
+      "theme-lab.html": "live theme picker · palette only",
+      "interview.html": "step-by-step visual aesthetic interview",
+      "night.html": "day · night toggle on the locked aesthetic"
+    },
+    "handoff_assets": [
+      "design-manifest.json",
+      "motion-spec.json",
+      "state-matrix.md",
+      "wire-map.md",
+      "asset-notes.md"
+    ]
+  }
+}
+

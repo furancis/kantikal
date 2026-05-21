@@ -114,12 +114,13 @@ function persistedWorkflowFixture(trackPrefix = 'hydrated'): SunoWorkflow {
   )
 }
 
-describe('Suno Visual Studio shell', () => {
+describe('The Kantikal shell', () => {
   it('keeps the music video lane subordinate to the song workflow', () => {
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: /track-first visual music studio/i })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: /track-first command room/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /the kantikal/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /lyric command room/i })).toBeInTheDocument()
+    expect(screen.getByRole('article', { name: /lyric document/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /no selected source track/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /generate suno batch/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/runtime status/i)).toHaveTextContent(/Suno web \/ Printing Press/i)

@@ -1,0 +1,169 @@
+/* tokens.css — The Kantikal design tokens (handoff asset)
+ * Themes: A "Crypt" (dark, default), B "Bone room" (warm light, oxblood ink).
+ * Mount with <html data-theme="crypt"> or data-theme="bone".
+ * Codex: replace src/styles.css token block with this file. */
+
+:root,
+[data-theme="crypt"] {
+  /* Surfaces */
+  --kk-base:       #0f1114;
+  --kk-surface:    #17191d;
+  --kk-raised:     #202329;
+  --kk-raised-2:   #272a31;
+
+  /* Ink */
+  --kk-ink:        #f4ead9;   /* lyric ink */
+  --kk-ink-dim:    #d8cdb9;
+  --kk-text:       #c9c3b6;
+  --kk-muted:      #aaa094;
+  --kk-muted-2:    #7a7367;
+
+  /* Rules */
+  --kk-rule:       #34302a;
+  --kk-rule-soft:  #25221d;
+
+  /* Semantic — blue is the only brand accent */
+  --kk-blue:       #74a7ff;
+  --kk-blue-deep:  #3a6fd6;
+  --kk-blue-wash:  rgba(116,167,255,0.10);
+  --kk-amber:      #e0a84a;
+  --kk-amber-wash: rgba(224,168,74,0.10);
+  --kk-green:      #70d38e;
+  --kk-green-wash: rgba(112,211,142,0.10);
+  --kk-red:        #e06f5b;
+  --kk-red-wash:   rgba(224,111,91,0.10);
+
+  /* Material — liquid surface mix (refraction colour, edge highlight, shadow) */
+  --kk-glass-tint:    rgba(255,255,255,0.06);
+  --kk-glass-tint-2:  rgba(255,255,255,0.015);
+  --kk-glass-edge:    rgba(244,234,217,0.10);
+  --kk-glass-hi:      rgba(255,255,255,0.06);
+  --kk-glass-lo:      rgba(0,0,0,0.5);
+  --kk-glass-shadow:  0 24px 60px rgba(0,0,0,0.55);
+}
+
+[data-theme="vellum"] {
+  /* Vellum · Day. Parchment + sepia, deep indigo accent. */
+  --kk-base:       #f0e6d0;
+  --kk-surface:    #ebdfc4;
+  --kk-raised:     #e3d4b2;
+  --kk-raised-2:   #dac99e;
+  --kk-ink:        #3a2418;
+  --kk-ink-dim:    #5a3a2a;
+  --kk-text:       #3a2a1f;
+  --kk-muted:      #5d4e3f;
+  --kk-muted-2:    #8a7a64;
+  --kk-rule:       #c9b48a;
+  --kk-rule-soft:  #d4c19a;
+  --kk-blue:       #3a4ea8; --kk-blue-deep: #27387a; --kk-blue-wash: rgba(58,78,168,0.12);
+  --kk-amber:      #a36210; --kk-amber-wash: rgba(163,98,16,0.10);
+  --kk-green:      #5a7a40; --kk-green-wash: rgba(90,122,64,0.10);
+  --kk-red:        #a83820; --kk-red-wash:   rgba(168,56,32,0.10);
+  --kk-glass-tint: rgba(255,252,240,0.45); --kk-glass-tint-2: rgba(255,252,240,0.18);
+  --kk-glass-edge: rgba(58,36,24,0.20);    --kk-glass-hi: rgba(255,252,240,0.65);
+  --kk-glass-lo:   rgba(58,36,24,0.08);    --kk-glass-shadow: 0 24px 60px rgba(90,50,20,0.18);
+  /* locked interview picks */
+  --kk-border-w: 0px; --kk-border-style: solid;
+  --kk-r-1: 2px; --kk-r-2: 3px; --kk-r-3: 4px; --kk-r-4: 6px;
+  --kk-lyric-weight: 450; --kk-s-lyric: 19px;
+  --kk-surface-mode: liquid;
+}
+
+[data-theme="faery"] {
+  /* Faery Vellum · Night. Cyberpunk year 900 — ink-stained vellum at midnight,
+     mint-cyan accent, candle-gold secondary. All non-color picks held. */
+  --kk-base:       #0d0c08;
+  --kk-surface:    #14110b;
+  --kk-raised:     #1c1810;
+  --kk-raised-2:   #262116;
+  --kk-ink:        #ede0bf;
+  --kk-ink-dim:    #cdb88e;
+  --kk-text:       #ad9876;
+  --kk-muted:      #6e5b42;
+  --kk-muted-2:    #4a3d2c;
+  --kk-rule:       #2a2418;
+  --kk-rule-soft:  #1a160e;
+  --kk-blue:       #9ce7b4; --kk-blue-deep: #5cb87e; --kk-blue-wash: rgba(156,231,180,0.12);
+  --kk-amber:      #f0c25c; --kk-amber-wash: rgba(240,194,92,0.10);
+  --kk-green:      #5f8a5a; --kk-green-wash: rgba(95,138,90,0.10);
+  --kk-red:        #e07c6a; --kk-red-wash:   rgba(224,124,106,0.10);
+  --kk-glass-tint: rgba(156,231,180,0.06);  --kk-glass-tint-2: rgba(237,224,191,0.02);
+  --kk-glass-edge: rgba(237,224,191,0.12); --kk-glass-hi: rgba(156,231,180,0.10);
+  --kk-glass-lo:   rgba(0,0,0,0.6);         --kk-glass-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 80px rgba(156,231,180,0.05);
+  /* locked interview picks */
+  --kk-border-w: 0px; --kk-border-style: solid;
+  --kk-r-1: 2px; --kk-r-2: 3px; --kk-r-3: 4px; --kk-r-4: 6px;
+  --kk-lyric-weight: 450; --kk-s-lyric: 19px;
+  --kk-surface-mode: liquid;
+}
+
+[data-theme="bone"] {
+  --kk-base:       #ece1c8;
+  --kk-surface:    #e3d6b8;
+  --kk-raised:     #d9c9a6;
+  --kk-raised-2:   #cebc95;
+
+  --kk-ink:        #2b1d18;
+  --kk-ink-dim:    #3d2a22;
+  --kk-text:       #2e201a;
+  --kk-muted:      #5d4e3f;
+  --kk-muted-2:    #8a7a64;
+
+  --kk-rule:       #b9a884;
+  --kk-rule-soft:  #c9b994;
+
+  --kk-blue:       #2c4ea8;
+  --kk-blue-deep:  #1f3a85;
+  --kk-blue-wash:  rgba(44,78,168,0.10);
+  --kk-amber:      #a35f0c;
+  --kk-amber-wash: rgba(163,95,12,0.10);
+  --kk-green:      #2f7a4d;
+  --kk-green-wash: rgba(47,122,77,0.10);
+  --kk-red:        #a83f30;
+  --kk-red-wash:   rgba(168,63,48,0.10);
+
+  --kk-glass-tint:    rgba(255,250,235,0.40);
+  --kk-glass-tint-2:  rgba(255,250,235,0.18);
+  --kk-glass-edge:    rgba(43,29,24,0.18);
+  --kk-glass-hi:      rgba(255,255,255,0.55);
+  --kk-glass-lo:      rgba(43,29,24,0.10);
+  --kk-glass-shadow:  0 24px 60px rgba(70,45,30,0.18);
+}
+
+:root {
+  /* Type */
+  --kk-f-lyric:    "Fraunces", "Iowan Old Style", Georgia, serif;
+  --kk-f-display:  "Cabinet Grotesk", "Satoshi", "Helvetica Neue", sans-serif;
+  --kk-f-body:     "Source Sans 3", "Helvetica Neue", system-ui, sans-serif;
+  --kk-f-mono:     "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* Type — sizes */
+  --kk-s-lyric:    19px;     /* lyric line */
+  --kk-s-lyric-h:  22px;     /* document title */
+  --kk-s-display:  14px;
+  --kk-s-body:     13px;
+  --kk-s-mono:     10.5px;
+  --kk-s-eyebrow:  9.5px;
+
+  /* Geometry */
+  --kk-r-1: 3px;
+  --kk-r-2: 6px;
+  --kk-r-3: 10px;
+  --kk-r-4: 14px;
+
+  /* Border language — settable by interview / theme overrides */
+  --kk-border-w: 1px;
+  --kk-border-style: solid;
+
+  /* Lyric weight — settable by interview */
+  --kk-lyric-weight: 450;
+
+  /* Motion — durations / easings */
+  --kk-d-fast: 120ms;
+  --kk-d-med:  220ms;
+  --kk-d-slow: 420ms;
+  --kk-e-out:  cubic-bezier(0.2, 0.7, 0.2, 1);
+  --kk-e-in:   cubic-bezier(0.6, 0, 0.8, 0.4);
+  --kk-e-spring: cubic-bezier(0.34, 1.45, 0.55, 1);
+}
+
