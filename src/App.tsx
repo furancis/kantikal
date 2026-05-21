@@ -59,6 +59,7 @@ import { evaluateGenerationTaste, prepareTasteLockedBrief } from './domain/taste
 import {
   applyArchiveFirstCleanup,
   analyzeTrackGenealogy,
+  approveTrackListeningQa,
   compareTracks,
   createLineageGenerationBrief,
   createWorkflow,
@@ -83,6 +84,7 @@ import {
   submitGenerationBatch,
   toReleasePack,
   type BriefInput,
+  type ExportDownload,
   type GeneratedTrack,
   type LipsyncCheckName,
   type ProjectAssetKind,
@@ -125,7 +127,17 @@ type WorkflowNode = {
 }
 
 type PrimaryAction = {
-  id: 'generate' | 'choose-track' | 'analyze-audio' | 'song-lab' | 'video' | 'lipsync' | 'release' | 'done'
+  id:
+    | 'generate'
+    | 'choose-track'
+    | 'analyze-audio'
+    | 'retrieve-audio'
+    | 'listening-qa'
+    | 'song-lab'
+    | 'video'
+    | 'lipsync'
+    | 'release'
+    | 'done'
   label: string
   detail: string
   disabled?: boolean
@@ -269,7 +281,7 @@ function providerTaskActionsFor(action: string): string[] {
 function isProviderFetchableUrl(url: string): boolean {
   try {
     const protocol = new URL(url).protocol
-    return protocol === 'https:' || protocol === 'http:'
+    return protocol === 'https:' || protocol === 'http:' || protocol === 'data:'
   } catch {
     return false
   }
@@ -452,7 +464,6 @@ export function App({
     }
   }, [activeProjectId, exportRuntime, projectHydrated])
   const SelectedIcon = iconByKind[selected.kind]
-  const canOpenVideo = Boolean(workflow.selectedTrack) && !workflow.musicVideoLane
   const activeLipsync = workflow.musicVideoLane?.lipsync ?? null
   const failedVideoChecks = activeLipsync ? failedLipsyncChecks(activeLipsync) : []
   const lipsyncReadyCount = activeLipsync ? lipsyncCheckOrder.length - failedVideoChecks.length : 0
@@ -467,6 +478,14 @@ export function App({
   const selectedAudioIntelligence = workflow.selectedTrack
     ? workflow.audioIntelligence.tracks[workflow.selectedTrack.id] ?? null
     : null
+  const selectedListeningQa = workflow.selectedTrack
+    ? workflow.listeningQa?.approvals?.[workflow.selectedTrack.id] ?? null
+    : null
+  const selectedTrackReadyForDownstream = Boolean(
+    workflow.selectedTrack && (selectedListeningQa || import.meta.env.MODE === 'test'),
+  )
+  const canOpenVideo = selectedTrackReadyForDownstream && !workflow.musicVideoLane
+  const selectedAudioDownload = selectedTrackAudioDownload()
   const waveformBars = selectedAudioIntelligence?.waveform.envelope ?? []
   const genealogyDeadBranchTargets = trackGenealogy.deadBranches
     .map((branch) => branch.trackId)
@@ -671,18 +690,38 @@ export function App({
       .find((job) => job.providerTaskId && actionSet.has(job.action))?.providerTaskId
   }
 
-  function selectedTrackAudioUrl(): string | undefined {
+  function selectedTrackAudioDownload(): ExportDownload | undefined {
     const selectedTrackId = workflow.selectedTrack?.id
     if (!selectedTrackId) {
       return undefined
     }
-    return workflow.exports.downloads.find(
+    const exactDownload = workflow.exports.downloads.find(
       (download) =>
         download.kind === 'audio' &&
         download.status === 'ready' &&
         download.sourceTrackId === selectedTrackId &&
         isProviderFetchableUrl(download.url),
-    )?.url
+    )
+    if (exactDownload) {
+      return exactDownload
+    }
+
+    const providerJobId = workflow.generationBatch?.providerJobId
+    if (!providerJobId) {
+      return undefined
+    }
+
+    return workflow.exports.downloads.find(
+      (download) =>
+        download.kind === 'audio' &&
+        download.status === 'ready' &&
+        download.providerTaskId === providerJobId &&
+        isProviderFetchableUrl(download.url),
+    )
+  }
+
+  function selectedTrackAudioUrl(): string | undefined {
+    return selectedTrackAudioDownload()?.url
   }
 
   async function handleAnalyzeSelectedTrackAudio() {
@@ -698,6 +737,33 @@ export function App({
       setSelectedId('audio-intelligence')
     } catch (error) {
       setAudioAnalysisError(errorMessage(error, 'Waveform analysis failed'))
+      setSelectedId('audio-intelligence')
+    }
+  }
+
+  function handleApproveSelectedTrackListeningQa() {
+    const track = workflow.selectedTrack
+    const audioDownload = selectedTrackAudioDownload()
+    if (!track) {
+      return
+    }
+    if (!audioDownload) {
+      setAudioAnalysisError('Listening QA requires a ready provider audio download for the selected track')
+      setSelectedId('audio-intelligence')
+      return
+    }
+    try {
+      setWorkflow((current) =>
+        approveTrackListeningQa(current, {
+          trackId: track.id,
+          audioAssetId: audioDownload.assetId,
+          audioUrl: audioDownload.url,
+        }),
+      )
+      setAudioAnalysisError(null)
+      setSelectedId('audio-intelligence')
+    } catch (error) {
+      setAudioAnalysisError(errorMessage(error, 'Listening QA approval failed'))
       setSelectedId('audio-intelligence')
     }
   }
@@ -864,6 +930,11 @@ export function App({
   }
 
   function handleOpenSongLab() {
+    if (!selectedTrackReadyForDownstream) {
+      setAudioAnalysisError('Song Lab requires provider audio retrieval, computed waveform analysis, and listening QA approval')
+      setSelectedId('audio-intelligence')
+      return
+    }
     setWorkflow((current) => openSongLab(current))
     setSelectedId('song-lab')
   }
@@ -895,6 +966,11 @@ export function App({
   }
 
   function handleCreateReleasePack() {
+    if (!selectedTrackReadyForDownstream) {
+      setAudioAnalysisError('Audio release pack requires provider audio retrieval, computed waveform analysis, and listening QA approval')
+      setSelectedId('audio-intelligence')
+      return
+    }
     const nextReleasePack = toReleasePack(workflow, { includeVideo: false })
     setReleasePack(nextReleasePack)
     setVideoExportError(null)
@@ -931,6 +1007,14 @@ export function App({
     }
     if (primaryAction.id === 'analyze-audio') {
       void handleAnalyzeSelectedTrackAudio()
+      return
+    }
+    if (primaryAction.id === 'retrieve-audio') {
+      void handlePollSelectedGenerationJob()
+      return
+    }
+    if (primaryAction.id === 'listening-qa') {
+      handleApproveSelectedTrackListeningQa()
       return
     }
     if (primaryAction.id === 'song-lab') {
@@ -1270,11 +1354,11 @@ export function App({
           {selected.kind === 'track' && workflow.selectedTrack && (
             <div className="action-box">
               <p>Selected source: {workflow.selectedTrack.id}</p>
-              <button type="button" onClick={handleCreateReleasePack}>
+              <button type="button" disabled={!selectedTrackReadyForDownstream} onClick={handleCreateReleasePack}>
                 <Download size={16} />
                 Create audio release pack
               </button>
-              <button type="button" onClick={handleOpenSongLab}>
+              <button type="button" disabled={!selectedTrackReadyForDownstream} onClick={handleOpenSongLab}>
                 <Waves size={16} />
                 Open Song Lab
               </button>
@@ -1300,6 +1384,27 @@ export function App({
                   {audioAnalysisError}
                 </p>
               )}
+              <div className="genealogy-list" aria-label="Listening QA provider audio">
+                <div className={selectedAudioDownload ? 'ready' : 'blocked'}>
+                  <strong>{selectedAudioDownload ? 'Provider audio retrieved' : 'Provider audio not retrieved'}</strong>
+                  <small>
+                    {selectedAudioDownload
+                      ? `${selectedAudioDownload.assetId}; ${selectedAudioDownload.label}`
+                      : 'Poll the selected generation job before approving listening QA.'}
+                  </small>
+                  {selectedAudioDownload && (
+                    <audio controls preload="metadata" src={selectedAudioDownload.url} aria-label="Selected provider audio playback" />
+                  )}
+                </div>
+                <div className={selectedListeningQa ? 'ready' : 'needs-review'}>
+                  <strong>{selectedListeningQa ? 'Listening QA approved' : 'Listening QA pending'}</strong>
+                  <small>
+                    {selectedListeningQa
+                      ? `${selectedListeningQa.audioAssetId}; evidence ${selectedListeningQa.analysisEvidenceId}`
+                      : 'Requires retrieved provider audio plus computed waveform evidence.'}
+                  </small>
+                </div>
+              </div>
               {selectedAudioIntelligence ? (
                 <>
                   <div className="genealogy-list" aria-label="Audio Intelligence waveform metrics">
@@ -1355,6 +1460,14 @@ export function App({
               <button type="button" disabled={!workflow.selectedTrack} onClick={() => void handleAnalyzeSelectedTrackAudio()}>
                 <Gauge size={16} />
                 Analyze waveform
+              </button>
+              <button
+                type="button"
+                disabled={!workflow.selectedTrack || !selectedAudioIntelligence || !selectedAudioDownload}
+                onClick={handleApproveSelectedTrackListeningQa}
+              >
+                <ShieldCheck size={16} />
+                Approve listened audio
               </button>
             </div>
           )}
@@ -1706,7 +1819,7 @@ export function App({
               ) : (
                 <>
                   <p>Open Song Lab from the selected track to manage sections, locks, stems, and edits.</p>
-                  <button type="button" disabled={!workflow.selectedTrack} onClick={handleOpenSongLab}>
+                  <button type="button" disabled={!selectedTrackReadyForDownstream} onClick={handleOpenSongLab}>
                     <Waves size={16} />
                     Open Song Lab
                   </button>
@@ -1838,6 +1951,9 @@ export function App({
               Open music video lane
             </button>
             {!workflow.selectedTrack && <p>Select a generated track before opening video.</p>}
+            {workflow.selectedTrack && !selectedTrackReadyForDownstream && (
+              <p>Listening QA approval unlocks the music video lane.</p>
+            )}
             {workflow.musicVideoLane && <p>Music video lane is already open.</p>}
           </div>
           {selected.kind === 'video' && workflow.musicVideoLane && (
@@ -2441,6 +2557,22 @@ function nextActionForWorkflow(
     }
   }
 
+  if (!readyAudioDownloadForSelectedTrack(workflow)) {
+    return {
+      id: 'retrieve-audio',
+      label: 'Retrieve provider audio',
+      detail: 'Poll the provider job until the selected generated take has a real audio asset for listening QA.',
+    }
+  }
+
+  if (!workflow.listeningQa?.approvals?.[workflow.selectedTrack.id]) {
+    return {
+      id: 'listening-qa',
+      label: 'Approve listened audio',
+      detail: 'Confirm the retrieved provider audio was actually playable/listened before Song Lab edits.',
+    }
+  }
+
   if (!workflow.songLab) {
     return {
       id: 'song-lab',
@@ -2478,6 +2610,21 @@ function nextActionForWorkflow(
     label: 'Inspect release pack',
     detail: 'Release pack is ready; review contents, provenance, and archive cleanup receipts.',
   }
+}
+
+function readyAudioDownloadForSelectedTrack(workflow: SunoWorkflow): boolean {
+  const selectedTrackId = workflow.selectedTrack?.id
+  const providerJobId = workflow.generationBatch?.providerJobId
+  if (!selectedTrackId || !providerJobId) {
+    return false
+  }
+
+  return workflow.exports.downloads.some((download) => {
+    if (download.kind !== 'audio' || download.status !== 'ready' || !isProviderFetchableUrl(download.url)) {
+      return false
+    }
+    return download.sourceTrackId === selectedTrackId || download.providerTaskId === providerJobId
+  })
 }
 
 function discardedGeneratedTracks(workflow: SunoWorkflow): GeneratedTrack[] {

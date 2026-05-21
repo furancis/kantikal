@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import type { TestInfo } from '@playwright/test'
+import type { Page, TestInfo } from '@playwright/test'
 
 function projectIdFor(testInfo: TestInfo): string {
   return `e2e-${testInfo.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()}`
@@ -7,6 +7,19 @@ function projectIdFor(testInfo: TestInfo): string {
 
 function projectUrl(testInfo: TestInfo): string {
   return `/?projectId=${encodeURIComponent(projectIdFor(testInfo))}`
+}
+
+async function approveSelectedProviderAudio(page: Page) {
+  await page.getByRole('button', { name: 'Analyze waveform' }).first().click()
+  await expect(page.getByRole('heading', { name: 'Retrieve provider audio' })).toBeVisible()
+  await page.getByRole('button', { name: /Downloads \/ exports/i }).click()
+  await expect(page.getByRole('heading', { name: 'Provider export manager' })).toBeVisible()
+  await page.getByRole('button', { name: /Poll selected generation job/i }).click()
+  await expect(page.getByText(/Get music generation details ready/i)).toBeVisible()
+  await expect(page.getByText(/HTTP provider export route produced fixture downloadable outputs/i).first()).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Approve listened audio' })).toBeVisible()
+  await page.getByRole('button', { name: /Run primary next action/i }).click()
+  await expect(page.getByText(/Listening QA approved/i)).toBeVisible()
 }
 
 test.beforeEach(async ({ page }, testInfo) => {
@@ -59,7 +72,7 @@ test('renders the visual Suno workflow shell', async ({ page }, testInfo) => {
   await expect(page.getByRole('heading', { name: 'Audio Intelligence' }).last()).toBeVisible()
   await expect(page.getByLabel('Audio Intelligence waveform metrics')).toContainText(/transients/i)
   await expect(page.getByLabel('Audio Intelligence section energy')).toContainText(/hook/i)
-  await expect(page.getByRole('heading', { name: 'Open Song Lab' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Retrieve provider audio' })).toBeVisible()
   await page.getByRole('button', { name: /Downloads \/ exports/i }).click()
   await expect(page.getByRole('heading', { name: 'Provider export manager' })).toBeVisible()
   await page.getByRole('button', { name: /Poll selected generation job/i }).click()
@@ -68,6 +81,10 @@ test('renders the visual Suno workflow shell', async ({ page }, testInfo) => {
   await expect(page.getByText(/audio ready/i)).toBeVisible()
   await expect(page.getByText(/cover-art ready/i)).toBeVisible()
   await expect(page.getByText(/stem ready/i)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Approve listened audio' })).toBeVisible()
+  await page.getByRole('button', { name: /Run primary next action/i }).click()
+  await expect(page.getByText(/Listening QA approved/i)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Open Song Lab' })).toBeVisible()
   await page.getByRole('button', { name: /Source assets:/i }).click()
   await expect(page.getByText(/asset-generated-audio-/i)).toBeVisible()
   await page.getByRole('button', { name: /Version comparison/i }).click()
@@ -159,7 +176,9 @@ test('persists project workflow state across reload', async ({ page }, testInfo)
   await page.getByRole('textbox', { name: 'Voice' }).fill('Consented bright tenor persona')
   await page.getByRole('button', { name: /Generate Suno batch/i }).click()
   await page.getByRole('button', { name: /Neon khaliji club hook provider take 2/i }).click()
-  await page.locator('button').filter({ hasText: 'Open Song Lab' }).click()
+  await approveSelectedProviderAudio(page)
+  await expect(page.getByRole('heading', { name: 'Open Song Lab' })).toBeVisible()
+  await page.getByRole('button', { name: /Run primary next action/i }).click()
   await page.getByRole('button', { name: /Lock hook region/i }).click()
   await page.getByRole('button', { name: /Queue replace section/i }).click()
   await page.getByRole('button', { name: /Save selected to local library/i }).click()

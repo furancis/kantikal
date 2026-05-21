@@ -766,6 +766,11 @@ textarea {
   color: #b7b1a6;
 }
 
+.genealogy-list audio {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .comparison-list button {
   width: fit-content;
   margin-top: 6px;

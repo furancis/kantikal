@@ -9,7 +9,7 @@ export default defineConfig({
   webServer: {
     command: 'node scripts/e2e-dev-server.mjs',
     url: 'http://127.0.0.1:4174',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
   use: {
     baseURL: 'http://127.0.0.1:4174',

@@ -480,11 +480,26 @@ export type AudioIntelligenceState = {
   tracks: Record<string, TrackAudioIntelligence>
 }
 
+export type ListeningQaApproval = {
+  trackId: string
+  status: 'approved'
+  approvedAt: string
+  audioAssetId: string
+  audioUrl: string
+  analysisEvidenceId: string
+  notes: string
+}
+
+export type ListeningQaState = {
+  approvals: Record<string, ListeningQaApproval>
+}
+
 export type SunoWorkflow = BriefInput & {
   stage: WorkflowStage
   generationBatch: GenerationBatch | null
   selectedTrack: GeneratedTrack | null
   audioIntelligence: AudioIntelligenceState
+  listeningQa: ListeningQaState
   musicVideoLane: MusicVideoLane | null
   taste: TasteState
   songLab: SongLab | null
@@ -514,6 +529,7 @@ export function createWorkflow(input: BriefInput): SunoWorkflow {
     generationBatch: null,
     selectedTrack: null,
     audioIntelligence: emptyAudioIntelligenceState(),
+    listeningQa: emptyListeningQaState(),
     musicVideoLane: null,
     taste: emptyTasteState(),
     songLab: null,
@@ -543,6 +559,7 @@ export function submitGenerationBatch(
     generationBatch,
     selectedTrack: null,
     audioIntelligence: emptyAudioIntelligenceState(),
+    listeningQa: emptyListeningQaState(),
     musicVideoLane: null,
     taste: emptyTasteState(),
     songLab: null,
@@ -595,6 +612,38 @@ export function recordTrackAudioAnalysis(
       },
     },
     provenance: appendOnce(workflow.provenance, 'audio-intelligence'),
+  }
+}
+
+export function approveTrackListeningQa(
+  workflow: SunoWorkflow,
+  input: { trackId: string; audioAssetId: string; audioUrl: string; notes?: string },
+): SunoWorkflow {
+  ensureTrackInActiveBatch(workflow, input.trackId)
+  const analysis = workflow.audioIntelligence.tracks[input.trackId]
+  if (!analysis) {
+    throw new Error(`Listening QA for ${input.trackId} requires computed-audio analysis first`)
+  }
+
+  const approval: ListeningQaApproval = {
+    trackId: input.trackId,
+    status: 'approved',
+    approvedAt: '1970-01-01T00:00:00.000Z',
+    audioAssetId: input.audioAssetId,
+    audioUrl: input.audioUrl,
+    analysisEvidenceId: analysis.evidenceId,
+    notes: input.notes ?? 'Manual listening approval after provider audio retrieval and computed waveform analysis.',
+  }
+
+  return {
+    ...workflow,
+    listeningQa: {
+      approvals: {
+        ...(workflow.listeningQa ?? emptyListeningQaState()).approvals,
+        [input.trackId]: approval,
+      },
+    },
+    provenance: appendOnce(workflow.provenance, 'listening-qa-approved'),
   }
 }
 
@@ -2154,6 +2203,10 @@ function exportTaskStatusToProviderOutcome(status: ExportTaskStatus): ProviderJo
     return 'planned'
   }
   return 'blocked'
+}
+
+function emptyListeningQaState(): ListeningQaState {
+  return { approvals: {} }
 }
 
 function toProviderOutputRecord(

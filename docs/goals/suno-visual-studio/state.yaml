@@ -5,7 +5,7 @@ mode: specific
 goal:
   status: active
   title: "Real The Kantikal"
-active_task: T999-final-audit
+active_task: T290-live-provider-proof
 intake:
   original_request: "If the built repo is not the full functional TDD Greptile-approved app requested, make that the goal."
   interpreted_outcome: "Build the real full The Kantikal, sealf'salve's lyric-first music-generation machine; Suno Visual Studio remains the internal repo name."
@@ -2076,3 +2076,70 @@ tasks:
         - "The PR #8 lane is ready for review/merge, but the wider full-product goal still lacks live generated-audio retrieval/listening QA integrated into the app path."
         - "No final judge receipt proves real provider-created audio can be generated, retrieved, analyzed, and approved end to end inside The Kantikal."
       summary: "T260/PR #8 is complete and Greptile-approved. The full original product goal remains active until live generated-audio retrieval/listening QA is proven end to end."
+  - id: T280
+    type: worker
+    assignee: Codex
+    status: done
+    objective: "Implement the generated-audio retrieval and listening-QA product lane so The Kantikal cannot move selected provider output downstream without retrieved audio, computed waveform evidence, and explicit listening approval."
+    inputs:
+      - "User correction: full product completion is the goal, not PR readiness."
+      - "T999-final-audit blocker: live generated-audio retrieval/listening QA missing from the app path."
+      - "Current provider-export runtime, Audio Intelligence, Song Lab, Music Video Lane, and e2e flows."
+    constraints:
+      - "Do not fake audio intelligence."
+      - "Do not let fallback/local provider exports masquerade as live provider retrieval."
+      - "Keep browser/e2e execution hidden/headless."
+      - "Do not claim full-product completion without live credentialed provider or Printing Press proof."
+    receipt:
+      result: implemented_verified
+      full_outcome_complete: false
+      files:
+        - src/domain/workflow.ts
+        - src/domain/workflow.test.ts
+        - src/api/exportRuntime.ts
+        - src/api/exportRuntime.test.ts
+        - src/App.tsx
+        - src/App.test.tsx
+        - src/styles.css
+        - e2e/studio.spec.ts
+        - playwright.config.ts
+        - docs/goals/suno-visual-studio/state.yaml
+      evidence:
+        - "Selected-track Audio Intelligence now surfaces retrieved provider audio playback and listening-QA status."
+        - "approveTrackListeningQa requires computed-audio evidence before recording approval."
+        - "The primary workflow now requires: analyze waveform -> retrieve provider audio -> approve listened audio -> open Song Lab."
+        - "Direct Song Lab, audio release pack, and Music Video Lane UI commands are gated outside Vitest fixture mode until listening QA is approved."
+        - "Provider export downloads match the selected track by exact sourceTrackId or by the active generation providerTaskId, so provider output IDs can differ from local generated placeholder IDs."
+        - "Fetch provider-export runtime no longer falls back to local generated outputs when the HTTP route is missing or unreachable unless a caller explicitly injects a test fallback."
+        - "Playwright no longer reuses an arbitrary existing server on port 4174, so e2e owns its fixture server mode and DB state."
+      commands:
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      remaining_blockers:
+        - "No live SUNO_API_KEY or Printing Press authenticated provider proof was available in this runtime, so the wider full-product goal still needs one credentialed generation/retrieval/listening-QA receipt."
+      summary: "The in-product retrieval/listening-QA lane is implemented and locally verified. Full goal completion remains blocked only on a live credentialed provider or authenticated Printing Press proof run."
+  - id: T290-live-provider-proof
+    type: verifier
+    assignee: Codex
+    status: pending
+    objective: "Run and record one live credentialed provider or authenticated Printing Press proof that a real generated audio asset can be created, retrieved, decoded/analyzed, played, and approved in The Kantikal."
+    constraints:
+      - "Do not print or persist credential material."
+      - "Use hidden/headless browser paths unless the user explicitly asks for a visible review window."
+      - "No full-product completion claim until this proof exists."

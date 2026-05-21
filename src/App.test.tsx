@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import {
   createMemoryProjectStore,
@@ -170,7 +170,7 @@ describe('The Kantikal shell', () => {
     expect(screen.getByLabelText(/audio intelligence waveform metrics/i)).toHaveTextContent(/peak/i)
     expect(screen.getByLabelText(/audio intelligence waveform metrics/i)).toHaveTextContent(/transients/i)
     expect(screen.getByLabelText(/audio intelligence section energy/i)).toHaveTextContent(/hook/i)
-    expect(screen.getByRole('heading', { name: /open song lab/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /retrieve provider audio/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/waveform detection envelope/i)).not.toHaveTextContent(/no waveform analysis/i)
 
     await user.click(screen.getByRole('button', { name: /open music video lane/i }))
@@ -644,6 +644,107 @@ describe('The Kantikal shell', () => {
     await user.click(screen.getByRole('button', { name: /source assets:/i }))
     expect(screen.getByText(/asset-generated-audio-/i)).toBeInTheDocument()
     expect(screen.getByText(/generated-audio; .*master audio/i)).toBeInTheDocument()
+  })
+
+  it('hydrates provider audio into playback, computed analysis, and listening QA approval', async () => {
+    const user = userEvent.setup()
+    const provider: SunoProvider = {
+      async generateBatch() {
+        return {
+          providerJobId: 'task_live_audio',
+          tracks: [
+            { id: 'task-live-audio-track-1', title: 'Live audio take 1', durationSeconds: 151 },
+            { id: 'task-live-audio-track-2', title: 'Live audio take 2', durationSeconds: 154 },
+          ],
+        }
+      },
+    }
+    const exportRuntime: ProviderExportRuntimeClient = {
+      async hydrate() {
+        return null
+      },
+      async pollGenerationTask({ projectId, workflow }) {
+        const nextWorkflow = recordProviderTaskUpdate(workflow, {
+          providerTaskId: 'task_live_audio',
+          action: 'pollGenerationStatus',
+          capability: 'Get music generation details',
+          providerStatus: 'SUCCESS',
+          message: 'Provider returned playable audio',
+          outputs: [
+            {
+              kind: 'audio',
+              label: 'Provider song B master audio',
+              url: 'https://cdn.example.test/provider-song-b.mp3',
+              sourceTrackId: 'provider-song-b',
+            },
+          ],
+          receiptId: 'poll-task-live-audio',
+        })
+        return {
+          projectId,
+          projectAssets: nextWorkflow.projectAssets,
+          exports: nextWorkflow.exports,
+          jobQueue: nextWorkflow.jobQueue,
+          provenance: nextWorkflow.provenance,
+        }
+      },
+      async receiveFailedCallback() {
+        throw new Error('callback not used')
+      },
+      async recordProviderVideoOutput() {
+        throw new Error('video not used')
+      },
+    }
+    const channel = Float32Array.from({ length: 44_100 }, (_, index) =>
+      index % 4_000 === 0 ? 0.92 : Math.sin(index / 18) * 0.34,
+    )
+    const close = vi.fn(async () => undefined)
+    const decodeAudioData = vi.fn(async () => ({
+      numberOfChannels: 1,
+      sampleRate: 44_100,
+      getChannelData: () => channel,
+    }))
+    class MockAudioContext {
+      decodeAudioData = decodeAudioData
+      close = close
+    }
+    vi.stubGlobal('AudioContext', MockAudioContext)
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3, 4]).buffer, {
+        status: 200,
+        headers: { 'Content-Type': 'audio/mpeg' },
+      }),
+    )
+
+    try {
+      render(<App provider={provider} exportRuntime={exportRuntime} />)
+
+      await user.click(screen.getByRole('button', { name: /generate suno batch/i }))
+      await user.click(await screen.findByRole('button', { name: /live audio take 2/i }))
+      await user.click(screen.getByRole('button', { name: /downloads \/ exports/i }))
+      await user.click(screen.getByRole('button', { name: /poll selected generation job/i }))
+      expect((await screen.findAllByText(/Provider returned playable audio/i)).length).toBeGreaterThan(0)
+
+      await user.click(screen.getByRole('button', { name: /chosen track/i }))
+      await user.click(screen.getByRole('button', { name: /analyze waveform/i }))
+
+      expect(await screen.findByLabelText(/selected provider audio playback/i)).toHaveAttribute(
+        'src',
+        'https://cdn.example.test/provider-song-b.mp3',
+      )
+      expect(fetchSpy).toHaveBeenCalledWith('https://cdn.example.test/provider-song-b.mp3')
+      expect(await screen.findByLabelText(/audio intelligence waveform metrics/i)).toHaveTextContent(/peak/i)
+      expect(screen.getByText(/listening qa pending/i)).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: /approve listened audio/i }))
+
+      expect(screen.getByText(/Listening QA approved/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/asset-generated-audio-task-live-audio-1/i).length).toBeGreaterThan(0)
+      expect(screen.getByRole('heading', { name: /open song lab/i })).toBeInTheDocument()
+    } finally {
+      vi.restoreAllMocks()
+      vi.unstubAllGlobals()
+    }
   })
 
   it('hydrates provider export state from the runtime boundary on load', async () => {

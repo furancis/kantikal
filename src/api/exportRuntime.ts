@@ -35,23 +35,29 @@ export function createFetchProviderExportRuntimeClient(
   input: ProviderExportFetchRuntimeInput = {},
 ): ProviderExportRuntimeClient {
   const fetchImpl = input.fetchImpl ?? fetch
-  const fallback = input.fallback ?? createLocalProviderExportRuntimeClient()
+  const fallback = input.fallback
 
   async function requestRoute<T>(
     projectId: string,
     path: string,
     init: RequestInit,
-    fallbackAction: () => Promise<T>,
+    fallbackAction: (() => Promise<T>) | undefined,
   ): Promise<T> {
     let response: Response
     try {
       response = await fetchImpl(providerExportRoute(input.baseUrl, projectId, path), init)
-    } catch {
-      return fallbackAction()
+    } catch (error) {
+      if (fallbackAction) {
+        return fallbackAction()
+      }
+      throw new Error(`Provider export route unavailable: ${errorMessage(error)}`, { cause: error })
     }
 
     if (response.status === 404) {
-      return fallbackAction()
+      if (fallbackAction) {
+        return fallbackAction()
+      }
+      throw new Error('Provider export route unavailable: HTTP 404')
     }
 
     const payload = await readRoutePayload(response)
@@ -66,7 +72,7 @@ export function createFetchProviderExportRuntimeClient(
 
   return {
     async hydrate(projectId) {
-      return requestRoute(projectId, '', { method: 'GET' }, () => fallback.hydrate(projectId))
+      return requestRoute(projectId, '', { method: 'GET' }, fallback ? () => fallback.hydrate(projectId) : undefined)
     },
 
     async pollGenerationTask(request) {
@@ -74,7 +80,7 @@ export function createFetchProviderExportRuntimeClient(
         request.projectId,
         'poll-generation-task',
         jsonRequest({ workflow: request.workflow }),
-        () => fallback.pollGenerationTask(request),
+        fallback ? () => fallback.pollGenerationTask(request) : undefined,
       )
     },
 
@@ -83,7 +89,7 @@ export function createFetchProviderExportRuntimeClient(
         request.projectId,
         'callback',
         jsonRequest({ workflow: request.workflow }),
-        () => fallback.receiveFailedCallback(request),
+        fallback ? () => fallback.receiveFailedCallback(request) : undefined,
       )
     },
 
@@ -92,7 +98,7 @@ export function createFetchProviderExportRuntimeClient(
         request.projectId,
         'video-output',
         jsonRequest({ workflow: request.workflow }),
-        () => fallback.recordProviderVideoOutput(request),
+        fallback ? () => fallback.recordProviderVideoOutput(request) : undefined,
       )
     },
   }
@@ -256,6 +262,10 @@ async function readRoutePayload(response: Response): Promise<Record<string, unkn
 
 function stringFrom(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

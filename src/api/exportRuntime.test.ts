@@ -66,8 +66,21 @@ describe('fetch provider export runtime client', () => {
     })
   })
 
-  it('falls back to the local runtime when the HTTP route is unavailable', async () => {
+  it('surfaces unreachable provider export routes instead of hiding them behind local output', async () => {
     const client = createFetchProviderExportRuntimeClient({
+      fetchImpl: async () => {
+        throw new Error('route unavailable')
+      },
+    })
+
+    await expect(
+      client.pollGenerationTask({ projectId: 'project-a', workflow: workflowWithGeneration() }),
+    ).rejects.toThrow(/provider export route unavailable: route unavailable/i)
+  })
+
+  it('allows local provider export behavior only when a caller explicitly injects a fallback', async () => {
+    const client = createFetchProviderExportRuntimeClient({
+      fallback: createLocalProviderExportRuntimeClient(),
       fetchImpl: async () => {
         throw new Error('route unavailable')
       },
@@ -75,11 +88,18 @@ describe('fetch provider export runtime client', () => {
 
     const state = await client.pollGenerationTask({ projectId: 'project-a', workflow: workflowWithGeneration() })
 
-    expect(state.exports.tasks[0]).toMatchObject({
-      providerTaskId: 'task_fetch',
-      status: 'ready',
-    })
+    expect(state.exports.tasks[0]).toMatchObject({ providerTaskId: 'task_fetch', status: 'ready' })
     expect(state.exports.downloads.map((download) => download.kind)).toEqual(['audio', 'cover-art', 'stem'])
+  })
+
+  it('surfaces absent provider export routes unless a fallback is explicit', async () => {
+    const client = createFetchProviderExportRuntimeClient({
+      fetchImpl: async () => new Response('', { status: 404 }),
+    })
+
+    await expect(
+      client.pollGenerationTask({ projectId: 'project-a', workflow: workflowWithGeneration() }),
+    ).rejects.toThrow(/provider export route unavailable: HTTP 404/i)
   })
 
   it('surfaces mounted HTTP route failures instead of falling back to local state', async () => {

@@ -3,6 +3,7 @@ import { analyzeWaveformSamples, createLikedStyleWaveformFixture } from './audio
 import {
   applyArchiveFirstCleanup,
   analyzeTrackGenealogy,
+  approveTrackListeningQa,
   compareTracks,
   createLineageGenerationBrief,
   createWorkflow,
@@ -1080,6 +1081,50 @@ describe('Suno workflow state machine', () => {
       trackId: 'song_a',
       why: expect.arrayContaining([expect.stringMatching(/audio: clear rhythmic transients/i)]),
     })
+  })
+
+  it('requires computed-audio evidence before a retrieved provider track can receive listening QA approval', () => {
+    const selected = selectTrack(
+      submitGenerationBatch(
+        createWorkflow({
+          brief: 'Provider audio QA hook',
+          lyrics: 'Verse pre chorus',
+          style: 'tight dark pop',
+          voice: 'consented lead',
+        }),
+        {
+          providerJobId: 'task_qa',
+          tracks: [{ id: 'task-qa-track-1', title: 'Provider QA take', durationSeconds: 151 }],
+        },
+      ),
+      'task-qa-track-1',
+    )
+
+    expect(() =>
+      approveTrackListeningQa(selected, {
+        trackId: 'task-qa-track-1',
+        audioAssetId: 'asset-generated-audio-task-qa-1',
+        audioUrl: 'https://cdn.example/qa.mp3',
+      }),
+    ).toThrow(/computed-audio analysis/i)
+
+    const analyzed = recordTrackAudioAnalysis(
+      selected,
+      'task-qa-track-1',
+      analyzeWaveformSamples(createLikedStyleWaveformFixture('task-qa-track-1')),
+    )
+    const approved = approveTrackListeningQa(analyzed, {
+      trackId: 'task-qa-track-1',
+      audioAssetId: 'asset-generated-audio-task-qa-1',
+      audioUrl: 'https://cdn.example/qa.mp3',
+    })
+
+    expect(approved.listeningQa.approvals['task-qa-track-1']).toMatchObject({
+      status: 'approved',
+      audioAssetId: 'asset-generated-audio-task-qa-1',
+      analysisEvidenceId: 'audio-intelligence-task-qa-track-1',
+    })
+    expect(approved.provenance).toEqual(expect.arrayContaining(['audio-intelligence', 'listening-qa-approved']))
   })
 
   it('refuses to clean up the selected source track', () => {
