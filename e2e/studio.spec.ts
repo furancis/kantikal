@@ -1,8 +1,11 @@
 import { expect, test } from '@playwright/test'
 import type { Page, TestInfo } from '@playwright/test'
 
+const e2eRunId = process.env.KANTIKAL_E2E_RUN_ID ?? `run-${Date.now().toString(36)}`
+
 function projectIdFor(testInfo: TestInfo): string {
-  return `e2e-${testInfo.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()}`
+  const titleSlug = testInfo.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()
+  return `e2e-${e2eRunId}-${titleSlug}`
 }
 
 function projectUrl(testInfo: TestInfo): string {
