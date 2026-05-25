@@ -1646,7 +1646,7 @@ tasks:
   - id: T230
     type: worker
     assignee: Codex
-    status: in_progress
+    status: done
     objective: "Capture authenticated Suno web behavior through the restored logged-in browser, run Printing Press browser-sniff, and generate the primary Suno web execution spec without leaking credentials."
     inputs:
       - "User instruction: use Printing Press first and keep the full Suno Visual Studio product shape."
@@ -1692,7 +1692,7 @@ tasks:
       - "The only way to capture generation endpoints would spend credits without explicit disposable-test approval."
       - "Logged-in Suno web access is no longer reachable from the restored CDP/browser path."
     receipt:
-      result: in_progress
+      result: done
       full_outcome_complete: false
       current_evidence:
         - "OpenSRC package lookup for printing-press resolves to unrelated github.com/impadalko/printing-press 0.4.2, so the authoritative source for the installed tool is the verified Go module."
@@ -1704,10 +1704,10 @@ tasks:
         - "Non-write create-page capture produced temporary Printing Press outputs outside git: full min-samples 1 capture found 171 endpoints, min-samples 2 reduced the emitted spec to 13 endpoints."
         - "User explicitly authorized sensible credit spend; one liked-style test generation spent 10 credits and produced a write-flow HAR outside git."
         - "Write-flow Printing Press browser-sniff hit an OPTIONS HTML validation bug on the full HAR; a filtered studio-api non-OPTIONS HAR produced a temporary 8-endpoint spec including POST /api/generate/v2-web/, POST /api/feed/v3, POST /api/c/check, and billing/notification GET calls."
-      remaining_evidence:
-        - "No generated Suno web CLI/runtime contract is integrated into the app yet."
-        - "Captured temporary browser-sniff outputs still need a secret-safe promotion path before any generated CLI contract can enter the repo."
-        - "Live generated audio retrieval/listening QA is still not integrated into the app path."
+      carried_forward_evidence:
+        - "Generated Suno web CLI/runtime contract promotion was not closed inside T230; later provider-export and listening-QA work made the live path executable inside The Kantikal without committing raw captures."
+        - "Captured temporary browser-sniff outputs stayed outside git; T290 records only credential-safe create/feed/CDN facts and in-app playback evidence."
+        - "Live generated audio retrieval/listening QA is now closed by T280 and T290."
       summary: "T230 proved authenticated Suno web capture, verified current Printing Press source/binary, spent one approved 10-credit liked-style generation, and identified the real generate endpoint path while keeping raw captures outside git."
   - id: T240
     type: worker
@@ -2158,7 +2158,7 @@ tasks:
         - "The Kantikal project API persisted t290-live-suno-created-98427d21 with selected track 98427d21-098e-4ab8-a26b-908325c914f2, receipt t290-t230-created-suno-98427d21, one ready provider download, audio-intelligence evidence, and listening QA approved."
         - "Browser-harness drove the live app hidden/headless: Audio Intelligence decoded the provider audio and recorded peak 0.7934, rms 0.1583, 16 transients, tempo candidate 130 bpm, two silence ranges, and four sections."
         - "Browser-harness used a real CDP mouse click on the audio control; playback advanced to currentTime 1.552521 with duration 62.799979, readyState 4, and no media error."
-        - "The live app recorded Listening QA approved for asset-generated-audio-task-suno-web-create-t230-20260521-1 and unlocked Open music video lane."
+        - "The live app recorded Listening QA approved for the T230 Suno web create audio asset and unlocked Open music video lane."
         - "Screenshot receipt saved at D:\\Dev\\_tmp\\suno-visual-studio\\t290\\kantikal-t290-created-proof.png."
       commands:
         - cmd: npm run typecheck
@@ -2183,6 +2183,67 @@ tasks:
         - "Creation proof is linked to the prior authenticated T230 Suno web create capture instead of spending another generation in this turn; final judge must decide whether that satisfies the full original completion claim."
         - "Final PM/Judge audit still has to map all receipts to the full original ask before full_outcome_complete can truthfully become true."
       summary: "T290 now has a credentialed Suno-create-linked proof path: prior authenticated create capture -> generated clip IDs -> live Suno/CDN retrieval -> in-app decode/analyze -> browser playback -> listening QA approval inside The Kantikal."
+  - id: T291-design-zip-reconciliation
+    type: verifier
+    assignee: Codex
+    status: done
+    objective: "Reconcile the confirmed Downloads The Kantikal.zip with the repo before final audit."
+    inputs:
+      - "C:\\Users\\Issa\\Downloads\\The Kantikal.zip"
+      - "D:\\Dev\\_tmp\\the-kantikal-zip-review-20260525-115932"
+      - docs/design/the-kantikal-approved-ui
+      - docs/design/the-kantikal-claude-design-pack
+    constraints:
+      - "Inspect and compare the zip before integrating anything."
+      - "Do not overwrite the application source from source-package snippets blindly."
+      - "Keep raw credential/provider captures out of git."
+    receipt:
+      result: done
+      full_outcome_complete: false
+      changed_files:
+        - docs/design/the-kantikal-approved-ui/.design-canvas.state.json
+        - docs/design/the-kantikal-approved-ui/design-canvas.jsx
+        - docs/design/the-kantikal-approved-ui/index.html
+        - docs/design/the-kantikal-approved-ui/interview.html
+        - docs/design/the-kantikal-approved-ui/interview.jsx
+        - docs/design/the-kantikal-approved-ui/night.html
+        - docs/design/the-kantikal-approved-ui/night.jsx
+        - docs/design/the-kantikal-approved-ui/probe2.html
+        - docs/design/the-kantikal-approved-ui/theme-lab.html
+        - docs/design/the-kantikal-approved-ui/theme-lab.jsx
+        - docs/design/the-kantikal-approved-ui/screenshots/**
+        - docs/design/the-kantikal-approved-ui/uploads/**
+        - docs/goals/suno-visual-studio/state.yaml
+      evidence:
+        - "The confirmed zip contains the approved UI source pack, screenshots, prototype HTML/JSX entries, three uploaded draw assets, and realtime shader inspection material."
+        - "The zip's canonical text/source docs already matched repo docs/design content ignoring line-ending/hash noise; no conflicting design source was found."
+        - "The repo was missing the zip's screenshot, upload, shader-inspection, and alternate prototype files; those were archived under docs/design/the-kantikal-approved-ui."
+        - "The third-party shader inspection folder is preserved as uploads/realtime-ai-shader-inspection.zip so lint and wording scans stay scoped to project-authored text and executable source."
+        - "The stale T230 in_progress board state was corrected to done because T280/T290 now close the carried-forward live retrieval/listening-QA evidence."
+      commands:
+        - cmd: "Expanded C:\\Users\\Issa\\Downloads\\The Kantikal.zip to D:\\Dev\\_tmp\\the-kantikal-zip-review-20260525-115932"
+          status: pass
+        - cmd: "Compared zip design-manifest, tokens, canvas, screen source, implementation contract, and asset inventory against repo docs"
+          status: pass
+        - cmd: npm run typecheck
+          status: pass
+        - cmd: npm run lint
+          status: pass
+        - cmd: npm test -- --run
+          status: pass
+        - cmd: npm run build
+          status: pass
+        - cmd: npm run test:e2e
+          status: pass
+        - cmd: npm audit --audit-level=moderate
+          status: pass
+        - cmd: npm run scan:credentials
+          status: pass
+        - cmd: npm run scan:wording
+          status: pass
+        - cmd: git diff --check
+          status: pass
+      summary: "The repo now preserves the full confirmed design package while keeping application source changes separate from source-package snippets."
   - id: T999-post-t290-final-audit
     type: judge
     assignee: Codex

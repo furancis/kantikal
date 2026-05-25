@@ -1,0 +1,44 @@
+<!doctype html>
+<html><body><pre id="out">…</pre>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+<script type="module">
+const out = document.getElementById('out');
+const log = (s) => { out.textContent += s + "\n"; };
+const tries = [
+  'https://esm.sh/@liquid-dom/react@latest?deps=react@18.3.1,react-dom@18.3.1',
+  'https://esm.sh/*@liquid-dom/react@latest',
+  'https://esm.sh/@liquid-dom/react@latest?bundle-deps',
+  'https://esm.sh/@liquid-dom/react@latest?standalone',
+];
+for (const u of tries) {
+  try {
+    const m = await import(u);
+    log('OK ' + u);
+    log('  keys: ' + Object.keys(m).slice(0,15).join(','));
+    // try mounting
+    if (m.GlassContainer && m.Glass && m.Background) {
+      try {
+        const root = document.createElement('div');
+        document.body.appendChild(root);
+        const r = ReactDOM.createRoot(root);
+        r.render(React.createElement(m.GlassContainer, {style:{width:200,height:80}},
+          React.createElement(m.Background, null,
+            React.createElement('div', {style:{background:'#0af', width:200, height:80}})
+          ),
+          React.createElement(m.Glass, {style:{position:'absolute', inset:0}})
+        ));
+        await new Promise(r => setTimeout(r, 400));
+        log('  mounted ok, canvases: ' + root.querySelectorAll('canvas').length);
+        break;
+      } catch (e) {
+        log('  mount err: ' + (e.message || e).slice(0, 220));
+      }
+    }
+  } catch (e) {
+    log('FAIL ' + u);
+    log('  ' + (e.message || e).slice(0, 220));
+  }
+}
+</script>
+</body></html>

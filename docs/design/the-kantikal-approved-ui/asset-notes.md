@@ -75,7 +75,7 @@ provides its own wordmark / sigil, it replaces the inline SVG in
 ## Bundling
 
 - All fonts are self-hosted under `src/fonts/`.
-- The reference orb shader code (in `uploads/realtime-ai-shader-inspection/`)
+- The reference orb shader code (in `uploads/realtime-ai-shader-inspection.zip`)
   is **inspection material only** — none of it is bundled. Our `LyricFabric`
   is an independent implementation in `lib/fabric.jsx`.
 - `@liquid-dom/*` packages ship from the repo's npm install. No CDN at
