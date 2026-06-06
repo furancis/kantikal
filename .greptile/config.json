@@ -1,0 +1,70 @@
+{
+  "strictness": 3,
+  "commentTypes": ["logic", "syntax", "style"],
+  "triggerOnUpdates": true,
+  "statusCheck": true,
+  "updateExistingSummaryComment": true,
+  "fileChangeLimit": 80,
+  "ignorePatterns": "node_modules/**\ndist/**\ncoverage/**\nplaywright-report/**\ntest-results/**\n*.log",
+  "summarySection": {
+    "included": true,
+    "collapsible": true,
+    "defaultOpen": false
+  },
+  "issuesTableSection": {
+    "included": true,
+    "collapsible": true,
+    "defaultOpen": true
+  },
+  "confidenceScoreSection": {
+    "included": true,
+    "collapsible": true,
+    "defaultOpen": false
+  },
+  "instructions": "Kantikal is a visual-first music generation operating app. Reviews must protect the full workflow shape: idea, prompt, lyrics, style, voice/persona, batch generation, song comparison, Song Lab edits, stems, library, cleanup, music-video lane, lipsync QA, and release pack.",
+  "rules": [
+    {
+      "id": "visual-app-not-cli",
+      "rule": "Do not collapse the product into a CLI, script, or ComfyUI-only workflow. UI and docs must preserve the visual canvas and Claude Design-style operating model.",
+      "scope": ["src/**", "docs/**"],
+      "severity": "high"
+    },
+    {
+      "id": "music-video-is-subfeature",
+      "rule": "Music video must remain a subfeature opened from a selected song/version. It must not become the top-level product or replace the provider music workflow.",
+      "scope": ["src/**", "docs/**"],
+      "severity": "high"
+    },
+    {
+      "id": "full-api-coverage",
+      "rule": "Any provider capability must be represented in the API coverage map as implemented, planned, blocked, unsupported, or deprecated.",
+      "scope": ["docs/api-coverage.md", "src/**"],
+      "severity": "high"
+    },
+    {
+      "id": "perfect-lipsync-gate",
+      "rule": "Music-video export must not pass on approximate lip sync. Phoneme, mouth-shape, frame, and segment drift checks must be explicit.",
+      "scope": ["src/**", "docs/**"],
+      "severity": "high"
+    },
+    {
+      "id": "archive-first-cleanup",
+      "rule": "Delete, trash, unlike, archive, unpublish, purge, or cleanup actions must be archive-first where possible and leave receipts/audit state.",
+      "scope": ["src/**", "docs/**"],
+      "severity": "medium"
+    },
+    {
+      "id": "server-owned-secrets",
+      "rule": "Provider API keys and credentials must not be exposed in client code, docs examples, logs, screenshots, or bundles.",
+      "scope": ["src/**", "docs/**"],
+      "severity": "high"
+    },
+    {
+      "id": "ci-and-greptile-pr-gates",
+      "rule": "Pull requests must keep CI and Greptile review gates active: lint, typecheck, unit tests, build, browser E2E, dependency audit, credential literal scan, forbidden product wording scan, and unaddressed Greptile comment check.",
+      "scope": [".github/**", ".greptile/**", "docs/**", "package.json"],
+      "severity": "high"
+    }
+  ],
+  "disabledRules": []
+}

@@ -1,0 +1,2636 @@
+import {
+  Activity,
+  Archive,
+  Bot,
+  Boxes,
+  Clapperboard,
+  Download,
+  FileAudio,
+  FileText,
+  Gauge,
+  GitBranch,
+  KeyRound,
+  Library,
+  Mic2,
+  Play,
+  Scissors,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Video,
+  WandSparkles,
+  Waves,
+} from 'lucide-react'
+import type { ChangeEvent, ComponentType, FormEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { actionStateForEntry } from './api/actionCatalog'
+import type { ApiCoverageEntry } from './api/coverage'
+import { apiCoverageEntries, apiCoverageStatusCounts } from './api/coverage'
+import {
+  createLocalProviderExportRuntimeClient,
+  type ProviderExportRuntimeClient,
+} from './api/exportRuntime'
+import { mergeProviderExportSnapshot, type ProviderExportSnapshot } from './api/exportState'
+import {
+  createLocalMusicVideoRuntimeClient,
+  type MusicVideoRuntimeClient,
+} from './api/musicVideoRuntime'
+import {
+  createFetchProjectStore,
+  createMemoryProjectStore,
+  projectSnapshotFromState,
+  type ProjectStore,
+  type ProjectSummary,
+} from './api/projectStore'
+import { createMockMusicProvider, executeProviderAction } from './api/provider'
+import type { ProviderActionResult, MusicProvider } from './api/provider'
+import {
+  createLocalRuntimeStatusClient,
+  type RuntimeStatus,
+  type RuntimeStatusClient,
+} from './api/runtimeStatus'
+import {
+  analyzeWaveformSamples,
+  createLikedStyleWaveformFixture,
+  type AudioWaveformInput,
+  type WaveformAnalysisReport,
+} from './domain/audioAnalysis'
+import { evaluateGenerationTaste, prepareTasteLockedBrief } from './domain/tasteProfile'
+import {
+  applyArchiveFirstCleanup,
+  analyzeTrackGenealogy,
+  approveTrackListeningQa,
+  compareTracks,
+  createLineageGenerationBrief,
+  createWorkflow,
+  failedLipsyncChecks,
+  lockSongLabRegion,
+  mergeMusicVideoRuntimeWorkflow,
+  openSongLab,
+  openMusicVideoLane,
+  planComfyRenderGraph,
+  planArchiveFirstCleanup,
+  recordProjectAssetImport,
+  recordGenerationTasteGate,
+  recordTrackAudioAnalysis,
+  queueSongLabEdit,
+  queueLipsyncRepair,
+  queueMusicVideoRender,
+  rateTrack,
+  recordProviderJobResult,
+  restoreArchivedTracks,
+  saveSelectedTrackToLocalLibrary,
+  selectTrack,
+  submitGenerationBatch,
+  toReleasePack,
+  type BriefInput,
+  type ExportDownload,
+  type GeneratedTrack,
+  type LipsyncCheckName,
+  type ProjectAssetKind,
+  type ReleasePack,
+  type providerWorkflow,
+} from './domain/workflow'
+
+type NodeStatus = 'draft' | 'generating' | 'needs-review' | 'locked' | 'exported' | 'ready'
+type NodeKind =
+  | 'project'
+  | 'brief'
+  | 'lyrics'
+  | 'style'
+  | 'voice'
+  | 'assets'
+  | 'batch'
+  | 'generated'
+  | 'track'
+  | 'intelligence'
+  | 'stem'
+  | 'compare'
+  | 'genealogy'
+  | 'songlab'
+  | 'queue'
+  | 'library'
+  | 'downloads'
+  | 'video'
+  | 'export'
+
+type WorkflowNode = {
+  id: string
+  kind: NodeKind
+  title: string
+  summary: string
+  status: NodeStatus
+  x: number
+  y: number
+  meta: string[]
+  trackId?: string
+}
+
+type PrimaryAction = {
+  id:
+    | 'generate'
+    | 'choose-track'
+    | 'analyze-audio'
+    | 'retrieve-audio'
+    | 'listening-qa'
+    | 'song-lab'
+    | 'video'
+    | 'lipsync'
+    | 'release'
+    | 'done'
+  label: string
+  detail: string
+  disabled?: boolean
+}
+
+const initialBrief: BriefInput = {
+  brief: 'Arabic club-pop hook, bilingual chorus, dark cinematic lift',
+  lyrics: 'Verse, pre, chorus, bridge with syllable density markers',
+  style: 'Gulf percussion, polished electro-pop, restrained vocal glaze',
+  voice: 'Reusable vocal identity with prompt-safe consent notes',
+}
+
+const statusLabel: Record<NodeStatus, string> = {
+  draft: 'Draft',
+  generating: 'Generating',
+  'needs-review': 'Needs review',
+  locked: 'Locked',
+  exported: 'Exported',
+  ready: 'Ready',
+}
+
+const lipsyncCheckOrder: LipsyncCheckName[] = [
+  'phoneme',
+  'frame',
+  'mouthShape',
+  'segmentDrift',
+  'postStitch',
+]
+
+const lipsyncCheckLabels: Record<LipsyncCheckName, string> = {
+  phoneme: 'Phoneme lock',
+  frame: 'Frame timing',
+  mouthShape: 'Mouth shape',
+  segmentDrift: 'Segment drift',
+  postStitch: 'Post-stitch sync',
+}
+
+const lipsyncRepairLabels: Record<LipsyncCheckName, string> = {
+  phoneme: 'phoneme',
+  frame: 'frame',
+  mouthShape: 'mouth shape',
+  segmentDrift: 'segment drift',
+  postStitch: 'post-stitch',
+}
+
+const iconByKind: Record<NodeKind, ComponentType<{ size?: number }>> = {
+  project: Boxes,
+  brief: FileText,
+  lyrics: Mic2,
+  style: SlidersHorizontal,
+  voice: Bot,
+  assets: Boxes,
+  batch: Sparkles,
+  generated: FileAudio,
+  track: FileAudio,
+  intelligence: Gauge,
+  stem: Waves,
+  compare: GitBranch,
+  genealogy: GitBranch,
+  songlab: Waves,
+  queue: Activity,
+  library: Library,
+  downloads: Download,
+  video: Video,
+  export: Download,
+}
+
+const featureList = [
+  'Visual node canvas for idea to release workflow',
+  'Prompt, lyrics, style, voice and persona workbenches',
+  'Full provider capability map with unsupported endpoints explicitly flagged',
+  'Batch generation, version lineage, A/B comparison and taste scoring',
+  'Liked-track taste gate with anti-cliche provider prompt lock',
+  'Waveform, transient, silence and section-energy analysis for each selected track',
+  'Track Genealogy family tree with traits, mutations, dead branches and breeding suggestions',
+  'Song Lab timeline with regions, sections, stems and arrangement locks',
+  'Music video lane as a subfeature, not the main product',
+  'ComfyUI render planning, scene cards and asset routing',
+  'Perfect lipsync gate with phoneme/frame drift detection and repair loop',
+  'Archive-first destructive cleanup with undo, receipts and audit trail',
+  'Release pack export for audio, video, metadata, prompts and provenance',
+]
+
+type AppProps = {
+  provider?: MusicProvider
+  exportRuntime?: ProviderExportRuntimeClient
+  musicVideoRuntime?: MusicVideoRuntimeClient
+  runtimeStatusClient?: RuntimeStatusClient
+  projectStore?: ProjectStore
+  projectId?: string
+}
+
+type ProjectAssetAction = {
+  kind: ProjectAssetKind
+  label: string
+  action: string
+  capability: string
+  sourceIds: string[]
+  tags: string[]
+  consentNote?: string
+}
+
+const defaultProjectId = 'default-project'
+
+const providerTaskSourceActionsByAction: Record<string, string[]> = {
+  pollGenerationStatus: ['generateBatch'],
+  getLyricsGenerationDetails: ['generateLyrics'],
+  getMusicVideoDetails: ['createProviderMusicVideo', 'renderMusicVideo'],
+  getCoverArtDetails: ['generateCoverArt'],
+  getMidiDetails: ['generateMidi'],
+  getAudioSeparationDetails: ['separateStems'],
+  getWavConversionDetails: ['convertToWav'],
+  getVoiceValidationPhrase: ['generateVoiceValidationPhrase', 'regenerateVoiceValidationPhrase'],
+  getCustomVoiceRecord: ['createCustomVoice'],
+  generateCoverArt: ['pollGenerationStatus', 'generateBatch'],
+  getTimestampedLyrics: ['pollGenerationStatus', 'generateBatch'],
+  createProviderMusicVideo: ['pollGenerationStatus', 'generateBatch'],
+  separateStems: ['pollGenerationStatus', 'generateBatch'],
+  generateMidi: ['pollGenerationStatus', 'generateBatch'],
+  convertToWav: ['pollGenerationStatus', 'generateBatch'],
+  replaceSection: ['pollGenerationStatus', 'generateBatch'],
+  extendTrack: ['pollGenerationStatus', 'generateBatch'],
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
+
+function providerCallbackUrl(projectId: string): string | undefined {
+  if (typeof window === 'undefined') {
+    return undefined
+  }
+  return new URL(`/api/provider-exports/${encodeURIComponent(projectId)}/callback`, window.location.origin).toString()
+}
+
+function providerTaskActionsFor(action: string): string[] {
+  const sourceActions = providerTaskSourceActionsByAction[action] ?? []
+  return sourceActions.length > 0 ? [...sourceActions, action] : [action]
+}
+
+function isProviderFetchableUrl(url: string): boolean {
+  try {
+    const protocol = new URL(url).protocol
+    return protocol === 'https:' || protocol === 'http:' || protocol === 'data:'
+  } catch {
+    return false
+  }
+}
+
+export function App({
+  provider: injectedProvider,
+  exportRuntime: injectedExportRuntime,
+  musicVideoRuntime: injectedMusicVideoRuntime,
+  runtimeStatusClient: injectedRuntimeStatusClient,
+  projectStore: injectedProjectStore,
+  projectId = defaultProjectId,
+}: AppProps = {}) {
+  const mockProvider = useMemo(() => createMockMusicProvider(), [])
+  const localExportRuntime = useMemo(() => createLocalProviderExportRuntimeClient(), [])
+  const localMusicVideoRuntime = useMemo(
+    () => (import.meta.env.MODE === 'test'
+      ? createLocalMusicVideoRuntimeClient()
+      : {
+          async evaluateLipsync() {
+            throw new Error('Music video runtime route is required before lipsync QA can run')
+          },
+        }),
+    [],
+  )
+  const localRuntimeStatusClient = useMemo(() => createLocalRuntimeStatusClient(), [])
+  const localProjectStore = useMemo(
+    () => (import.meta.env.MODE === 'test' ? createMemoryProjectStore() : createFetchProjectStore()),
+    [],
+  )
+  const provider = injectedProvider ?? mockProvider
+  const exportRuntime = injectedExportRuntime ?? localExportRuntime
+  const musicVideoRuntime = injectedMusicVideoRuntime ?? localMusicVideoRuntime
+  const runtimeStatusClient = injectedRuntimeStatusClient ?? localRuntimeStatusClient
+  const projectStore = injectedProjectStore ?? localProjectStore
+  const coverageCounts = useMemo(() => apiCoverageStatusCounts(apiCoverageEntries), [])
+  const [activeProjectId, setActiveProjectId] = useState(projectId)
+  const [hydratedProjectId, setHydratedProjectId] = useState<string | null>(null)
+  const [projectStoreError, setProjectStoreError] = useState<string | null>(null)
+  const [recentProjects, setRecentProjects] = useState<ProjectSummary[]>([])
+  const [briefInput, setBriefInput] = useState<BriefInput>(initialBrief)
+  const [workflow, setWorkflow] = useState<providerWorkflow>(() => createWorkflow(initialBrief))
+  const [releasePack, setReleasePack] = useState<ReleasePack | null>(null)
+  const [selectedId, setSelectedId] = useState('project-lobby')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
+  const [audioAnalysisError, setAudioAnalysisError] = useState<string | null>(null)
+  const [videoExportError, setVideoExportError] = useState<string | null>(null)
+  const [exportRuntimeError, setExportRuntimeError] = useState<string | null>(null)
+  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null)
+  const [runtimeStatusError, setRuntimeStatusError] = useState<string | null>(null)
+  const [apiActionResult, setApiActionResult] = useState<ProviderActionResult | null>(null)
+  const projectHydrated = hydratedProjectId === activeProjectId
+
+  const workflowNodes = useMemo(
+    () => buildWorkflowNodes(workflow, releasePack, recentProjects, activeProjectId),
+    [workflow, releasePack, recentProjects, activeProjectId],
+  )
+  const selected = workflowNodes.find((node) => node.id === selectedId) ?? workflowNodes[0]
+
+  useEffect(() => {
+    let cancelled = false
+    void runtimeStatusClient
+      .load()
+      .then((status) => {
+        if (!cancelled) {
+          setRuntimeStatus(status)
+          setRuntimeStatusError(null)
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setRuntimeStatus(null)
+          setRuntimeStatusError(errorMessage(error, 'Runtime status failed'))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [runtimeStatusClient])
+
+  useEffect(() => {
+    setActiveProjectId(projectId)
+  }, [projectId])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadingProjectId = activeProjectId
+    setHydratedProjectId(null)
+    setProjectStoreError(null)
+    setIsGenerating(false)
+    setGenerateError(null)
+    setAudioAnalysisError(null)
+    setVideoExportError(null)
+    setExportRuntimeError(null)
+    setApiActionResult(null)
+    void projectStore
+      .loadProject(loadingProjectId)
+      .then((snapshot) => {
+        if (cancelled) {
+          return
+        }
+        if (snapshot) {
+          setBriefInput(snapshot.briefInput)
+          setWorkflow(snapshot.workflow)
+          setReleasePack(snapshot.releasePack)
+          setSelectedId('project-lobby')
+        }
+        setHydratedProjectId(loadingProjectId)
+      })
+      .then(() => projectStore.listProjects())
+      .then((projects) => {
+        if (!cancelled) {
+          setRecentProjects(projects)
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setProjectStoreError(errorMessage(error, 'Project hydration failed'))
+          setHydratedProjectId(loadingProjectId)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeProjectId, projectStore])
+
+  useEffect(() => {
+    if (hydratedProjectId !== activeProjectId) {
+      return
+    }
+    let cancelled = false
+    void projectStore
+      .saveProject(projectSnapshotFromState({
+        projectId: activeProjectId,
+        briefInput,
+        workflow,
+        releasePack,
+      }))
+      .then(() => projectStore.listProjects())
+      .then((projects) => {
+        if (!cancelled) {
+          setProjectStoreError(null)
+          setRecentProjects(projects)
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setProjectStoreError(errorMessage(error, 'Project save failed'))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeProjectId, briefInput, hydratedProjectId, projectStore, releasePack, workflow])
+
+  useEffect(() => {
+    if (!projectHydrated) {
+      return
+    }
+    let cancelled = false
+    void exportRuntime
+      .hydrate(activeProjectId)
+      .then((snapshot) => {
+        if (cancelled) {
+          return
+        }
+        setExportRuntimeError(null)
+        if (snapshot) {
+          setWorkflow((current) => mergeProviderExportSnapshot(current, snapshot))
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setExportRuntimeError(errorMessage(error, 'Provider export hydration failed'))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeProjectId, exportRuntime, projectHydrated])
+  const SelectedIcon = iconByKind[selected.kind]
+  const activeLipsync = workflow.musicVideoLane?.lipsync ?? null
+  const failedVideoChecks = activeLipsync ? failedLipsyncChecks(activeLipsync) : []
+  const lipsyncReadyCount = activeLipsync ? lipsyncCheckOrder.length - failedVideoChecks.length : 0
+  const lipsyncReadinessPercent = Math.round((lipsyncReadyCount / lipsyncCheckOrder.length) * 100)
+  const videoExportReady = workflow.musicVideoLane?.exportStatus === 'ready'
+  const cleanupTargets = discardedGeneratedTracks(workflow)
+  const cleanupStatus = workflow.cleanupPlan?.status ?? 'idle'
+  const promptLocked = isGenerating || Boolean(workflow.musicVideoLane)
+  const primaryAction = nextActionForWorkflow(workflow, releasePack, videoExportReady)
+  const trackGenealogy = useMemo(() => analyzeTrackGenealogy(workflow), [workflow])
+  const generationTasteGate = useMemo(() => evaluateGenerationTaste(briefInput), [briefInput])
+  const selectedAudioIntelligence = workflow.selectedTrack
+    ? workflow.audioIntelligence.tracks[workflow.selectedTrack.id] ?? null
+    : null
+  const selectedListeningQa = workflow.selectedTrack
+    ? workflow.listeningQa?.approvals?.[workflow.selectedTrack.id] ?? null
+    : null
+  const selectedTrackReadyForDownstream = Boolean(
+    workflow.selectedTrack && (selectedListeningQa || import.meta.env.MODE === 'test'),
+  )
+  const canOpenVideo = selectedTrackReadyForDownstream && !workflow.musicVideoLane
+  const selectedAudioDownload = selectedTrackAudioDownload()
+  const waveformBars = selectedAudioIntelligence?.waveform.envelope ?? []
+  const genealogyDeadBranchTargets = trackGenealogy.deadBranches
+    .map((branch) => branch.trackId)
+    .filter((trackId) =>
+      workflow.generationBatch?.tracks.some((track) => track.id === trackId) && trackId !== workflow.selectedTrack?.id,
+    )
+  const selectedTrackLabel = workflow.selectedTrack
+    ? `${workflow.selectedTrack.title} (${workflow.selectedTrack.id})`
+    : 'No selected source track'
+
+  async function handleGenerate(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault()
+    await generateFromBrief(briefInput)
+  }
+
+  async function generateFromBrief(input: BriefInput) {
+    setIsGenerating(true)
+    setGenerateError(null)
+    setAudioAnalysisError(null)
+    setVideoExportError(null)
+    try {
+      const generationGate = evaluateGenerationTaste(input)
+      const tasteLockedInput = prepareTasteLockedBrief(input, generationGate)
+      const generationBatch = await provider.generateBatch({
+        ...tasteLockedInput,
+        count: 2,
+      })
+      if (generationBatch.tracks.length === 0) {
+        throw new Error('Generation batch requires at least one track')
+      }
+      setReleasePack(null)
+      setWorkflow((current) => {
+        const baseWorkflow = {
+          ...createWorkflow(input),
+          projectAssets: current.projectAssets,
+          voicePersonas: current.voicePersonas,
+          exports: current.exports,
+          jobQueue: current.jobQueue,
+          provenance: current.provenance,
+        }
+        return recordGenerationTasteGate(submitGenerationBatch(baseWorkflow, generationBatch), generationGate)
+      })
+      setSelectedId('batch')
+    } catch (error) {
+      setGenerateError(error instanceof Error ? error.message : 'Generation failed')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  async function handleGenerateFromLineage() {
+    const suggestion = trackGenealogy.breedingSuggestions[0]
+    if (!suggestion || promptLocked) {
+      setSelectedId('track-genealogy')
+      return
+    }
+
+    const nextBrief = createLineageGenerationBrief(workflow, suggestion)
+    setBriefInput(nextBrief)
+    await generateFromBrief(nextBrief)
+  }
+
+  async function handleRunApiAction(entry: ApiCoverageEntry) {
+    const actionState = actionStateForEntry(entry)
+    try {
+      const result = await executeProviderAction(provider, {
+        action: entry.adapterAction,
+        capability: entry.capability,
+        brief: briefInput.brief,
+        lyrics: briefInput.lyrics,
+        style: briefInput.style,
+        voice: briefInput.voice,
+        payload: {
+          ...providerContextPayload(entry),
+          prompt: briefInput.lyrics || briefInput.brief,
+          style: briefInput.style,
+          title: briefInput.brief,
+        },
+      })
+      handleProviderActionResult(result)
+    } catch (error) {
+      handleProviderActionResult({
+        action: entry.adapterAction,
+        capability: entry.capability,
+        outcome: 'blocked',
+        message: error instanceof Error ? error.message : 'Provider action failed',
+        authBoundary: actionState.authBoundary,
+        endpoint: actionState.path,
+        receiptId: `provider-action-error-${entry.adapterAction}`,
+      })
+    }
+  }
+
+  function handleProviderActionResult(result: ProviderActionResult) {
+    setApiActionResult(result)
+    setWorkflow((current) => recordProviderJobResult(current, result))
+  }
+
+  async function handleImportProjectAsset(input: ProjectAssetAction) {
+    try {
+      const result = await executeProviderAction(provider, {
+        action: input.action,
+        capability: input.capability,
+        brief: briefInput.brief,
+        lyrics: briefInput.lyrics,
+        style: briefInput.style,
+        voice: briefInput.voice,
+        payload: {
+          ...providerContextPayload(),
+          label: input.label,
+          sourceIds: input.sourceIds,
+          tags: input.tags,
+        },
+      })
+      setApiActionResult(result)
+      setWorkflow((current) =>
+        recordProjectAssetImport(
+          current,
+          {
+            kind: input.kind,
+            label: input.label,
+            sourceIds: input.sourceIds,
+            tags: input.tags,
+            consentNote: input.consentNote,
+          },
+          result,
+        ),
+      )
+      setSelectedId(input.kind === 'persona-reference' ? 'voice' : 'project-assets')
+    } catch (error) {
+      const result: ProviderActionResult = {
+        action: input.action,
+        capability: input.capability,
+        outcome: 'blocked',
+        message: error instanceof Error ? error.message : 'Project asset action failed',
+        authBoundary: 'server',
+        receiptId: `asset-action-error-${input.action}`,
+      }
+      setApiActionResult(result)
+      setWorkflow((current) =>
+        recordProjectAssetImport(
+          current,
+          {
+            kind: input.kind,
+            label: input.label,
+            sourceIds: input.sourceIds,
+            tags: input.tags,
+            consentNote: input.consentNote,
+          },
+          result,
+        ),
+      )
+      setSelectedId(input.kind === 'persona-reference' ? 'voice' : 'project-assets')
+    }
+  }
+
+  function providerContextPayload(entry?: ApiCoverageEntry): Record<string, unknown> {
+    const callbackUrl = providerCallbackUrl(activeProjectId)
+    const providerTaskId = providerTaskIdForEntry(entry)
+    const selectedAudioUrl = selectedTrackAudioUrl()
+    return {
+      ...(providerTaskId
+        ? {
+            taskId: providerTaskId,
+            providerTaskId,
+          }
+        : {}),
+      ...(workflow.selectedTrack?.id
+        ? {
+            audioId: workflow.selectedTrack.id,
+            sourceTrackId: workflow.selectedTrack.id,
+          }
+        : {}),
+      ...(selectedAudioUrl
+        ? {
+            audioUrl: selectedAudioUrl,
+            uploadUrl: selectedAudioUrl,
+          }
+        : {}),
+      ...(callbackUrl
+        ? {
+            callbackUrl,
+            callBackUrl: callbackUrl,
+            calBackUrl: callbackUrl,
+          }
+        : {}),
+    }
+  }
+
+  function providerTaskIdForEntry(entry?: ApiCoverageEntry): string | undefined {
+    if (!entry) {
+      return workflow.generationBatch?.providerJobId
+    }
+    return latestProviderTaskIdForActions(providerTaskActionsFor(entry.adapterAction)) ?? workflow.generationBatch?.providerJobId
+  }
+
+  function latestProviderTaskIdForActions(actions: string[]): string | undefined {
+    const actionSet = new Set(actions)
+    return workflow.jobQueue
+      .slice()
+      .reverse()
+      .find((job) => job.providerTaskId && actionSet.has(job.action))?.providerTaskId
+  }
+
+  function selectedTrackAudioDownload(): ExportDownload | undefined {
+    const selectedTrackId = workflow.selectedTrack?.id
+    if (!selectedTrackId) {
+      return undefined
+    }
+    const exactDownload = workflow.exports.downloads.find(
+      (download) =>
+        download.kind === 'audio' &&
+        download.status === 'ready' &&
+        download.sourceTrackId === selectedTrackId &&
+        isProviderFetchableUrl(download.url),
+    )
+    if (exactDownload) {
+      return exactDownload
+    }
+
+    const providerJobId = workflow.generationBatch?.providerJobId
+    if (!providerJobId) {
+      return undefined
+    }
+
+    return workflow.exports.downloads.find(
+      (download) =>
+        download.kind === 'audio' &&
+        download.status === 'ready' &&
+        download.providerTaskId === providerJobId &&
+        isProviderFetchableUrl(download.url),
+    )
+  }
+
+  function selectedTrackAudioUrl(): string | undefined {
+    return selectedTrackAudioDownload()?.url
+  }
+
+  async function handleAnalyzeSelectedTrackAudio() {
+    const track = workflow.selectedTrack
+    if (!track) {
+      return
+    }
+
+    setAudioAnalysisError(null)
+    try {
+      const waveform = await loadSelectedTrackWaveform(track)
+      setWorkflow((current) => recordTrackAudioAnalysis(current, track.id, waveform))
+      setSelectedId('audio-intelligence')
+    } catch (error) {
+      setAudioAnalysisError(errorMessage(error, 'Waveform analysis failed'))
+      setSelectedId('audio-intelligence')
+    }
+  }
+
+  function handleApproveSelectedTrackListeningQa() {
+    const track = workflow.selectedTrack
+    const audioDownload = selectedTrackAudioDownload()
+    if (!track) {
+      return
+    }
+    if (!audioDownload) {
+      setAudioAnalysisError('Listening QA requires a ready provider audio download for the selected track')
+      setSelectedId('audio-intelligence')
+      return
+    }
+    try {
+      setWorkflow((current) =>
+        approveTrackListeningQa(current, {
+          trackId: track.id,
+          audioAssetId: audioDownload.assetId,
+          audioUrl: audioDownload.url,
+        }),
+      )
+      setAudioAnalysisError(null)
+      setSelectedId('audio-intelligence')
+    } catch (error) {
+      setAudioAnalysisError(errorMessage(error, 'Listening QA approval failed'))
+      setSelectedId('audio-intelligence')
+    }
+  }
+
+  async function loadSelectedTrackWaveform(track: GeneratedTrack): Promise<WaveformAnalysisReport> {
+    const audioUrl = selectedTrackAudioUrl()
+    if (audioUrl && typeof AudioContext !== 'undefined') {
+      return analyzeWaveformSamples(await decodeBrowserAudio(audioUrl, track.id))
+    }
+
+    if (import.meta.env.MODE !== 'test' && import.meta.env.VITE_ALLOW_FIXTURE_AUDIO !== '1') {
+      throw new Error('Audio analysis requires a real fetched audio asset for this track')
+    }
+
+    return analyzeWaveformSamples(createLikedStyleWaveformFixture(track.id))
+  }
+
+  async function decodeBrowserAudio(url: string, trackId: string): Promise<AudioWaveformInput> {
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`Audio fetch failed with ${response.status}`)
+    }
+
+    const audioContext = new AudioContext()
+    try {
+      const decoded = await audioContext.decodeAudioData(await response.arrayBuffer())
+      const channels = Array.from({ length: decoded.numberOfChannels }, (_, index) =>
+        decoded.getChannelData(index),
+      )
+      return {
+        trackId,
+        sampleRate: decoded.sampleRate,
+        channels,
+      }
+    } finally {
+      await audioContext.close()
+    }
+  }
+
+  async function handlePollSelectedGenerationJob() {
+    await handleProviderExportAction(() => exportRuntime.pollGenerationTask({ projectId: activeProjectId, workflow }))
+  }
+
+  async function handleReceiveFailedCallback() {
+    await handleProviderExportAction(() => exportRuntime.receiveFailedCallback({ projectId: activeProjectId, workflow }))
+  }
+
+  async function handleRecordProviderVideoOutput() {
+    await handleProviderExportAction(() => exportRuntime.recordProviderVideoOutput({ projectId: activeProjectId, workflow }))
+  }
+
+  async function handleProviderExportAction(action: () => Promise<ProviderExportSnapshot>) {
+    setExportRuntimeError(null)
+    try {
+      const snapshot = await action()
+      setWorkflow((current) => mergeProviderExportSnapshot(current, snapshot))
+    } catch (error) {
+      setExportRuntimeError(errorMessage(error, 'Provider export action failed'))
+    } finally {
+      setSelectedId('downloads')
+    }
+  }
+
+  function handleFieldChange(field: keyof BriefInput) {
+    return (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (workflow.musicVideoLane) {
+        return
+      }
+      const value = event.target.value
+      setBriefInput((current) => ({ ...current, [field]: value }))
+      setWorkflow((current) => ({
+        ...createWorkflow({
+          brief: current.brief,
+          lyrics: current.lyrics,
+          style: current.style,
+          voice: current.voice,
+          [field]: value,
+        }),
+      }))
+      setReleasePack(null)
+      setGenerateError(null)
+      setAudioAnalysisError(null)
+      setVideoExportError(null)
+      setSelectedId('brief')
+    }
+  }
+
+  function handleNodeSelect(node: WorkflowNode) {
+    if (node.kind === 'generated' && node.trackId) {
+      const trackId = node.trackId
+      const isSameSelectedTrack = workflow.selectedTrack?.id === trackId
+      setWorkflow((current) => (current.selectedTrack?.id === trackId ? current : selectTrack(current, trackId)))
+      setReleasePack((current) => (isSameSelectedTrack ? current : null))
+      setAudioAnalysisError(null)
+      setVideoExportError(null)
+      setSelectedId('track')
+      return
+    }
+
+    setSelectedId(node.id)
+  }
+
+  function handleOpenProject(nextProjectId: string) {
+    if (nextProjectId === activeProjectId) {
+      setSelectedId('project-lobby')
+      return
+    }
+    setActiveProjectId(nextProjectId)
+    setSelectedId('project-lobby')
+  }
+
+  function handleOpenVideoLane() {
+    setWorkflow((current) => openMusicVideoLane(current))
+    setVideoExportError(null)
+    setSelectedId('video')
+  }
+
+  function handlePlanComfyRenderGraph() {
+    setWorkflow((current) =>
+      planComfyRenderGraph(current, {
+        model: 'wan-video-lipsync',
+        seed: 4242,
+        referenceAssetIds: ['persona-ref', 'cover-ref'],
+      }),
+    )
+    setSelectedId('video')
+  }
+
+  function handleQueueMusicVideoRender() {
+    setWorkflow((current) => queueMusicVideoRender(current))
+    setSelectedId('video')
+  }
+
+  function handleRateTrack(track: GeneratedTrack) {
+    setWorkflow((current) =>
+      rateTrack(current, track.id, {
+        score: 5,
+        notes: `${track.title} marked as a taste match`,
+        tags: ['taste-match', 'release-candidate'],
+      }),
+    )
+    setSelectedId('version-comparison')
+  }
+
+  function handleCompareGeneratedTracks() {
+    const tracks = workflow.generationBatch?.tracks ?? []
+    if (tracks.length < 2) {
+      return
+    }
+    const [leftTrack, rightTrack] = tracks
+    const winnerTrackId =
+      workflow.selectedTrack && [leftTrack.id, rightTrack.id].includes(workflow.selectedTrack.id)
+        ? workflow.selectedTrack.id
+        : rightTrack.id
+    setWorkflow((current) =>
+      compareTracks(current, {
+        leftTrackId: leftTrack.id,
+        rightTrackId: rightTrack.id,
+        winnerTrackId,
+        notes: `${winnerTrackId} is the stronger release candidate from this batch`,
+      }),
+    )
+    setSelectedId('version-comparison')
+  }
+
+  function handleOpenSongLab() {
+    if (!selectedTrackReadyForDownstream) {
+      setAudioAnalysisError('Song Lab requires provider audio retrieval, computed waveform analysis, and listening QA approval')
+      setSelectedId('audio-intelligence')
+      return
+    }
+    setWorkflow((current) => openSongLab(current))
+    setSelectedId('song-lab')
+  }
+
+  function handleLockHookRegion() {
+    setWorkflow((current) => lockSongLabRegion(current, 'hook'))
+    setSelectedId('song-lab')
+  }
+
+  function handleQueueReplaceSection() {
+    setWorkflow((current) =>
+      queueSongLabEdit(current, {
+        sectionId: 'hook',
+        action: 'replaceSection',
+        label: 'Replace hook with cleaner bilingual lift',
+      }),
+    )
+    setSelectedId('song-lab')
+  }
+
+  function handleSaveSelectedToLocalLibrary() {
+    setWorkflow((current) =>
+      saveSelectedTrackToLocalLibrary(current, {
+        notes: 'Selected source saved to local project library',
+        tags: ['local-library', 'keeper'],
+      }),
+    )
+    setSelectedId('local-library')
+  }
+
+  function handleCreateReleasePack() {
+    if (!selectedTrackReadyForDownstream) {
+      setAudioAnalysisError('Audio release pack requires provider audio retrieval, computed waveform analysis, and listening QA approval')
+      setSelectedId('audio-intelligence')
+      return
+    }
+    const nextReleasePack = toReleasePack(workflow, { includeVideo: false })
+    setReleasePack(nextReleasePack)
+    setVideoExportError(null)
+    setSelectedId('export')
+  }
+
+  async function handleRunLipsyncQa() {
+    try {
+      const nextWorkflow = await musicVideoRuntime.evaluateLipsync({ projectId: activeProjectId, workflow })
+      setWorkflow((current) => mergeMusicVideoRuntimeWorkflow(current, nextWorkflow))
+      setVideoExportError(null)
+      setSelectedId('video')
+    } catch (error) {
+      setVideoExportError(errorMessage(error, 'Lipsync QA runtime failed'))
+      setSelectedId('video')
+    }
+  }
+
+  function handlePrimaryAction() {
+    if (primaryAction.id === 'generate') {
+      void handleGenerate()
+      return
+    }
+    if (primaryAction.id === 'choose-track') {
+      const firstTrack = workflow.generationBatch?.tracks[0]
+      if (firstTrack) {
+        setWorkflow((current) => selectTrack(current, firstTrack.id))
+        setReleasePack(null)
+        setSelectedId('track')
+      } else {
+        setSelectedId('batch')
+      }
+      return
+    }
+    if (primaryAction.id === 'analyze-audio') {
+      void handleAnalyzeSelectedTrackAudio()
+      return
+    }
+    if (primaryAction.id === 'retrieve-audio') {
+      void handlePollSelectedGenerationJob()
+      return
+    }
+    if (primaryAction.id === 'listening-qa') {
+      handleApproveSelectedTrackListeningQa()
+      return
+    }
+    if (primaryAction.id === 'song-lab') {
+      handleOpenSongLab()
+      return
+    }
+    if (primaryAction.id === 'video') {
+      handleOpenVideoLane()
+      return
+    }
+    if (primaryAction.id === 'lipsync') {
+      void handleRunLipsyncQa()
+      return
+    }
+    if (primaryAction.id === 'release') {
+      if (workflow.musicVideoLane?.exportStatus === 'ready') {
+        handleCreateVideoReleasePack()
+      } else {
+        handleCreateReleasePack()
+      }
+      return
+    }
+    setSelectedId('export')
+  }
+
+  function handleQueueLipsyncRepair() {
+    setWorkflow((current) => queueLipsyncRepair(current))
+    setVideoExportError(null)
+    setSelectedId('video')
+  }
+
+  function handleCreateVideoReleasePack() {
+    try {
+      const nextReleasePack = toReleasePack(workflow, { includeVideo: true })
+      setReleasePack(nextReleasePack)
+      setVideoExportError(null)
+      setSelectedId('export')
+    } catch (error) {
+      setVideoExportError(error instanceof Error ? error.message : 'Video release is blocked')
+      setSelectedId('video')
+    }
+  }
+
+  function handlePlanArchiveFirstCleanup() {
+    setWorkflow((current) => {
+      const targetTrackIds = discardedGeneratedTracks(current).map((track) => track.id)
+      return planArchiveFirstCleanup(current, targetTrackIds, 'discard unselected generated takes')
+    })
+  }
+
+  function handlePruneDeadBranches() {
+    if (genealogyDeadBranchTargets.length === 0 || cleanupStatus === 'archived' || cleanupStatus === 'applied') {
+      return
+    }
+    setWorkflow((current) =>
+      planArchiveFirstCleanup(current, genealogyDeadBranchTargets, 'Track Genealogy dead branches drifted away'),
+    )
+    setSelectedId('track-genealogy')
+  }
+
+  function handleApplyCleanup() {
+    setWorkflow((current) => applyArchiveFirstCleanup(current))
+  }
+
+  function handleRestoreArchivedTracks() {
+    setWorkflow((current) => restoreArchivedTracks(current))
+  }
+
+  const lyricDocumentLines = briefInput.lyrics
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const visibleLyricLines = lyricDocumentLines.length > 0 ? lyricDocumentLines : [briefInput.lyrics]
+
+  return (
+    <main className="studio-shell" data-theme="faery">
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">sealf&apos;salve</p>
+          <h1>The Kantikal</h1>
+          <p className="project-current">Current project: {activeProjectId}</p>
+        </div>
+        <div className="topbar-actions" aria-label="Project controls">
+          <button aria-label="Open project lobby" onClick={() => setSelectedId('project-lobby')}>
+            <Boxes size={16} />
+            Projects
+          </button>
+          <button aria-label="Run generation" disabled={promptLocked} onClick={() => void handleGenerate()}>
+            <Play size={16} />
+            Run
+          </button>
+          <button aria-label="Open API coverage" onClick={() => setSelectedId('api-coverage')}>
+            <ShieldCheck size={16} />
+            API parity
+          </button>
+          <button aria-label="Open settings">
+            <KeyRound size={16} />
+            Secrets
+          </button>
+        </div>
+      </header>
+      {exportRuntimeError && (
+        <p className="form-error" role="alert">
+          {exportRuntimeError}
+        </p>
+      )}
+      {projectStoreError && (
+        <p className="form-error" role="alert">
+          {projectStoreError}
+        </p>
+      )}
+      {runtimeStatusError && (
+        <p className="form-error" role="alert">
+          {runtimeStatusError}
+        </p>
+      )}
+
+      <section className="track-command" aria-label="Lyric command room">
+        <div className="source-card">
+          <p className="eyebrow">Songbook source</p>
+          <h2>{selectedTrackLabel}</h2>
+          <p>
+            Lyrics stay as the master object. Versions, Song Lab, exports, and the optional music video lane all
+            answer back to the songbook.
+          </p>
+        </div>
+        <div className="next-action-card">
+          <p className="eyebrow">Generation desk</p>
+          <h2>{primaryAction.label}</h2>
+          <p>{primaryAction.detail}</p>
+          <button
+            aria-label="Run primary next action"
+            disabled={primaryAction.disabled || (primaryAction.id === 'generate' && promptLocked)}
+            onClick={handlePrimaryAction}
+            type="button"
+          >
+            <Play size={16} />
+            Run next step
+          </button>
+        </div>
+        <div className="runtime-card" aria-label="Runtime status">
+          <p className="eyebrow">Runtime</p>
+          <div className={`runtime-row ${runtimeStatus?.provider.state ?? 'blocked'}`}>
+            <strong>Provider runtime</strong>
+            <span>
+              primary lane; optional adapter {runtimeStatus?.provider.credential ?? 'missing'} credential;{' '}
+              {runtimeStatus?.provider.providerMode ?? 'local'} mode
+            </span>
+            <small>
+              {runtimeStatus?.provider.message ?? 'runtime status pending'}; optional adapter:{' '}
+              {runtimeStatus?.provider.apiV1BaseUrl ?? 'https://api.providerapi.org/api/v1'}
+            </small>
+          </div>
+          <div className={`runtime-row ${runtimeStatus?.comfy.state ?? 'offline'}`}>
+            <strong>ComfyUI</strong>
+            <span>{runtimeStatus?.comfy.state ?? 'offline'}</span>
+            <small>
+              {runtimeStatus
+                ? `${runtimeStatus.comfy.modelCount} models; ${runtimeStatus.comfy.baseUrl}`
+                : 'model inventory pending'}
+            </small>
+          </div>
+        </div>
+      </section>
+
+      <section className="workspace" aria-label="The Kantikal workflow workspace">
+        <aside className="prompt-rail">
+          <div className="rail-block active">
+            <WandSparkles size={18} />
+            <span>Line intent</span>
+          </div>
+          <form className="prompt-form" onSubmit={(event) => void handleGenerate(event)}>
+            <label>
+              <span>Brief</span>
+              <textarea value={briefInput.brief} onChange={handleFieldChange('brief')} disabled={promptLocked} />
+            </label>
+            <label>
+              <span>Lyrics</span>
+              <textarea value={briefInput.lyrics} onChange={handleFieldChange('lyrics')} disabled={promptLocked} />
+            </label>
+            <label>
+              <span>Style</span>
+              <input value={briefInput.style} onChange={handleFieldChange('style')} disabled={promptLocked} />
+            </label>
+            <label>
+              <span>Voice</span>
+              <input value={briefInput.voice} onChange={handleFieldChange('voice')} disabled={promptLocked} />
+            </label>
+            <button type="submit" aria-label="Generate batch" disabled={promptLocked}>
+              <Sparkles size={16} />
+              {isGenerating ? 'Generating' : 'Generate batch'}
+            </button>
+            {generateError && (
+              <p className="form-error" role="alert">
+                {generateError}
+              </p>
+            )}
+            <div className="taste-gate" aria-label="Liked-track taste gate">
+              <strong>
+                Taste fit {generationTasteGate.score}/7 {generationTasteGate.passed ? 'ready' : 'needs lock'}
+              </strong>
+              <small>Matched: {generationTasteGate.matchedSignals.join(', ') || 'none'}</small>
+              <small>Missing: {generationTasteGate.missingSignals.join(', ') || 'none'}</small>
+              {generationTasteGate.blockers.length > 0 && (
+                <small>Blockers: {generationTasteGate.blockers.join(', ')}</small>
+              )}
+            </div>
+          </form>
+          <div className="rail-block">
+            <Library size={18} />
+            <span>Sound DNA</span>
+          </div>
+          <div className="rail-block">
+            <Clapperboard size={18} />
+            <span>Video lane</span>
+          </div>
+          <div className="rail-block">
+            <Archive size={18} />
+            <span>Archive</span>
+          </div>
+          <div className="agent-stack" aria-label="Agent lanes">
+            <p>Instruments</p>
+            <span>Lyric edits</span>
+            <span>Arrangement</span>
+            <span>Sound DNA</span>
+            <span>Release copy</span>
+          </div>
+        </aside>
+
+        <section className="canvas-panel">
+          <div className="canvas-header">
+            <div>
+              <p className="eyebrow">Lyric console</p>
+              <h2>The songbook is the machine</h2>
+            </div>
+            <div className="health-strip">
+              <span>
+                <Activity size={14} />
+                {workflow.stage}
+              </span>
+              <span>
+                <Gauge size={14} />
+                Receipt-backed spend
+              </span>
+              <span>
+                <GitBranch size={14} />
+                {workflow.provenance.length} receipts
+              </span>
+            </div>
+          </div>
+
+          <article className="lyric-document" aria-label="Lyric document">
+            <div>
+              <p className="eyebrow">Almost Love · working draft</p>
+              <h2>{briefInput.brief}</h2>
+            </div>
+            <div className="lyric-lines">
+              {visibleLyricLines.map((line, index) => (
+                <p key={`${line}-${index}`}>
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  {line}
+                </p>
+              ))}
+            </div>
+          </article>
+
+          <div className="canvas" role="list" aria-label="Generated take tray">
+            <svg className="edges" aria-hidden="true" viewBox="0 0 100 80" preserveAspectRatio="none">
+              <path d="M16 25 C27 11 34 18 45 24 S59 20 70 29 S81 36 88 42" />
+              <path d="M36 44 C45 48 52 54 64 58 S79 58 88 68" />
+              <path d="M74 31 C76 43 78 50 86 58" />
+            </svg>
+            {workflowNodes.map((node) => {
+              const Icon = iconByKind[node.kind]
+              return (
+                <button
+                  aria-label={`${node.title}: ${node.summary}`}
+                  className={`node-card ${selected.id === node.id ? 'selected' : ''}`}
+                  key={node.id}
+                  onClick={() => handleNodeSelect(node)}
+                  style={{ left: `${node.x}%`, top: `${node.y}%` }}
+                >
+                  <span className={`status ${node.status}`}>{statusLabel[node.status]}</span>
+                  <Icon size={20} />
+                  <strong>{node.title}</strong>
+                  <small>{node.summary}</small>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+
+        <aside className="inspector">
+          <div className="inspector-head">
+            <SelectedIcon size={24} />
+            <div>
+              <p className="eyebrow">Inspector</p>
+              <h2>{selected.title}</h2>
+            </div>
+          </div>
+          <p>{selected.summary}</p>
+          <div className="meta-list">
+            {selected.meta.map((item) => (
+              <span key={item}>{item}</span>
+            ))}
+          </div>
+          {selected.kind === 'project' && (
+            <div className="workflow-section">
+              <h3>Recent projects</h3>
+              <p>Current project: {activeProjectId}</p>
+              <div className="project-list" aria-label="Recent projects">
+                {recentProjects.length === 0 ? (
+                  <div>
+                    <strong>No saved project snapshots yet</strong>
+                    <small>The current workspace will appear here after the first project save.</small>
+                  </div>
+                ) : (
+                  recentProjects.map((project) => (
+                    <button
+                      className={project.projectId === activeProjectId ? 'active' : ''}
+                      key={project.projectId}
+                      onClick={() => handleOpenProject(project.projectId)}
+                      type="button"
+                    >
+                      <strong>{project.brief}</strong>
+                      <small>
+                        {project.projectId}; selected track {project.selectedTrackId ?? 'none'}; {project.jobCount} jobs;{' '}
+                        {project.exportCount} exports; {project.blockedGateCount} blocked gates; release{' '}
+                        {project.releasePackLabel}
+                      </small>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+          {selected.kind === 'track' && workflow.selectedTrack && (
+            <div className="action-box">
+              <p>Selected source: {workflow.selectedTrack.id}</p>
+              <button type="button" disabled={!selectedTrackReadyForDownstream} onClick={handleCreateReleasePack}>
+                <Download size={16} />
+                Create audio release pack
+              </button>
+              <button type="button" disabled={!selectedTrackReadyForDownstream} onClick={handleOpenSongLab}>
+                <Waves size={16} />
+                Open Song Lab
+              </button>
+              <button type="button" onClick={handleSaveSelectedToLocalLibrary}>
+                <Library size={16} />
+                Save selected to local library
+              </button>
+              <button type="button" onClick={() => void handleAnalyzeSelectedTrackAudio()}>
+                <Gauge size={16} />
+                Analyze waveform
+              </button>
+              <button type="button" onClick={() => setSelectedId('track-genealogy')}>
+                <GitBranch size={16} />
+                Open Track Genealogy
+              </button>
+            </div>
+          )}
+          {selected.kind === 'intelligence' && (
+            <div className="workflow-section">
+              <h3>Audio Intelligence</h3>
+              {audioAnalysisError && (
+                <p className="form-error" role="alert">
+                  {audioAnalysisError}
+                </p>
+              )}
+              <div className="genealogy-list" aria-label="Listening QA provider audio">
+                <div className={selectedAudioDownload ? 'ready' : 'blocked'}>
+                  <strong>{selectedAudioDownload ? 'Provider audio retrieved' : 'Provider audio not retrieved'}</strong>
+                  <small>
+                    {selectedAudioDownload
+                      ? `${selectedAudioDownload.assetId}; ${selectedAudioDownload.label}`
+                      : 'Poll the selected generation job before approving listening QA.'}
+                  </small>
+                  {selectedAudioDownload && (
+                    <audio controls preload="metadata" src={selectedAudioDownload.url} aria-label="Selected provider audio playback" />
+                  )}
+                </div>
+                <div className={selectedListeningQa ? 'ready' : 'needs-review'}>
+                  <strong>{selectedListeningQa ? 'Listening QA approved' : 'Listening QA pending'}</strong>
+                  <small>
+                    {selectedListeningQa
+                      ? `${selectedListeningQa.audioAssetId}; evidence ${selectedListeningQa.analysisEvidenceId}`
+                      : 'Requires retrieved provider audio plus computed waveform evidence.'}
+                  </small>
+                </div>
+              </div>
+              {selectedAudioIntelligence ? (
+                <>
+                  <div className="genealogy-list" aria-label="Audio Intelligence waveform metrics">
+                    <div>
+                      <strong>Peak {selectedAudioIntelligence.waveform.peakAmplitude}</strong>
+                      <small>
+                        RMS {selectedAudioIntelligence.waveform.rmsAmplitude}; crest{' '}
+                        {selectedAudioIntelligence.waveform.crestFactor}; DC{' '}
+                        {selectedAudioIntelligence.waveform.dcOffset}; clipping samples{' '}
+                        {selectedAudioIntelligence.waveform.clippingSamples}
+                      </small>
+                    </div>
+                    <div>
+                      <strong>Fit {selectedAudioIntelligence.fit.score}/5</strong>
+                      <small>
+                        {selectedAudioIntelligence.fit.reasons.join(' | ')}
+                        {selectedAudioIntelligence.fit.blockers.length > 0
+                          ? ` | blockers ${selectedAudioIntelligence.fit.blockers.join(', ')}`
+                          : ''}
+                      </small>
+                    </div>
+                    <div>
+                      <strong>{selectedAudioIntelligence.waveform.transientPeaks.length} transients</strong>
+                      <small>
+                        tempo candidates{' '}
+                        {selectedAudioIntelligence.waveform.tempoCandidatesBpm.join('/') || 'none'} bpm; silence ranges{' '}
+                        {selectedAudioIntelligence.waveform.silenceRanges.length}
+                      </small>
+                    </div>
+                  </div>
+                  <div className="genealogy-list" aria-label="Audio Intelligence section energy">
+                    {selectedAudioIntelligence.waveform.sections.map((section) => (
+                      <div key={section.label}>
+                        <strong>{section.label}</strong>
+                        <small>
+                          {section.startSeconds}s-{section.endSeconds}s; peak {section.peak}; rms {section.rms}
+                        </small>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="genealogy-list" aria-label="Audio Intelligence quality flags">
+                    {selectedAudioIntelligence.waveform.qualityFlags.map((flag) => (
+                      <div key={flag}>
+                        <strong>{flag}</strong>
+                        <small>{selectedAudioIntelligence.evidenceId}</small>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p>No waveform analysis recorded for the selected source track.</p>
+              )}
+              <button type="button" disabled={!workflow.selectedTrack} onClick={() => void handleAnalyzeSelectedTrackAudio()}>
+                <Gauge size={16} />
+                Analyze waveform
+              </button>
+              <button
+                type="button"
+                disabled={!workflow.selectedTrack || !selectedAudioIntelligence || !selectedAudioDownload}
+                onClick={handleApproveSelectedTrackListeningQa}
+              >
+                <ShieldCheck size={16} />
+                Approve listened audio
+              </button>
+            </div>
+          )}
+          {selected.kind === 'voice' && (
+            <div className="workflow-section">
+              <h3>Persona workbench</h3>
+              <p>Active persona: {workflow.voicePersonas.activePersonaId ?? 'none'}</p>
+              <div className="persona-list" aria-label="Voice personas">
+                {workflow.voicePersonas.personas.map((persona) => (
+                  <div key={persona.id}>
+                    <strong>
+                      {persona.label} {persona.providerStatus}
+                    </strong>
+                    <small>
+                      Consent note: {persona.consentNote}; asset {persona.assetId}
+                    </small>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  void handleImportProjectAsset({
+                    kind: 'persona-reference',
+                    label: 'Consented bright tenor persona',
+                    action: 'createCustomVoice',
+                    capability: 'Custom voice creation',
+                    sourceIds: ['voice'],
+                    tags: ['consent', 'voice', 'prompt-safe'],
+                    consentNote: briefInput.voice,
+                  })
+                }
+              >
+                <Mic2 size={16} />
+                Create persona reference
+              </button>
+            </div>
+          )}
+          {selected.kind === 'assets' && (
+            <div className="workflow-section">
+              <h3>Project asset library</h3>
+              <p>
+                Source assets are project evidence. Provider-backed imports show completed, planned, or blocked states
+                from the active server/worker lane.
+              </p>
+              <div className="asset-list" aria-label="Project assets">
+                {workflow.projectAssets.items.map((asset) => (
+                  <div className={asset.status} key={asset.id}>
+                    <strong>
+                      {asset.id} {asset.status}
+                    </strong>
+                    <small>
+                      {asset.kind}; {asset.label}; {asset.authBoundary}
+                    </small>
+                  </div>
+                ))}
+              </div>
+              <div className="gate-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleImportProjectAsset({
+                      kind: 'reference-audio',
+                      label: 'Hook guide reference audio',
+                      action: 'uploadReferenceAudio',
+                      capability: 'Upload/reference audio',
+                      sourceIds: ['brief'],
+                      tags: ['reference', 'upload'],
+                    })
+                  }
+                >
+                  <FileAudio size={16} />
+                  Import reference audio
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleImportProjectAsset({
+                      kind: 'cover-art',
+                      label: 'Release cover art direction',
+                      action: 'generateCoverArt',
+                      capability: 'Cover art',
+                      sourceIds: ['style'],
+                      tags: ['cover', 'release'],
+                    })
+                  }
+                >
+                  <Sparkles size={16} />
+                  Generate cover art asset
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleImportProjectAsset({
+                      kind: 'video-reference',
+                      label: 'Performance framing reference',
+                      action: 'renderMusicVideo',
+                      capability: 'Music-video render',
+                      sourceIds: ['brief'],
+                      tags: ['video', 'reference'],
+                    })
+                  }
+                >
+                  <Video size={16} />
+                  Plan video reference
+                </button>
+              </div>
+              {workflow.projectAssets.imports.length > 0 && (
+                <div className="asset-list" aria-label="Project asset import jobs">
+                  {workflow.projectAssets.imports.map((job) => (
+                    <div className={job.status} key={job.id}>
+                      <strong>
+                        {job.action} {job.status}
+                      </strong>
+                      <small>{job.message}</small>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {selected.kind === 'compare' && workflow.generationBatch && (
+            <div className="workflow-section">
+              <h3>Version comparison</h3>
+              <p>Rate candidates, record taste notes, and lock a winner without changing the selected source.</p>
+              <div className="comparison-list" aria-label="Track taste ratings">
+                {workflow.generationBatch.tracks.map((track) => {
+                  const rating = workflow.taste.ratings[track.id]
+                  return (
+                    <div key={track.id}>
+                      <strong>{track.id}</strong>
+                      <small>
+                        {rating
+                          ? `Taste score: ${rating.score} - ${rating.notes}`
+                          : `${track.title} is unrated`}
+                      </small>
+                      <button type="button" onClick={() => handleRateTrack(track)}>
+                        <Sparkles size={16} />
+                        Rate {track.id} as taste match
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+              {workflow.generationBatch.tracks.length > 1 && (
+                <button type="button" onClick={handleCompareGeneratedTracks}>
+                  <GitBranch size={16} />
+                  Compare {workflow.generationBatch.tracks[0].id} vs {workflow.generationBatch.tracks[1].id}
+                </button>
+              )}
+              {workflow.taste.comparisons.length > 0 && (
+                <div className="comparison-list" aria-label="Version comparison results">
+                  {workflow.taste.comparisons.map((comparison) => (
+                    <div key={comparison.id}>
+                      <strong>
+                        winner {comparison.winnerTrackId}
+                      </strong>
+                      <small>{comparison.notes}</small>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {selected.kind === 'genealogy' && (
+            <div className="workflow-section">
+              <h3>Family Tree Graph</h3>
+              <p>
+                Source track: {trackGenealogy.sourceTrackId ?? 'none selected'}; {trackGenealogy.graph.nodes.length}{' '}
+                nodes; {trackGenealogy.graph.edges.length} evidence edges.
+              </p>
+              <div className="genealogy-list" aria-label="Track Genealogy family tree graph">
+                {trackGenealogy.graph.nodes.slice(0, 10).map((node) => (
+                  <div className={node.role} key={node.id}>
+                    <strong>{node.label}</strong>
+                    <small>
+                      {node.role}; {node.id}
+                    </small>
+                  </div>
+                ))}
+              </div>
+
+              <h3>Trait Inspector</h3>
+              <div className="genealogy-list" aria-label="Track Genealogy trait inspector">
+                {trackGenealogy.inheritedTraits.map((trait) => (
+                  <div key={trait.trait}>
+                    <strong>{trait.trait}</strong>
+                    <small>
+                      {trait.value}; evidence {trait.evidence.join(', ')}
+                    </small>
+                  </div>
+                ))}
+              </div>
+
+              <h3>Version Mutation Diff</h3>
+              <div className="genealogy-list" aria-label="Track Genealogy mutation diff">
+                {trackGenealogy.mutations.map((mutation) => (
+                  <div key={mutation.trackId}>
+                    <strong>{mutation.label}</strong>
+                    <small>
+                      Changed: {mutation.changes.join(' | ')}. Inherited: {mutation.inherited.join(', ')}
+                    </small>
+                  </div>
+                ))}
+              </div>
+
+              <h3>Branch Fit Score</h3>
+              <div className="genealogy-list" aria-label="Track Genealogy branch fit score">
+                {trackGenealogy.fitLineage.map((fit) => (
+                  <div key={fit.trackId}>
+                    <strong>
+                      {fit.trackId} fit {fit.score}/5
+                    </strong>
+                    <small>{fit.why.join(' | ')}</small>
+                  </div>
+                ))}
+              </div>
+
+              <h3>Reference DNA Import</h3>
+              <div className="gate-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleImportProjectAsset({
+                      kind: 'reference-audio',
+                      label: 'Track Genealogy reference DNA',
+                      action: 'uploadReferenceAudio',
+                      capability: 'Upload/reference audio',
+                      sourceIds: [trackGenealogy.sourceTrackId ?? 'brief'],
+                      tags: ['reference', 'dna', 'lineage'],
+                    })
+                  }
+                >
+                  <FileAudio size={16} />
+                  Import reference DNA
+                </button>
+              </div>
+
+              <h3>Archive/Prune Branches</h3>
+              <div className="genealogy-list" aria-label="Track Genealogy dead branches">
+                {trackGenealogy.deadBranches.length === 0 ? (
+                  <div>
+                    <strong>No dead branches marked</strong>
+                    <small>Low-fit ratings or archive receipts will appear here.</small>
+                  </div>
+                ) : (
+                  trackGenealogy.deadBranches.map((branch) => (
+                    <div className="dead-branch" key={branch.trackId}>
+                      <strong>{branch.trackId}</strong>
+                      <small>{branch.reason}</small>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="gate-actions">
+                <button
+                  type="button"
+                  disabled={genealogyDeadBranchTargets.length === 0 || cleanupStatus === 'archived' || cleanupStatus === 'applied'}
+                  onClick={handlePruneDeadBranches}
+                >
+                  <Archive size={16} />
+                  Prune dead branches
+                </button>
+              </div>
+
+              <h3>Generate From This Lineage</h3>
+              <div className="genealogy-list" aria-label="Track Genealogy breeding suggestions">
+                {trackGenealogy.breedingSuggestions.length === 0 ? (
+                  <div>
+                    <strong>No breeding suggestion yet</strong>
+                    <small>Generate or import another branch to combine traits.</small>
+                  </div>
+                ) : (
+                  trackGenealogy.breedingSuggestions.map((suggestion) => (
+                    <div key={suggestion.id}>
+                      <strong>{suggestion.sourceTrackIds.join(' + ')}</strong>
+                      <small>
+                        {suggestion.prompt}; {suggestion.reason}
+                      </small>
+                    </div>
+                  ))
+                )}
+              </div>
+              <button
+                type="button"
+                disabled={promptLocked || trackGenealogy.breedingSuggestions.length === 0}
+                onClick={() => void handleGenerateFromLineage()}
+              >
+                <Sparkles size={16} />
+                Generate from this lineage
+              </button>
+            </div>
+          )}
+          {selected.kind === 'songlab' && (
+            <div className="workflow-section">
+              {workflow.songLab ? (
+                <>
+                  <p>Source track: {workflow.songLab.sourceTrackId}</p>
+                  <p>Source assets: {workflow.songLab.assetRefs.join(', ')}</p>
+                  <div className="song-section-list" aria-label="Song Lab sections">
+                    {workflow.songLab.sections.map((section) => (
+                      <div className={section.locked ? 'locked' : ''} key={section.id}>
+                        <strong>
+                          {section.label} {section.locked ? 'locked' : 'editable'}
+                        </strong>
+                        <small>
+                          {section.startSeconds}s-{section.endSeconds}s
+                        </small>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="song-section-list" aria-label="Song Lab stems">
+                    {workflow.songLab.stems.map((stem) => (
+                      <div key={stem.id}>
+                        <strong>{stem.label}</strong>
+                        <small>{stem.status}</small>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="gate-actions">
+                    <button type="button" onClick={handleLockHookRegion}>
+                      <ShieldCheck size={16} />
+                      Lock hook region
+                    </button>
+                    <button type="button" onClick={handleQueueReplaceSection}>
+                      <WandSparkles size={16} />
+                      Queue replace section
+                    </button>
+                    <button type="button" onClick={handleSaveSelectedToLocalLibrary}>
+                      <Library size={16} />
+                      Save selected to local library
+                    </button>
+                  </div>
+                  {workflow.songLab.editActions.length > 0 && (
+                    <div className="song-section-list" aria-label="Song Lab edit actions">
+                      {workflow.songLab.editActions.map((action) => (
+                        <div key={action.id}>
+                          <strong>
+                            {action.id} {action.status}
+                          </strong>
+                          <small>
+                            {action.sectionId}: {action.label}
+                          </small>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p>Open Song Lab from the selected track to manage sections, locks, stems, and edits.</p>
+                  <button type="button" disabled={!selectedTrackReadyForDownstream} onClick={handleOpenSongLab}>
+                    <Waves size={16} />
+                    Open Song Lab
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {selected.kind === 'queue' && (
+            <div className="workflow-section">
+              <h3>Provider action results</h3>
+              <p>Queue entries are persisted from provider action results, including blocked and unsupported actions.</p>
+              <div className="job-list" aria-label="Provider job queue">
+                {workflow.jobQueue.map((job) => (
+                  <div key={job.id}>
+                    <strong>
+                      {job.capability} {job.status}
+                    </strong>
+                    <small>
+                      {job.message}
+                      {job.providerTaskId ? ` Task ${job.providerTaskId}.` : ''}
+                    </small>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {selected.kind === 'downloads' && (
+            <div className="workflow-section">
+              <h3>Provider export manager</h3>
+              <p>Polls and callbacks turn provider task IDs into local download assets when outputs are ready.</p>
+              <div className="gate-actions">
+                <button type="button" disabled={!workflow.generationBatch} onClick={handlePollSelectedGenerationJob}>
+                  <Activity size={16} />
+                  Poll selected generation job
+                </button>
+                <button type="button" disabled={!workflow.generationBatch} onClick={handleReceiveFailedCallback}>
+                  <GitBranch size={16} />
+                  Receive failed callback
+                </button>
+                <button type="button" disabled={!workflow.musicVideoLane} onClick={handleRecordProviderVideoOutput}>
+                  <Video size={16} />
+                  Record provider video output
+                </button>
+              </div>
+              <div className="export-list" aria-label="Provider export tasks">
+                {workflow.exports.tasks.length === 0 ? (
+                  <div>
+                    <strong>No provider export tasks yet</strong>
+                    <small>Poll a generation task or receive a callback to materialize outputs.</small>
+                  </div>
+                ) : (
+                  workflow.exports.tasks.map((task) => (
+                    <div className={task.status} key={task.id}>
+                      <strong>
+                        {task.capability} {task.status}
+                      </strong>
+                      <small>
+                        {task.providerTaskId}; {task.message}
+                      </small>
+                    </div>
+                  ))
+                )}
+              </div>
+              {workflow.exports.downloads.length > 0 && (
+                <div className="export-list" aria-label="Export downloads">
+                  {workflow.exports.downloads.map((download) => (
+                    <div className={download.status} key={download.id}>
+                      <strong>
+                        {download.kind} {download.status}
+                      </strong>
+                      <small>
+                        {download.assetId}; {download.label}; {download.message}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {workflow.exports.callbacks.length > 0 && (
+                <div className="export-list" aria-label="Provider callbacks">
+                  {workflow.exports.callbacks.map((callback) => (
+                    <div className={callback.status} key={callback.id}>
+                      <strong>
+                        {callback.callbackType} callback {callback.status}
+                      </strong>
+                      <small>
+                        {callback.providerTaskId}; code {callback.code}; {callback.message}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {selected.kind === 'library' && (
+            <div className="workflow-section">
+              <p>Provider library API unsupported. Local project saves remain available without pretending to sync upstream.</p>
+              <button type="button" disabled={!workflow.selectedTrack} onClick={handleSaveSelectedToLocalLibrary}>
+                <Library size={16} />
+                Save selected to local library
+              </button>
+              <div className="library-list" aria-label="Local project library">
+                {workflow.localLibrary.items.length === 0 ? (
+                  <div>
+                    <strong>No local saves yet</strong>
+                    <small>Select a generated track to save it locally.</small>
+                  </div>
+                ) : (
+                  workflow.localLibrary.items.map((item) => (
+                    <div key={item.id}>
+                      <strong>{item.track.id} saved locally</strong>
+                      <small>
+                        {item.track.title}
+                        {item.ratingScore ? ` - taste score ${item.ratingScore}` : ''}
+                      </small>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+          <div className="action-box">
+            <button
+              type="button"
+              aria-label="Open music video lane"
+              disabled={!canOpenVideo}
+              onClick={handleOpenVideoLane}
+            >
+              <Video size={16} />
+              Open music video lane
+            </button>
+            {!workflow.selectedTrack && <p>Select a generated track before opening video.</p>}
+            {workflow.selectedTrack && !selectedTrackReadyForDownstream && (
+              <p>Listening QA approval unlocks the music video lane.</p>
+            )}
+            {workflow.musicVideoLane && <p>Music video lane is already open.</p>}
+          </div>
+          {selected.kind === 'video' && workflow.musicVideoLane && (
+            <div className="lipsync-gate">
+              <h3>Perfect lipsync gate</h3>
+              <p>Music video source: {workflow.musicVideoLane.sourceTrackId}</p>
+              <p>Source assets: {workflow.musicVideoLane.assetRefs.join(', ')}</p>
+              <p
+                aria-label="Video export gate state"
+                className={`gate-state ${videoExportReady ? 'ready' : 'blocked'}`}
+              >
+                {videoExportReady ? 'Video export ready' : 'Video export blocked'}
+              </p>
+              <p>
+                Video export stays blocked until phoneme, frame, mouth-shape, segment drift, and
+                post-stitch checks all pass hard thresholds.
+              </p>
+              <div className="video-lane-section">
+                <h3>Scene cards</h3>
+                <div className="scene-list" aria-label="Music video scene cards">
+                  {workflow.musicVideoLane.scenes.map((scene) => (
+                    <div className={scene.status} key={scene.id}>
+                      <strong>{scene.title}</strong>
+                      <small>
+                        {scene.startSeconds}s-{scene.endSeconds}s - {scene.mode} - {scene.status}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="video-lane-section">
+                <h3>ComfyUI render graph</h3>
+                {workflow.musicVideoLane.renderPlan ? (
+                  <>
+                    <p>
+                      {workflow.musicVideoLane.renderPlan.model} seed {workflow.musicVideoLane.renderPlan.seed};{' '}
+                      {workflow.musicVideoLane.renderPlan.status}
+                    </p>
+                    <div className="render-list" aria-label="ComfyUI render graph nodes">
+                      {workflow.musicVideoLane.renderPlan.nodes.map((node) => (
+                        <div key={node.id}>
+                          <strong>{node.id}</strong>
+                          <small>
+                            {node.label}: {node.value}
+                          </small>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p>Render graph is planned from scenes, references, model, seed, and blocked worker output.</p>
+                )}
+                <div className="gate-actions">
+                  <button type="button" disabled={Boolean(workflow.musicVideoLane.renderPlan)} onClick={handlePlanComfyRenderGraph}>
+                    <GitBranch size={16} />
+                    Plan ComfyUI render graph
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!workflow.musicVideoLane.renderPlan || workflow.musicVideoLane.renderPlan.status === 'queued'}
+                    onClick={handleQueueMusicVideoRender}
+                  >
+                    <Activity size={16} />
+                    Queue music video render
+                  </button>
+                </div>
+              </div>
+              <div className="video-lane-section">
+                <h3>Worker health</h3>
+                <div className="worker-list" aria-label="Music video worker health">
+                  {workflow.musicVideoLane.workerHealth.map((worker) => (
+                    <div className={worker.status} key={worker.id}>
+                      <strong>
+                        {worker.label} {worker.status}
+                      </strong>
+                      <small>{worker.detail}</small>
+                    </div>
+                  ))}
+                </div>
+                {workflow.musicVideoLane.workerJobs.length > 0 && (
+                  <div className="worker-list" aria-label="Music video worker jobs">
+                    {workflow.musicVideoLane.workerJobs.map((job) => (
+                      <div className={job.status} key={job.id}>
+                        <strong>
+                          {job.lane} {job.status}
+                        </strong>
+                        <small>{job.detail}</small>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <ul className="lipsync-checklist" aria-label="Lipsync QA checks">
+                {lipsyncCheckOrder.map((checkName) => {
+                  const checkResult = activeLipsync?.[checkName]
+                  const resultLabel = checkResult === undefined ? 'Pending' : checkResult ? 'Pass' : 'Repair required'
+                  return (
+                    <li
+                      aria-label={`${lipsyncCheckLabels[checkName]} QA result`}
+                      className={checkResult === undefined ? 'pending' : checkResult ? 'pass' : 'fail'}
+                      key={checkName}
+                    >
+                      <span>{lipsyncCheckLabels[checkName]}</span>
+                      <strong>{resultLabel}</strong>
+                    </li>
+                  )
+                })}
+              </ul>
+              <div className="meter" aria-label="Lipsync readiness">
+                <span style={{ width: `${lipsyncReadinessPercent}%` }} />
+              </div>
+              {workflow.musicVideoLane.lipsyncEvidence && (
+                <div className="failure-list" aria-label="Lipsync evaluator evidence">
+                  <h3>Evaluator evidence</h3>
+                  <div>
+                    <strong>{workflow.musicVideoLane.lipsyncEvidence.id}</strong>
+                    <small>
+                      {workflow.musicVideoLane.lipsyncEvidence.evaluator}; phoneme{' '}
+                      {workflow.musicVideoLane.lipsyncEvidence.metrics.phonemeDriftMs}ms; frame{' '}
+                      {workflow.musicVideoLane.lipsyncEvidence.metrics.frameOffsetFrames}; mouth{' '}
+                      {workflow.musicVideoLane.lipsyncEvidence.metrics.mouthShapeScore}; segment{' '}
+                      {workflow.musicVideoLane.lipsyncEvidence.metrics.segmentDriftMs}ms; stitch{' '}
+                      {workflow.musicVideoLane.lipsyncEvidence.metrics.postStitchDriftMs}ms
+                    </small>
+                  </div>
+                </div>
+              )}
+              <div className="gate-actions">
+                <button type="button" disabled={videoExportReady} onClick={() => void handleRunLipsyncQa()}>
+                  <Gauge size={16} />
+                  Run lipsync QA
+                </button>
+                <button
+                  type="button"
+                  disabled={failedVideoChecks.length === 0}
+                  onClick={handleQueueLipsyncRepair}
+                >
+                  <WandSparkles size={16} />
+                  Queue repair pass
+                </button>
+                <button type="button" onClick={handleCreateVideoReleasePack}>
+                  <Download size={16} />
+                  Create video release pack
+                </button>
+              </div>
+              {videoExportError && (
+                <p className="form-error" role="alert">
+                  {videoExportError}
+                </p>
+              )}
+              {workflow.musicVideoLane.failureRanges.length > 0 && (
+                <div className="failure-list" aria-label="Exact lipsync failure ranges">
+                  <h3>Exact failure ranges</h3>
+                  {workflow.musicVideoLane.failureRanges.map((range) => (
+                    <div key={range.id}>
+                      <strong>{range.id}</strong>
+                      <small>
+                        {range.checkName} {range.startSeconds}s-{range.endSeconds}s - {range.severity};{' '}
+                        {range.repairAction}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {workflow.musicVideoLane.repairAttempts.length > 0 && (
+                <div className="repair-list" aria-label="Lipsync repair attempts">
+                  <h4>Repair loop</h4>
+                  {workflow.musicVideoLane.repairAttempts.map((attempt) => (
+                    <div key={attempt.id}>
+                      <strong>
+                        {attempt.id} {attempt.status}
+                      </strong>
+                      <small>
+                        {attempt.failedChecks.map((checkName) => lipsyncRepairLabels[checkName]).join(', ')}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {selected.kind === 'export' && releasePack && (
+            <div className="action-box">
+              <strong>Release pack ready for {releasePack.trackId}</strong>
+              <p>{releasePack.includesVideo ? 'Video included' : 'Audio only'}</p>
+              <p>Provenance: {releasePack.provenance.join(', ')}</p>
+              <div className="release-section">
+                <h3>Package contents</h3>
+                {releasePack.items.map((item) => (
+                  <div key={item.id}>
+                    <strong>{item.kind}</strong>
+                    <small>{item.label}</small>
+                  </div>
+                ))}
+              </div>
+              <div className="release-section">
+                <h3>Provenance receipts</h3>
+                {releasePack.receipts.map((receipt) => (
+                  <div key={receipt.id}>
+                    <strong>{receipt.action}</strong>
+                    <small>{receipt.detail}</small>
+                  </div>
+                ))}
+              </div>
+              <div className="release-section">
+                <h3>Archive-first cleanup</h3>
+                <p>Cleanup {cleanupStatus}</p>
+                <div className="gate-actions">
+                  <button
+                    type="button"
+                    disabled={cleanupTargets.length === 0 || cleanupStatus === 'archived' || cleanupStatus === 'applied'}
+                    onClick={handlePlanArchiveFirstCleanup}
+                  >
+                    <Archive size={16} />
+                    Plan archive-first cleanup
+                  </button>
+                  <button type="button" disabled={cleanupStatus !== 'archived'} onClick={handleApplyCleanup}>
+                    <Scissors size={16} />
+                    Apply cleanup
+                  </button>
+                  <button type="button" disabled={cleanupStatus !== 'applied'} onClick={handleRestoreArchivedTracks}>
+                    <Library size={16} />
+                    Restore archived tracks
+                  </button>
+                </div>
+                {workflow.archiveEntries.length > 0 && (
+                  <div className="archive-list" aria-label="Archive entries">
+                    {workflow.archiveEntries.map((entry) => (
+                      <div key={entry.id}>
+                        <strong>{entry.id}</strong>
+                        <small>
+                          {entry.track.id} - {entry.reason}
+                        </small>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {workflow.cleanupReceipts.length > 0 && (
+                  <div className="archive-list" aria-label="Cleanup receipts">
+                    {workflow.cleanupReceipts.map((receipt) => (
+                      <div key={receipt.id}>
+                        <strong>{receipt.action}</strong>
+                        <small>{receipt.targetTrackIds.join(', ')}</small>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="api-box">
+            <h3>API coverage</h3>
+            <p>
+              {apiCoverageEntries.length} mapped capabilities. {coverageCounts.implemented} implemented;
+              {' '}
+              {coverageCounts.planned} planned; {coverageCounts.unsupported} unsupported; server-only credentials enforced.
+            </p>
+            {apiActionResult && (
+              <div className={`api-result ${apiActionResult.outcome}`} role="status">
+                <strong>
+                  {apiActionResult.capability}: {apiActionResult.outcome}
+                </strong>
+                <small>
+                  {apiActionResult.message}
+                  {apiActionResult.endpoint ? ` Endpoint ${apiActionResult.endpoint}.` : ''}
+                  {apiActionResult.providerTaskId ? ` Task ${apiActionResult.providerTaskId}.` : ''}
+                  {apiActionResult.providerResourceUrl ? ` Resource ${apiActionResult.providerResourceUrl}.` : ''}
+                </small>
+              </div>
+            )}
+            {apiCoverageEntries.map((entry) => (
+              <div key={entry.capability}>
+                <strong>{entry.capability}</strong>
+                <small>
+                  {entry.uiSurface} {'->'} {entry.backendOwner} {'->'} {entry.adapterAction} ({entry.status})
+                </small>
+                <button
+                  aria-label={`Run API action ${entry.capability}`}
+                  type="button"
+                  onClick={() => void handleRunApiAction(entry)}
+                >
+                  <Activity size={14} />
+                  {actionStateForEntry(entry).buttonLabel}
+              </button>
+            </div>
+            ))}
+          </div>
+        </aside>
+      </section>
+
+      <section className="bottom-deck">
+        <div className="transport">
+          <button aria-label="Play preview">
+            <Play size={18} />
+          </button>
+          <div className={waveformBars.length > 0 ? 'waveform' : 'waveform empty'} aria-label="Waveform detection envelope">
+            {waveformBars.length > 0 ? (
+              waveformBars.map((bucket) => (
+                <span key={bucket.index} style={{ height: `${Math.max(6, Math.round(bucket.peak * 62))}px` }} />
+              ))
+            ) : (
+              <strong>No waveform analysis</strong>
+            )}
+          </div>
+          <button aria-label="Cut region">
+            <Scissors size={18} />
+          </button>
+        </div>
+        <div className="feature-grid">
+          {featureList.map((feature) => (
+            <div key={feature}>
+              <Boxes size={15} />
+              <span>{feature}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
+  )
+}
+
+function buildWorkflowNodes(
+  workflow: providerWorkflow,
+  releasePack: ReleasePack | null,
+  recentProjects: ProjectSummary[],
+  activeProjectId: string,
+): WorkflowNode[] {
+  const activeProject = recentProjects.find((project) => project.projectId === activeProjectId)
+  const nodes: WorkflowNode[] = [
+    {
+      id: 'project-lobby',
+      kind: 'project',
+      title: 'Project lobby',
+      summary: `${recentProjects.length} saved project${recentProjects.length === 1 ? '' : 's'}; current ${activeProjectId}`,
+      status: 'ready',
+      x: 4,
+      y: 6,
+      meta: [
+        activeProjectId,
+        activeProject?.selectedTrackId ? `selected ${activeProject.selectedTrackId}` : 'no selected track',
+        activeProject ? `${activeProject.jobCount} jobs` : 'not saved yet',
+        activeProject ? `${activeProject.exportCount} exports` : 'no exports',
+      ],
+    },
+    {
+      id: 'brief',
+      kind: 'brief',
+      title: 'Idea brief',
+      summary: workflow.brief,
+      status: 'locked',
+      x: 8,
+      y: 18,
+      meta: ['editable brief', 'constraints', 'target mood'],
+    },
+    {
+      id: 'lyrics',
+      kind: 'lyrics',
+      title: 'Lyrics sheet',
+      summary: workflow.lyrics,
+      status: 'needs-review',
+      x: 28,
+      y: 9,
+      meta: ['editable lyrics', 'section labels', 'phoneme export'],
+    },
+    {
+      id: 'style',
+      kind: 'style',
+      title: 'Style stack',
+      summary: workflow.style,
+      status: 'draft',
+      x: 29,
+      y: 37,
+      meta: ['style prompt', 'negative tags', 'reference taste'],
+    },
+    {
+      id: 'voice',
+      kind: 'voice',
+      title: 'Voice / persona',
+      summary: workflow.voice,
+      status: 'draft',
+      x: 50,
+      y: 17,
+      meta: ['persona', 'voice', 'consent'],
+    },
+    {
+      id: 'project-assets',
+      kind: 'assets',
+      title: 'Source assets',
+      summary: `${workflow.projectAssets.items.length} assets and ${workflow.projectAssets.imports.length} import receipts`,
+      status: workflow.projectAssets.imports.some((job) => job.status === 'blocked') ? 'needs-review' : 'ready',
+      x: 48,
+      y: 31,
+      meta: [
+        'uploads',
+        'cover art',
+        workflow.voicePersonas.activePersonaId ? `persona ${workflow.voicePersonas.activePersonaId}` : 'persona',
+      ],
+    },
+    {
+      id: 'local-library',
+      kind: 'library',
+      title: 'Local library',
+      summary: `${workflow.localLibrary.items.length} local saves; provider library API ${workflow.localLibrary.providerLibraryStatus}`,
+      status: workflow.localLibrary.items.length > 0 ? 'ready' : 'draft',
+      x: 12,
+      y: 62,
+      meta: ['local project state', `provider library ${workflow.localLibrary.providerLibraryStatus}`, 'taste memory'],
+    },
+    {
+      id: 'downloads',
+      kind: 'downloads',
+      title: 'Downloads / exports',
+      summary: `${workflow.exports.tasks.length} provider tasks and ${workflow.exports.downloads.length} download assets`,
+      status: workflow.exports.tasks.some((task) => task.status === 'failed' || task.status === 'blocked')
+        ? 'needs-review'
+        : workflow.exports.downloads.some((download) => download.status === 'ready')
+          ? 'ready'
+          : 'draft',
+      x: 30,
+      y: 62,
+      meta: [
+        'polls',
+        'callbacks',
+        `${workflow.exports.callbacks.length} callback receipts`,
+      ],
+    },
+  ]
+
+  if (workflow.generationBatch) {
+    nodes.push({
+      id: 'batch',
+      kind: 'batch',
+      title: 'Generation batch',
+      summary: `${workflow.generationBatch.tracks.length} provider variants from ${workflow.generationBatch.providerJobId}`,
+      status: workflow.selectedTrack ? 'locked' : 'needs-review',
+      x: 49,
+      y: 45,
+      meta: ['provider create', 'version candidates', workflow.generationBatch.providerJobId],
+    })
+
+    nodes.push({
+      id: 'version-comparison',
+      kind: 'compare',
+      title: 'Version comparison',
+      summary: `${Object.keys(workflow.taste.ratings).length} ratings and ${workflow.taste.comparisons.length} comparison receipts`,
+      status: workflow.taste.comparisons.length > 0 ? 'ready' : 'needs-review',
+      x: 39,
+      y: 68,
+      meta: ['A/B compare', 'taste score', 'version lineage'],
+    })
+
+    workflow.generationBatch.tracks.forEach((track, index) => {
+      nodes.push(toGeneratedTrackNode(track, index, workflow.selectedTrack?.id === track.id))
+    })
+  }
+
+  if (workflow.selectedTrack) {
+    const selectedIntelligence = workflow.audioIntelligence.tracks[workflow.selectedTrack.id]
+    nodes.push(
+      {
+        id: 'track',
+        kind: 'track',
+        title: 'Chosen track',
+        summary: `${workflow.selectedTrack.title} selected as audio source of truth (${workflow.selectedTrack.id})`,
+        status: 'locked',
+        x: 70,
+        y: 24,
+        meta: ['audio source of truth', workflow.selectedTrack.id, 'version lineage'],
+      },
+      {
+        id: 'audio-intelligence',
+        kind: 'intelligence',
+        title: 'Audio Intelligence',
+        summary: selectedIntelligence
+          ? `Peak ${selectedIntelligence.waveform.peakAmplitude}, rms ${selectedIntelligence.waveform.rmsAmplitude}, ${selectedIntelligence.waveform.transientPeaks.length} transients.`
+          : 'Waveform, silence, transient and section-energy analysis for the selected source.',
+        status: selectedIntelligence ? 'ready' : 'needs-review',
+        x: 72,
+        y: 39,
+        meta: selectedIntelligence
+          ? [
+              `fit ${selectedIntelligence.fit.score}/5`,
+              `${selectedIntelligence.waveform.transientPeaks.length} transients`,
+              selectedIntelligence.waveform.qualityFlags.join(', '),
+            ]
+          : ['waveform analysis', 'transient detection', 'section energy'],
+      },
+      {
+        id: 'song-lab',
+        kind: 'songlab',
+        title: 'Song Lab',
+        summary: workflow.songLab
+          ? `${workflow.songLab.sections.length} sections, ${workflow.songLab.stems.length} stems, ${workflow.songLab.editActions.length} edit actions`
+          : 'Timeline, sections, stems, region locks, and edit actions derive from the selected track.',
+        status: workflow.songLab ? 'ready' : 'draft',
+        x: 69,
+        y: 53,
+        meta: ['sections', 'stems', 'replace section', 'arrangement locks'],
+      },
+      {
+        id: 'track-genealogy',
+        kind: 'genealogy',
+        title: 'Track Genealogy',
+        summary: 'Family tree of prompts, references, generated versions, mutations, fit, and pruned branches.',
+        status: workflow.taste.comparisons.length > 0 || workflow.archiveEntries.length > 0 ? 'ready' : 'needs-review',
+        x: 84,
+        y: 18,
+        meta: ['family tree', 'mutation diff', 'branch fit', 'breeding suggestions'],
+      },
+      {
+        id: 'video',
+        kind: 'video',
+        title: 'Music video lane',
+        summary: workflow.musicVideoLane
+          ? `Storyboard and lipsync QA opened from ${workflow.musicVideoLane.sourceTrackId}; video export ${workflow.musicVideoLane.exportStatus}`
+          : 'Storyboard and ComfyUI render plan opens only from the selected song.',
+        status: workflow.musicVideoLane?.exportStatus === 'ready' ? 'ready' : workflow.musicVideoLane ? 'needs-review' : 'draft',
+        x: 88,
+        y: 35,
+        meta: [
+          'perfect lipsync gate',
+          'scene cards',
+          'audio preserved',
+          workflow.musicVideoLane?.exportStatus === 'ready' ? 'video export ready' : 'video export blocked',
+        ],
+      },
+    )
+  }
+
+  if (workflow.jobQueue.length > 0) {
+    nodes.push({
+      id: 'job-queue',
+      kind: 'queue',
+      title: 'Job queue',
+      summary: `${workflow.jobQueue.length} provider action result${workflow.jobQueue.length === 1 ? '' : 's'} captured`,
+      status: workflow.jobQueue.some((job) => job.status === 'blocked' || job.status === 'unsupported')
+        ? 'needs-review'
+        : 'ready',
+      x: releasePack ? 74 : 88,
+      y: releasePack ? 70 : 68,
+      meta: workflow.jobQueue.slice(-3).map((job) => `${job.capability} ${job.status}`),
+    })
+  }
+
+  if (releasePack) {
+    nodes.push({
+      id: 'export',
+      kind: 'export',
+      title: 'Release pack',
+      summary: `${releasePack.includesVideo ? 'Audio, video' : 'Audio'}, metadata, prompts, and provenance bundle for ${releasePack.trackId}.`,
+      status: 'exported',
+      x: 88,
+      y: 68,
+      meta: ['download', 'share', 'archive', 'provenance'],
+    })
+  }
+
+  return nodes
+}
+
+function toGeneratedTrackNode(track: GeneratedTrack, index: number, isSelected: boolean): WorkflowNode {
+  return {
+    id: `generated-${track.id}`,
+    kind: 'generated',
+    title: track.title,
+    summary: `Generated track ${track.id}, ${track.durationSeconds}s`,
+    status: isSelected ? 'locked' : 'needs-review',
+    x: 58 + index * 9,
+    y: 58 + index * 3,
+    meta: ['candidate take', track.id, `${track.durationSeconds}s`],
+    trackId: track.id,
+  }
+}
+
+function nextActionForWorkflow(
+  workflow: providerWorkflow,
+  releasePack: ReleasePack | null,
+  videoExportReady: boolean,
+): PrimaryAction {
+  if (!workflow.generationBatch) {
+    return {
+      id: 'generate',
+      label: 'Generate batch',
+      detail: 'Start with a real batch so every downstream surface has a source song.',
+    }
+  }
+
+  if (!workflow.selectedTrack) {
+    return {
+      id: 'choose-track',
+      label: 'Choose source track',
+      detail: 'Pick one generated version. Song Lab, exports, and MV stay locked until this exists.',
+    }
+  }
+
+  if (!workflow.audioIntelligence.tracks[workflow.selectedTrack.id]) {
+    return {
+      id: 'analyze-audio',
+      label: 'Analyze waveform',
+      detail: 'Measure waveform, transients, silence, section energy, and fit before editing downstream.',
+    }
+  }
+
+  if (!readyAudioDownloadForSelectedTrack(workflow)) {
+    return {
+      id: 'retrieve-audio',
+      label: 'Retrieve provider audio',
+      detail: 'Poll the provider job until the selected generated take has a real audio asset for listening QA.',
+    }
+  }
+
+  if (!workflow.listeningQa?.approvals?.[workflow.selectedTrack.id]) {
+    return {
+      id: 'listening-qa',
+      label: 'Approve listened audio',
+      detail: 'Confirm the retrieved provider audio was actually playable/listened before Song Lab edits.',
+    }
+  }
+
+  if (!workflow.songLab) {
+    return {
+      id: 'song-lab',
+      label: 'Open Song Lab',
+      detail: 'Inspect sections, stems, locks, and edit actions for the selected source.',
+    }
+  }
+
+  if (!workflow.musicVideoLane) {
+    return {
+      id: 'video',
+      label: 'Open optional MV lane',
+      detail: 'Storyboard and lipsync remain a child workflow of the selected song.',
+    }
+  }
+
+  if (!videoExportReady) {
+    return {
+      id: 'lipsync',
+      label: 'Run lipsync QA',
+      detail: 'Video export stays blocked until evaluator evidence clears every sync check.',
+    }
+  }
+
+  if (!releasePack) {
+    return {
+      id: 'release',
+      label: 'Create release pack',
+      detail: 'Bundle audio, video, metadata, prompts, and provenance after gates pass.',
+    }
+  }
+
+  return {
+    id: 'done',
+    label: 'Inspect release pack',
+    detail: 'Release pack is ready; review contents, provenance, and archive cleanup receipts.',
+  }
+}
+
+function readyAudioDownloadForSelectedTrack(workflow: providerWorkflow): boolean {
+  const selectedTrackId = workflow.selectedTrack?.id
+  const providerJobId = workflow.generationBatch?.providerJobId
+  if (!selectedTrackId || !providerJobId) {
+    return false
+  }
+
+  return workflow.exports.downloads.some((download) => {
+    if (download.kind !== 'audio' || download.status !== 'ready' || !isProviderFetchableUrl(download.url)) {
+      return false
+    }
+    return download.sourceTrackId === selectedTrackId || download.providerTaskId === providerJobId
+  })
+}
+
+function discardedGeneratedTracks(workflow: providerWorkflow): GeneratedTrack[] {
+  if (!workflow.generationBatch || !workflow.selectedTrack) {
+    return []
+  }
+
+  return workflow.generationBatch.tracks.filter((track) => track.id !== workflow.selectedTrack?.id)
+}
